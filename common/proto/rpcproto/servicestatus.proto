@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package rpc;
+option go_package = ".;rpc";
+
+// GameService->CenterService同步负载情况
+message GameServiceBalance {
+    string NodeId        = 1;
+    string GSName     = 2;
+    int32 Weigh         = 3;
+}
+
+// GameService->CenterService刷新所有玩家的列表
+message UpdatePlayerList {
+    string           NodeId          = 1;
+    repeated string UList           = 2;
+    string           GSName       = 3;
+}
+
+// GateService->HttpGateService同步负载
+message GateBalance {
+    string NodeId = 1;
+    int32 Weigh  = 2;
+}
+
+// GateService链接信息
+message GateServiceConnect {
+    int32 ConnectNum = 1;  //链接数量
+    int32 ClientNum  = 2;  //客户端链接数
+    string Error     = 3;
+}
+
+// GameService玩家数量信息
+message GameServicePlayerCount {
+    int32 PlayerObjNum     = 1;  //玩家对象数量
+    int32 PlayerConnectNum = 2;  //玩家链接上的数量
+}
+
+
+
+
+
+message CenterServerBalanceInfo {
+    string NodeId        = 1;
+    string GSName     = 2;
+    int32 Weight        = 3;
+    uint64 SelectNum     = 4;
+}
+
+message MsgCenterServerBalance {
+    repeated CenterServerBalanceInfo CenterBalanceList = 1;
+}
+
+message MsgAllServerNode {
+    repeated string NodeIdList        = 1;
+}
+
+message SaveAreaInfo {
+    string PlatId = 1;
+}
+
+message AreaInfo {
+    int32 AreaId = 1;
+    string CenterNodeId = 2;
+}
+
+message GameInfo {
+    string   NodeId              = 1;
+    string  GameServiceName     = 2;
+}
+
+message GetGameNodePlayerInfo {
+    //以下保留字段
+    string NodeId       = 1;
+    string ServiceName = 2;
+
+    //使用字段
+    string Error    = 3;
+    int32 ConnNum   = 4;
+    int32 PlayerNum = 5;
+}
+
+//获取节点连接信息
+message GameNodePlayerInfo {
+    repeated GameInfo GameServiceInfo   = 1;
+}
+
+message GameNodePlayerInfoResult {
+    repeated GetGameNodePlayerInfo ResultList   = 1;
+}
+
+//获取网关连接信息
+message GetGateServiceInfo {
+    repeated string GateList         = 1;
+}
+
+message GetGateServiceInfoResult {
+    repeated GateServiceConnect GateResultList    = 1;
+}
+
+
+message CallRet {
+    bytes Ret = 1;
+    string Error = 2;
+}
+
+//NodeId下面所有的服务
+message ServiceNameInfo  {
+    map<string,CallRet> MapServiceNameInfo = 1;
+}
+
+message CallAreaServiceReq {
+    repeated CallAreaServiceInfo AreaServiceInfo = 1;
+}
+
+message CallAreaServiceInfo {
+  string NodeId          = 1;
+  string ServiceName    = 2;
+  string MethodName     = 3;
+  bytes InParam         = 4;
+}
+
+
+message CallAreaServiceRes {
+   map<string,ServiceNameInfo> MapServiceInfo =1;
+}
+
+message PlayerMaxStatus {
+    bool RegisterIsFull = 1;    //注册是否已经达到上限
+    bool OnlineIsFull   = 2;    //在线人数是否已经达到上限
+}

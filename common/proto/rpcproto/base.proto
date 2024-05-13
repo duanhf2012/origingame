@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option go_package = ".;rpc";
+
+message Int {
+    int32 value = 1;
+}
+
+message Int64 {
+    int64 value = 1;
+}
+
+message UInt64 {
+    uint64 value = 1;
+}
+
+message Bool {
+    bool value = 1;
+}
+
+message String {
+    string value = 1;
+}
+
+message Bytes {
+    bytes value = 1;
+}
+
+message BytesList {
+    repeated Bytes valueList = 1;
+}
+
+message PlaceHolders {
+}
+
+message UInt64List {
+    repeated uint64 valueList = 1;
+}
+
+message Int32List {
+    repeated int32 valueList = 1;
+}
+
+message RawInputArgs{
+	uint32 MsgType = 1;
+	repeated string clientIdList = 2;
+	bytes RawData  = 3;
+}

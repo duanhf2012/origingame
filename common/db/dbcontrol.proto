@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+
+package db;
+option go_package=".;db";
+
+//如果包含Insert+Update，如果存在由更新
+enum OptType {
+    None                = 0;
+    Find                = 1;
+    Insert              = 2;
+    Update              = 4;
+    DelOne              = 8;
+    Upset               = 16;
+    FindOneAndUpdate    = 32;
+    Count               = 64;
+	//InsertLog           = 128; //插入日志(日志插入专用)
+	DelMany             = 256;   //删除
+	UpdateMany          = 512;  //批量更新
+	FindManyKey         = 1024; //通过多个key查找
+   UpdateFieldOpt     = 2048; //修改单个字段，支持修改缓存
+   Redis_SetKey       = 4096;//redis Set命令
+   Redis_GetKey       = 8192;//redis Get命令
+   Redis_DelKey       = 16384; //
+}
+
+message Sort{
+  string SortField  = 1;
+  bool Asc  = 2;
+}
+
+message Placeholder{
+}
+
+message FindManyKeyOption {
+    string ConditionField  = 1; //条件字段名，目前只支持单个字段
+    repeated string key = 2;     //多key
+    map<string,Placeholder> SelectField = 3;//选择的字段名称，注意如果字段名找不到，则不会报错，数据默认为空
+}
+
+message RedisKeyValue{
+	string      reidsKey     = 1;
+	bytes       data         = 2;
+}
+
+message DBControllerRedisReq {
+ OptType     type        = 1;
+ uint64      modKey       = 2;
+ 
+ repeated RedisKeyValue keyValue = 3;
+}
+
+message DBControllerRedisRes {
+  int32 Ret = 1;
+ repeated RedisKeyValue keyValue = 2;
+ 
+}
+
+message DBControllerReq {
+    OptType     type        = 1;
+    string      key         = 2;
+    string      collectName = 3;
+
+    bytes condition         = 4;
+    bytes selectField       = 5;
+    int32 maxRow            = 6;
+    repeated Sort sort      = 7;
+    repeated bytes data     = 8;//如果是OptType_FindOneAndUpdate，则data参数更新数据 rawData为完整插入数据
+    repeated bytes rawData  = 9;
+    int32 timeoutMs         = 10;
+	int32 additionalData    = 11;
+	bool  Upsert            = 12; //是否插入
+	string cacheId          = 13; //cacheId
+	int32 version           = 14;
+	bool  Ordered           = 15; //是否有序, 插入
+	int32 Skip              = 16; //跳过
+	
+	FindManyKeyOption ManyKeyCondition = 17;
+	bool QueryDocumentCount = 18; //是否查询文档总数量
+	bool NotUseCache        = 19; //不使用cache
+}
+
+message FindManyKeyData {
+    string Key = 1;   //查找回来的key
+    repeated bytes data = 2; //数据
+}
+
+message DBControllerRet {
+  OptType type = 1;
+  repeated bytes res = 2;
+  int32 MatchedCount = 3;
+  int32 ModifiedCount = 4;
+  int32 UpsertedCount = 5;
+  int32 DeletedCount  = 6;
+  repeated FindManyKeyData ManyKeyData = 7;//返回的许多key的数据
+  int64 DocumentCount = 8; //文档总数量
+}
+
+

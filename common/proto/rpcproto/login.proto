@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+
+package rpc;
+option go_package = ".;rpc";
+
+enum LoginStatus {
+    Logining    = 0;
+    Logined     = 1;
+    LoginOuting = 2;
+    LoginOuted  = 3;
+}
+
+enum LoginType {
+    Gust          = 0;
+    Account       = 1;
+    TapTap        = 2;
+    Facebook      = 3;
+    Google        = 4;
+    Fusion        = 5; //动游聚合
+
+    LoginType_Max = 6;
+}
+
+
+message LoginInfo {
+    LoginType PlatType      = 1;
+    string PlatId           = 2;
+    string AccessToken      = 3;
+    string GameId           = 4;
+    string ActiveCode       = 5;
+    string UserName         = 6;
+    int64  LoginCheckTime   = 7;
+	string Sign				= 8;    //登录签名
+	int32 ChanneCode        = 9;	//渠道
+    string ChannePlat       = 10;	//渠道码(平台id)
+}
+
+//数据库返回结果
+message LoginResult {
+    LoginType PlatType = 1;
+    string PlatId      = 2;
+    string AccessToken = 3;
+    int32 Ret          = 4;
+}
+
+//选服请求
+message ChoseServerReq {
+    string UserId = 1;
+}
+
+//选服返回结果
+message ChoseServerRet {
+    string Token = 1;
+    int32 Ret    = 2;
+}
+
+//登陆网关Token验证请求
+message LoginGateCheckReq {
+    string UserId = 1;
+	string ClientIp = 2;        // Ip
+	string ChannePlat = 3;		//渠道码(平台id)
+	string ChannelUUID = 4;		//玩家渠道openid或UUID 
+	int32 ShowAreaId  = 5;     // 玩家登录的显示区服
+}
+
+//登陆网关Token验证结果返回
+message LoginGateCheckRet {
+    string NodeId    = 1;  // GameService nodeId
+    string GSName = 2;
+	int32 Ret = 3;
+}
+
+//请求登陆到GameService
+message LoginToGameServiceReq {
+    string GateNodeId    = 1;
+    string ClientId     = 2;
+    string UserId       = 3;
+    string SessionId    = 4;
+    string Ip           = 5;
+    string Os           = 6;
+}
+
+// GameService返回登陆结果
+message LoginToGameServiceRet {
+    int32 Ret    = 1;  // 0表示成功 1 登陆会话不存在，重新走登陆流程  2登陆Token错误
+    string NodeId = 2;  // GameService nodeId
+    string SessionId = 3;
+}
+
+// GameService->CenterService同步玩家状态
+message UpdatePlayerStatus {
+    string NodeId       = 1;
+    string GSName    = 2;
+    string UserId      = 3;
+    LoginStatus Status = 4;
+}
+
+
+message GsLoginResult {
+    string ClientId = 1;
+    string SessionId  = 2;
+    string UserId = 3;
+}

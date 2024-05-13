@@ -1,0 +1,13 @@
+{
+  "NodeList": [
+    {
+      "NodeId": "gate1",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:11000",
+	  "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["GateService"],
+      "DiscoveryService": []
+    }
+  ]
+}

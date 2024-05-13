@@ -1,0 +1,27 @@
+syntax = "proto3";
+import "msgproto/errcode.proto";
+
+package msg;
+option go_package                           = ".;msg";
+
+// MsgLoginReq 1001
+message MsgLoginReq {
+    string UserId = 1;
+    string Token  = 2;
+    int32 ShowAreaId  = 3;
+    string SessionId = 4;
+    string DistinctId = 5;
+    string Os = 6;
+	int32 ChanneCode = 7;		//渠道
+	string ChannePlat = 8;		//渠道码(平台id)
+	string ChannelUUID = 9;		//玩家渠道openid或UUID
+}
+
+// MsgLoginRes 1002
+message MsgLoginRes {
+    ErrCode Ret = 1;  // 0 成功
+    string SessionId = 2;
+    string UserId = 3;
+    int64 ServerTime = 4;
+}
+

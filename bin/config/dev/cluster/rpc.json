@@ -1,0 +1,10 @@
+{
+	"RpcMode":{
+		"Type": "Default",
+		"remark": "support Default or Nats",
+		"Nats": {
+			"NatsUrl":"127.0.0.1:4222,127.0.0.1:4223,127.0.0.1:4224",
+			"NoRandomize": false
+		}
+	}
+}

@@ -1,0 +1,24 @@
+{
+  "Global": {
+  },
+  "Service": {
+  },
+  "NodeService": [
+    {
+      "NodeId": "gate1",
+      "GateService": {
+        "TcpCfg": {
+          "ListenAddr":":9000",
+          "MaxConnNum":10000,
+          "PendingWriteNum":10000,
+          "LittleEndian": false,
+          "LenMsgLen": 4,
+          "MinMsgLen": 2,
+          "MaxMsgLen": 10240000,
+          "ReadDeadlineSecond": 15,
+          "WriteDeadlineSecond": 15
+        }
+      }
+    }]
+
+}

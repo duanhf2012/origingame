@@ -1,0 +1,24 @@
+{
+  "Discovery": {
+    "Etcd_": {
+      "TTLSecond": 10,
+      "DialTimeoutMillisecond": 3000,
+      "EtcdList": [
+        {
+          "NetworkName": ["network1"],
+          "Endpoints": ["http://127.0.0.1:12379"]
+        }
+      ]
+    },
+    "Origin":{
+      "TTLSecond": 10,
+      "MasterNodeList": [
+        {
+          "NodeId": "1003",
+          "ListenAddr": "127.0.0.1:11003"
+        }
+      ]
+    }
+
+  }
+}

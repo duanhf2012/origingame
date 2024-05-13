@@ -1,0 +1,16 @@
+syntax = "proto3";
+package msg;
+option go_package = ".;msg";
+
+enum MsgType //枚举消息类型
+{
+        //客户端请求响应消息
+        Null       = 0;
+        LoginReq = 1000;
+        LoginRes = 1001;
+
+        //主动推送的消息
+        NotifyLogout = 5000;
+}
+
+
