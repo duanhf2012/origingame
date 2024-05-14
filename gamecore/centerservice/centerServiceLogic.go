@@ -10,7 +10,7 @@ import (
 
 func (cs *CenterService) loadShowAreaInfoFromDB() {
 	var req db.DBControllerReq
-	err := db.MakeFind(collect.ShowAreaInfoDBName, bson.D{{Key: "rId", Value: cs.AreaId}}, 0, 30, nil, &req)
+	err := db.MakeFind(collect.ShowAreaInfoDBName, bson.D{{Key: "rId", Value: cs.AreaId}}, "", 30, nil, &req)
 	if err != nil {
 		log.SError("loadShowAreaInfoFromDB DB Req create err: ", err.Error())
 		return
@@ -50,7 +50,7 @@ func (cs *CenterService) loadShowAreaInfoFromDB() {
 func (cs *CenterService) loadAreaInfoFromDB(needTryAgain bool) {
 	var coll collect.CRealAreaInfo
 	var req db.DBControllerReq
-	db.MakeFind(coll.GetCollName(), bson.D{{Key: "_id", Value: cs.AreaId}}, 0, 1, nil, &req) //OptType_FindOneAndUpdate 必须构造一个insert数据 个人感觉不大好
+	db.MakeFind(coll.GetCollName(), bson.D{{Key: "_id", Value: cs.AreaId}}, "", 1, nil, &req) //OptType_FindOneAndUpdate 必须构造一个insert数据 个人感觉不大好
 
 	errCall := cs.AsyncCall(util.AccDBRequest, &req, func(res *db.DBControllerRet, err error) {
 		//处理

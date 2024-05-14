@@ -7,10 +7,9 @@ import (
 	"github.com/duanhf2012/origin/v2/rpc"
 	"origingame/common/collect"
 	"origingame/common/db"
-	global "origingame/common/keyword"
+	"origingame/common/proto/msg"
 	"origingame/common/util"
 	"origingame/gamecore/interfacedef"
-	"time"
 
 	"github.com/duanhf2012/origin/log"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,9 +17,9 @@ import (
 
 // 玩家存档数据
 type PlayerDB struct {
-	rpc.IRpcHandler
+	rpcHandler rpc.IRpcHandler
 
-	unionKey string //每次创建对象时生成的的唯一key
+	rpcSessionKey string //每次创建对象时生成的的唯一key
 
 	Id              string //唯一标识，即UserId
 	clientId        string
@@ -40,8 +39,8 @@ type PlayerDB struct {
 
 func (playerDB *PlayerDB) OnInit(playerDBCallBack interfacedef.IPlayerDBCallBack, rpcHandler rpc.IRpcHandler) {
 	//以下加入注册新表
-	playerDB.unionKey = util.NewUnionId()
-	playerDB.IRpcHandler = rpcHandler
+	playerDB.rpcSessionKey = util.NewUnionId()
+	playerDB.rpcHandler = rpcHandler
 	playerDB.playerDBCallBack = playerDBCallBack
 	playerDB.loadProgress = 0
 	playerDB.errProgress = 0
@@ -60,11 +59,7 @@ func (playerDB *PlayerDB) RegCollection(coll collect.ICollection, loadBack colle
 	}
 
 	playerDB.collection[coll.GetCollectionType()] = coll
-
-	// 非内存构造数据，非延时加载数据，需要影响登录加载计数
-	if coll.IsNeedWaitLoad() && !coll.IsBuildInMemory() {
-		playerDB.totalProgress++
-	}
+	playerDB.totalProgress++
 }
 
 func (playerDB *PlayerDB) RegMultiCollection(coll collect.IMultiCollection) {
@@ -79,20 +74,13 @@ func (playerDB *PlayerDB) RegMultiCollection(coll collect.IMultiCollection) {
 	multiRowData.MapCollection = make(map[interface{}]*list.Element, coll.GetMaxRowLimit())
 
 	playerDB.multiCollection[collType] = multiRowData
-
-	if coll.IsNeedWaitLoad() {
-		playerDB.totalProgress++
-	}
+	playerDB.totalProgress++
 }
 
 func (playerDB *PlayerDB) LoadFromDB() {
 	//1.Load单行表
 	for i := collect.CollectionType(0); i < collect.CTMax; i++ {
 		if playerDB.collection[i] == nil {
-			continue
-		}
-
-		if playerDB.collection[i].IsBuildInMemory() {
 			continue
 		}
 
@@ -128,18 +116,10 @@ func (playerDB *PlayerDB) SaveToDBNotCheckNickName(bForce bool) {
 		if coll == nil || (bForce == false && coll.IsDirty() == false) {
 			continue
 		}
+
 		//聊天信息数据
-		if coll.IsNeedWaitLoad() {
-			// 延时加载的，可能并没有加载成功，只有成功加载了，才保存
-			if coll.GetId() == playerDB.CUserInfo.GetId() {
-				if playerDB.upsetCollection(coll) {
-					coll.ClearDirty()
-				}
-			}
-		} else {
-			if playerDB.upsetCollection(coll) {
-				coll.ClearDirty()
-			}
+		if playerDB.upsetCollection(coll) {
+			coll.ClearDirty()
 		}
 	}
 }
@@ -246,26 +226,12 @@ func (playerDB *PlayerDB) IsLoadFinish() bool {
 	return playerDB.loadProgress >= playerDB.totalProgress && playerDB.errProgress == 0
 }
 
-func (playerDB *PlayerDB) ListenLoadFinish(logicProxy interfacedef.ILogicProxy) {
-	if playerDB.proxyNum >= len(playerDB.logicProxyArray) {
-		log.SError("Exceeded maximum number of proxy")
-		return
-	}
-
-	playerDB.logicProxyArray[playerDB.proxyNum] = logicProxy
-	playerDB.proxyNum++
-}
-
 func (playerDB *PlayerDB) Clear() {
-	playerDB.Id = 0
+	playerDB.Id = ""
 	playerDB.totalProgress = 0
 	playerDB.loadProgress = 0
 	playerDB.errProgress = 0
 	playerDB.proxyNum = 0
-
-	for i := 0; i < len(playerDB.logicProxyArray); i++ {
-		playerDB.logicProxyArray[i] = nil
-	}
 
 	for i := collect.MultiCollectionType(0); i < collect.MCTMax; i++ {
 		playerDB.getMultiCollection(i).Clean()
@@ -290,10 +256,6 @@ func (playerDB *PlayerDB) MarshalCollection(marshalData map[int32]*msg.Bytes) er
 			Value: nil,
 		}
 
-		if playerDB.collection[i].IsBuildInMemory() {
-			continue
-		}
-
 		marshalItem.Value, err = bson.Marshal(playerDB.collection[i])
 		if err != nil {
 			return err
@@ -307,10 +269,6 @@ func (playerDB *PlayerDB) MarshalCollection(marshalData map[int32]*msg.Bytes) er
 func (playerDB *PlayerDB) UnmarshalCollection(pbData map[int32]*msg.Bytes) error {
 	for i := collect.CTUserInfo; i < collect.CTMax; i++ {
 		if playerDB.collection[i] == nil {
-			continue
-		}
-
-		if playerDB.collection[i].IsBuildInMemory() {
 			continue
 		}
 
@@ -382,13 +340,6 @@ func (playerDB *PlayerDB) UnmarshalMultiCollection(pbData map[int32]*msg.BytesLi
 	return nil
 }
 
-func (playerDB *PlayerDB) GetPlayerAppearanceData(name *string, appearanceList *[]byte, roleId *int32) {
-	userInfo := playerDB.collection[collect.CTUserInfo].(*collect.CUserInfo)
-	*name = userInfo.NickName
-	*roleId = userInfo.RoleId
-	*appearanceList = append(*appearanceList, userInfo.AppearanceData...)
-}
-
 func (playerDB *PlayerDB) getMultiCollection(collType collect.MultiCollectionType) *collect.MultiRowData {
 	return &playerDB.multiCollection[collType]
 }
@@ -421,12 +372,6 @@ func (playerDB *PlayerDB) dbMultiLoadCallBack(collType collect.MultiCollectionTy
 		return
 	}
 
-	if !multiCollection.Template.IsNeedWaitLoad() {
-		//  如果不是必须加载完成才让登录，就走它的处理流程
-		playerDB.dbMultiLoadCallBackNotNeedWaitLoad(multiCollection, res, err)
-		return
-	}
-
 	if err != nil {
 		log.SError("load userid ", playerDB.Id, " db multi collType ", collType, " is error!")
 		playerDB.errProgress++
@@ -449,81 +394,6 @@ func (playerDB *PlayerDB) dbMultiLoadCallBack(collType collect.MultiCollectionTy
 	}
 }
 
-// 非等待加载数据的处理
-func (playerDB *PlayerDB) dbLoadCallBackNotNeedWaitLoad(collection collect.ICollection, res *db.DBControllerRet, err error) {
-	collType := collection.GetCollectionType()
-
-	if err != nil {
-		log.SError("load userid ", playerDB.Id, " db multi collType ", collType, " is error!, error:", err.Error())
-		playerDB.retryLoad(collType)
-		return
-	}
-
-	if len(res.Res) > 0 {
-		//加载单行数据
-		err := bson.Unmarshal(res.Res[0], playerDB.collection[collType])
-		if err != nil {
-			// 这个数据没救了，只能人工干预了
-			log.Stack("bson.Unmarshal fail ", err.Error(), ",userid ", playerDB.Id, " collType ", collType)
-			return
-		}
-	}
-
-	playerDB.collection[collType].OnLoadSucc(len(res.Res) == 0, playerDB.Id)
-}
-
-// 非等待加载数据重试重试
-func (playerDB *PlayerDB) retryLoad(collType collect.CollectionType) {
-	log.SError("player ", playerDB.Id, " delay load ", collType, " error, will retry load")
-	var loadTimer uint64
-	rpcKey := playerDB.GetRpcKey()
-	playerId := playerDB.Id
-	playerDB.SafeTimerAfter(&loadTimer, playerId, time.Second*time.Duration(util.RandBetweenInt32(10, 30)), nil, func(uint64, interface{}) {
-		if rpcKey != playerDB.GetRpcKey() {
-			log.Stack(fmt.Sprint("timer invalid player id is ", playerId, " collectType is ", collType))
-			return
-		}
-
-		playerDB.load(collType)
-	})
-}
-
-// 非等待加载多行数据的处理
-func (playerDB *PlayerDB) dbMultiLoadCallBackNotNeedWaitLoad(multiCollection *collect.MultiRowData, res *db.DBControllerRet, err error) {
-	collType := multiCollection.Template.GetCollectionType()
-
-	if err != nil {
-		log.SError("load userid ", playerDB.Id, " db multi collType ", collType, " is error!, error:", err.Error())
-		playerDB.retryLoadMultiLoad(collType)
-		return
-	}
-
-	err = multiCollection.LoadFromDB(res)
-	if err != nil {
-		log.SError("load multiCollection fail ", err.Error(), ",userid ", playerDB.Id, " collType ", collType)
-		playerDB.retryLoadMultiLoad(collType)
-		return
-	}
-
-	playerDB.onDelayLoadMCDBEnd(collType)
-}
-
-// 出错了，要尝试重新加载
-func (playerDB *PlayerDB) retryLoadMultiLoad(collType collect.MultiCollectionType) {
-	log.SError("player ", playerDB.Id, " delay load ", collType, " error, will retry load")
-	var loadTimer uint64
-	rpcKey := playerDB.GetRpcKey()
-	playerId := playerDB.Id
-	playerDB.SafeTimerAfter(&loadTimer, playerId, time.Second*time.Duration(util.RandBetweenInt32(10, 30)), nil, func(uint64, interface{}) {
-		if rpcKey != playerDB.GetRpcKey() {
-			log.Stack(fmt.Sprint("timer invalid player id is ", playerId, " collectType is ", collType))
-			return
-		}
-
-		playerDB.loadMulti(collType)
-	})
-}
-
 func (playerDB *PlayerDB) loadMulti(typ collect.MultiCollectionType) {
 	var coll collect.IMultiCollection
 	multiCollection := playerDB.getMultiCollection(typ)
@@ -543,14 +413,14 @@ func (playerDB *PlayerDB) loadMulti(typ collect.MultiCollectionType) {
 		log.SError("loadMulti MakeFind err ", err.Error())
 		return
 	}
-	nodeId := global.GetBestNodeId(global.AreaDBRequest, playerDB.Id)
-	if nodeId == 0 {
-		log.SError("Cannot find ", global.AreaDBRequest, " nodeId!")
+	nodeId := util.GetBestNodeIdById(util.AreaDBRequest, playerDB.Id)
+	if nodeId == "" {
+		log.SError("Cannot find ", util.AreaDBRequest, " nodeId!")
 		playerDB.dbMultiLoadCallBack(typ, nil, errors.New("Cannot find DBService.RPC_DBRequest nodeId!"))
 		return
 	}
 
-	err = saferpc.AsyncCallNode(playerDB, nodeId, global.AreaDBRequest, &req, func(res *db.DBControllerRet, err error) {
+	err = AsyncCallNode(playerDB, nodeId, util.AreaDBRequest, &req, func(res *db.DBControllerRet, err error) {
 		if err != nil {
 			log.SError("AsyncCall userid:", playerDB.Id, ",type:", typ, ",error :", err.Error())
 		}
@@ -569,7 +439,7 @@ func (playerDB *PlayerDB) load(typ collect.CollectionType) {
 	}
 
 	if coll == nil {
-		playerDB.onLoadDBEnd(false)
+		playerDB.playerDBCallBack.OnLoadDBEnd(false)
 		log.SError("load cannot find collection,load fail!")
 		return
 	}
@@ -581,13 +451,13 @@ func (playerDB *PlayerDB) load(typ collect.CollectionType) {
 		return
 	}
 
-	nodeId := global.GetBestNodeId(global.AreaDBRequest, playerDB.Id)
-	if nodeId == 0 {
-		log.SError("Cannot find ", global.AreaDBRequest, " nodeId!")
+	nodeId := util.GetBestNodeIdById(util.AreaDBRequest, playerDB.Id)
+	if nodeId == "" {
+		log.SError("Cannot find ", util.AreaDBRequest, " nodeId!")
 		return
 	}
 
-	err = saferpc.AsyncCallNode(playerDB, nodeId, global.AreaDBRequest, &req, func(res *db.DBControllerRet, err error) {
+	err = AsyncCallNode(playerDB, nodeId, util.AreaDBRequest, &req, func(res *db.DBControllerRet, err error) {
 		if err != nil {
 			log.SError("AsyncCall userid:", playerDB.Id, ",type:", typ, ",error :", err.Error())
 		}
@@ -600,12 +470,6 @@ func (playerDB *PlayerDB) load(typ collect.CollectionType) {
 }
 
 func (playerDB *PlayerDB) dbLoadCallBack(collType collect.CollectionType, res *db.DBControllerRet, err error) {
-	if !playerDB.collection[collType].IsNeedWaitLoad() {
-		//  如果不是必须加载完成才让登录，就走它的处理流程
-		playerDB.dbLoadCallBackNotNeedWaitLoad(playerDB.collection[collType], res, err)
-		return
-	}
-
 	if err != nil {
 		log.SError("load userid ", playerDB.Id, " db collType ", collType, " is error!")
 		playerDB.errProgress++
@@ -619,12 +483,6 @@ func (playerDB *PlayerDB) dbLoadCallBack(collType collect.CollectionType, res *d
 					playerDB.errProgress++
 				}
 			}
-			//playerDB.collection[collType].InitCallBack(playerDB.collectionCallBack[collType])
-			//errPre := playerDB.collection[collType].PreLoad()
-			//if errPre != nil {
-			//	log.Error("PreLoad fail %s,userid %d collType %d", errPre.Error(), playerDB.Id, collType)
-			//	playerDB.errProgress++
-			//}
 			playerDB.collection[collType].OnLoadSucc(len(res.Res) == 0, playerDB.Id)
 		}
 	}
@@ -632,9 +490,9 @@ func (playerDB *PlayerDB) dbLoadCallBack(collType collect.CollectionType, res *d
 
 	if playerDB.loadProgress >= playerDB.totalProgress {
 		if playerDB.errProgress > 0 {
-			playerDB.onLoadDBEnd(false)
+			playerDB.playerDBCallBack.OnLoadDBEnd(false)
 		} else {
-			playerDB.onLoadDBEnd(true)
+			playerDB.playerDBCallBack.OnLoadDBEnd(true)
 		}
 	}
 }
@@ -666,4 +524,21 @@ func (playerDB *PlayerDB) GetMultiCollectionDataMap(collectionType collect.Multi
 
 func (playerDB *PlayerDB) GetId() string {
 	return playerDB.Id
+}
+
+func (playerDB *PlayerDB) GoNode(nodeId string, serviceMethod string, args interface{}) error {
+	return playerDB.rpcHandler.GoNode(nodeId, serviceMethod, args)
+}
+
+func AsyncCallNode[RpcMsg any](playerDB *PlayerDB, nodeId string, serviceMethod string, args interface{}, callback func(ret *RpcMsg, err error)) error {
+	rpcKey := playerDB.rpcSessionKey
+	return playerDB.rpcHandler.AsyncCallNode(nodeId, serviceMethod, args, func(ret *RpcMsg, err error) {
+		nowRpcSessionKey := playerDB.rpcSessionKey
+		if rpcKey != nowRpcSessionKey {
+			log.Stack(fmt.Sprint("serviceMethod:", serviceMethod, " is fail rpc key:", rpcKey, " now rpc key:", nowRpcSessionKey))
+			return
+		}
+
+		callback(ret, err)
+	})
 }

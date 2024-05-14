@@ -143,7 +143,7 @@ func (mr *MsgRouter) loginToDB(cliId string, platId string, showAreaId int32, ms
 	req.CollectName = "UserInfo"
 	req.Type = db.OptType_FindOneAndUpdate
 	req.Condition, _ = bson.Marshal(bson.D{{"PlatId", platId}, {"ShowAreaId", showAreaId}})
-	req.Key = uint64(util.HashString2Number(platId))
+	req.Key = platId
 	newUserId := primitive.NewObjectID().Hex()
 	upsert := bson.M{"PlatId": platId, "_id": newUserId, "ShowAreaId": showAreaId, "NickName": fmt.Sprintf("%s-%d", platId, msgLoginReq.ShowAreaId)}
 	update := bson.M{"$setOnInsert": upsert}

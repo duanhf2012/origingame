@@ -4,6 +4,15 @@ import "msgproto/errcode.proto";
 package msg;
 option go_package                           = ".;msg";
 
+
+message Bytes {
+    bytes value = 1;
+}
+
+message BytesList {
+    repeated Bytes valueList = 1;
+}
+
 //通用返回-用于功能被关闭时返回,注:需要所有返回消息结构第1个参数是ErrCode
 message CommonRetData {
 	ErrCode Ret			= 1;  //非0失败

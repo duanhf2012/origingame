@@ -29,7 +29,7 @@ type StuffPos struct {
 
 type CUserInfo struct {
 	BaseCollection `bson:"-"`
-	UserId         uint64 `bson:"_id"`
+	UserId         string `bson:"_id"`
 	PlatId         string `bson:"PlatId"`
 	ShowAreaId     int32  `bson:"ShowAreaId"`
 	RegisterTime   int64  `bson:"RegisterTime"` //玩家注册时间
@@ -65,14 +65,14 @@ func (userInfo *CUserInfo) GetSelf() ICollection {
 	return userInfo
 }
 
-func (userInfo *CUserInfo) GetCacheId(cacheId uint64) uint64 {
+func (userInfo *CUserInfo) GetCacheId(cacheId string) string {
 	return cacheId
 }
 
-func (userInfo *CUserInfo) OnLoadSucc(notFound bool, userID uint64) {
+func (userInfo *CUserInfo) OnLoadSucc(notFound bool, userID string) {
 	if notFound == true {
 		userInfo.UserId = userID
-	} else if userInfo.UserId == 0 {
+	} else if userInfo.UserId == "" {
 		log.SError("CUserInfo OnLoadSucc err:notFound, userID[", userID, "]")
 	}
 
@@ -140,7 +140,7 @@ func (userInfo *CUserInfo) SetUserAttributeByType(attributeType global.Attribute
 	//最大数量理论值判断
 	if _, ok := userInfo.MapUserAttribute[attributeType]; !ok {
 		if int32(len(userInfo.MapUserAttribute)) >= (global.AttributeTypeSaveMaxLen) {
-			log.Stack("SetUserAttributeByType User Save Attribute Count more than global.AttributeTypeSaveMaxLen", log.Uint64("UserId", userInfo.UserId), log.Int32(" AttributeType:", attributeType), log.Int32("AttributeTypeSaveMaxLen", global.AttributeTypeSaveMaxLen))
+			log.Stack("SetUserAttributeByType User Save Attribute Count more than global.AttributeTypeSaveMaxLen", log.String("UserId", userInfo.UserId), log.Int32(" AttributeType:", attributeType), log.Int32("AttributeTypeSaveMaxLen", global.AttributeTypeSaveMaxLen))
 			return
 		}
 	}

@@ -340,9 +340,9 @@ func (dbService *DBService) DoUpSet(dbReq DBRequest) error {
 }
 
 // findCache 从缓存中查找数据指定数据并选择字段列
-func (dbService *DBService) findUpdateField(collectName string, cacheId uint64, fieldValue []byte, version int32) {
-	if cacheId == 0 || dbService.MaxCacheCap == 0 {
-		if cacheId == 0 {
+func (dbService *DBService) findUpdateField(collectName string, cacheId string, fieldValue []byte, version int32) {
+	if cacheId == "" || dbService.MaxCacheCap == 0 {
+		if cacheId == "" {
 			// 这里加一个防御性报错
 			mapCache, _ := dbService.GetMapCacheByCollectName(collectName, false)
 			if mapCache != nil {
@@ -591,7 +591,7 @@ func (dbService *DBService) update(dbReq DBRequest, upset bool) error {
 func (dbService *DBService) RemoveCache(dbReq DBRequest) {
 	mapCache, _ := dbService.GetMapCacheByCollectName(dbReq.request.CollectName, false)
 	if mapCache != nil {
-		if dbReq.request.CacheId > 0 {
+		if dbReq.request.CacheId != "" {
 			mapCache.RemoveCache(dbReq.request.CacheId)
 		} else {
 			log.Stack(fmt.Sprint(dbReq.request.CollectName, " has Cache But CacheId is 0"))
@@ -926,9 +926,6 @@ func (dbService *DBService) DoUpdateMany(dbReq DBRequest) error {
 	}
 
 	var UpdateOptionsOpts []*options.UpdateOptions
-	//if upset == true {
-	//	UpdateOptionsOpts = append(UpdateOptionsOpts, options.Update().SetUpsert(true))
-	//}
 
 	ctx, cancel := s.GetDefaultContext()
 	defer cancel()
@@ -985,10 +982,10 @@ func (dbService *DBService) UncompressBlock(src, dst []byte) (cnt int, err error
 	return
 }
 
-func (dbService *DBService) updateDBDataToCache(collectName string, cacheId uint64, data [][]byte, version int32) {
-	if cacheId == 0 || dbService.MaxCacheCap == 0 {
+func (dbService *DBService) updateDBDataToCache(collectName string, cacheId string, data [][]byte, version int32) {
+	if cacheId == "" || dbService.MaxCacheCap == 0 {
 		// 这里加一个防御性报错
-		if cacheId == 0 {
+		if cacheId == "" {
 			mapCache, _ := dbService.GetMapCacheByCollectName(collectName, false)
 			if mapCache != nil {
 				log.Stack(collectName + " has cache, but cacheId is 0")
@@ -1029,17 +1026,10 @@ func (dbService *DBService) updateDBDataToCache(collectName string, cacheId uint
 		} else {
 			dest[0] = 1 //有压缩
 			compressByte = append(compressByte, dest[:cnt+1])
-			/*
-				var bys [409600]byte
-				cnt, err = dbService.UncompressBlock(dest[1:cnt+1], bys[:])
-				if err != nil {
-					log.SError("UncompressBlock collectName ", collectName, " cacheId ", cacheId, " error:", err.Error(), " src len:", len(dest[1:cnt+1]))
-				}*/
 		}
 	}
 
 	mapCache.UpsertData(cacheId, compressByte, version)
-	//log.SDebug(">+++============Update-:", collectName, "  cacheId", cacheId)
 }
 
 func (dbService *DBService) updateCache(dbReq DBRequest) {
@@ -1496,8 +1486,8 @@ func (dbService *DBService) DoFindManyKey(dbReq DBRequest) error {
 
 	//6.获取结果集
 	//序列化结果
-	mapCacheData := make(map[uint64][][]byte, MaxKeyNum)
-	fullMapCacheData := make(map[uint64][][]byte, MaxKeyNum)
+	mapCacheData := make(map[string][][]byte, MaxKeyNum)
+	fullMapCacheData := make(map[string][][]byte, MaxKeyNum)
 	dbRet.Type = dbReq.request.Type
 	for i := 0; i < len(res); i++ {
 		//从文档中获取条件字段值
@@ -1508,12 +1498,7 @@ func (dbService *DBService) DoFindManyKey(dbReq DBRequest) error {
 			continue
 		}
 
-		errK, keyId := util.ConvertToNumber[uint64](val)
-		if errK != nil {
-			log.SError("field type is error ", dbReq.request.ManyKeyCondition.ConditionField)
-			continue
-		}
-
+		keyId := fmt.Sprintf("%s", val)
 		allByteRet, errRet := bson.Marshal(res[i])
 		if errRet != nil {
 			log.SError("Marshal ", dbReq.request.CollectName, " fail,key is ", keyId)
@@ -1774,8 +1759,8 @@ func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *d
 // RPC_DBRequest 对外提供的RPC方法，接收DB操作数据后，写入管道，交给执行协程执行
 func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.DBControllerReq) error {
 	index := uint64(0)
-	if request.GetKey() > 0 {
-		index = request.GetKey() % uint64(dbService.goroutineNum-1)
+	if request.GetKey() != "" {
+		index = uint64(util.HashString2Number(request.GetKey())) % uint64(dbService.goroutineNum-1)
 		index += 1
 	}
 

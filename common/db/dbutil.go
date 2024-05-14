@@ -12,7 +12,7 @@ import (
 // fieldValue有两种设置方式
 // 1. addCount := bson.M{"$inc": bson.M{"Count": 1}} 将字段+1
 // 2. upsertCount := bson.M{"$set": bson.M{"Count": 1}} 将字段设置为1
-func MakeCacheSetField(collName string, id uint64, key string, fieldValue bson.M, req *DBControllerReq) error {
+func MakeCacheSetField(collName string, id string, key string, fieldValue bson.M, req *DBControllerReq) error {
 	req.CollectName = collName
 	req.Type = OptType_UpdateFieldOpt
 	req.NotUseCache = false
@@ -34,11 +34,11 @@ func MakeCacheSetField(collName string, id uint64, key string, fieldValue bson.M
 	return nil
 }
 
-func MakeCacheUpsetId(collName string, id interface{}, data interface{}, key string, cacheId uint64, req *DBControllerReq) error {
+func MakeCacheUpsetId(collName string, id interface{}, data interface{}, key string, cacheId string, req *DBControllerReq) error {
 	return MakeCacheUpsetCondition(collName, bson.D{{Key: "_id", Value: id}}, data, key, cacheId, req)
 }
 
-func MakeCacheUpsetCondition(collName string, condition bson.D, data interface{}, key string, cacheId uint64, req *DBControllerReq) error {
+func MakeCacheUpsetCondition(collName string, condition bson.D, data interface{}, key string, cacheId string, req *DBControllerReq) error {
 	req.CollectName = collName
 	req.Type = OptType_Upset
 	req.Condition, _ = bson.Marshal(condition)
@@ -54,7 +54,7 @@ func MakeCacheUpsetCondition(collName string, condition bson.D, data interface{}
 }
 
 func MakeUpsetId(collName string, id interface{}, data interface{}, key string, req *DBControllerReq) error {
-	return MakeCacheUpsetId(collName, id, data, key, 0, req)
+	return MakeCacheUpsetId(collName, id, data, key, "", req)
 }
 
 func MakeUpsetWitchCondition(collName string, condition bson.D, data interface{}, key string, req *DBControllerReq) error {
@@ -103,12 +103,12 @@ func MakeRemoveWithCondition(collName string, condition bson.D, key string, req 
 func MakeFindWithSkipPage(collName string, condition bson.D, key string, pageSize int64, pageNum int64, sort []*Sort, req *DBControllerReq) error {
 	req.QueryDocumentCount = true
 	req.Skip = int32(pageSize * (pageNum - 1))
-	return MakeCacheFind(collName, condition, key, int32(pageSize), sort, 0, req)
+	return MakeCacheFind(collName, condition, key, int32(pageSize), sort, "", req)
 }
 
 // 这里虽然走的是MakeCacheFind流程，不过cacheId=0，就是不缓存
 func MakeFind(collName string, condition bson.D, key string, limit int32, sort []*Sort, req *DBControllerReq) error {
-	return MakeCacheFind(collName, condition, key, limit, sort, 0, req)
+	return MakeCacheFind(collName, condition, key, limit, sort, "", req)
 }
 
 func MakeFindConditionSelectField(collName string, condition bson.D, key string, selectField bson.D, limit int32, sort []*Sort, req *DBControllerReq) error {
@@ -140,7 +140,7 @@ func MakeCacheFindManyKey(collName string, conditionField string, key string, Id
 	return nil
 }
 
-func MakeCacheFind(collName string, condition bson.D, key string, limit int32, sort []*Sort, cacheId uint64, req *DBControllerReq) error {
+func MakeCacheFind(collName string, condition bson.D, key string, limit int32, sort []*Sort, cacheId string, req *DBControllerReq) error {
 	req.CollectName = collName
 	req.Type = OptType_Find
 	c, err := bson.Marshal(condition)
@@ -199,7 +199,7 @@ func MakeUpdateMany(collName string, condition bson.D, data bson.M, key string, 
 }
 
 // 删除多行
-func MakeDeleteMany(collName string, condition bson.D, key uint64, req *DBControllerReq) error {
+func MakeDeleteMany(collName string, condition bson.D, key string, req *DBControllerReq) error {
 	req.CollectName = collName
 	req.Type = OptType_DelMany
 	c, err := bson.Marshal(condition)

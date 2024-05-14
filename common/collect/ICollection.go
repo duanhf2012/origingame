@@ -22,9 +22,7 @@ type ICollection interface {
 	OnLoadSucc(notFound bool, userID string) //MongoDB数据加载成功后调用
 	GetCondition(value interface{}) bson.D   //获取编辑查询条件
 	GetSort() []*db.Sort                     //获取排序字段
-	GetCacheId(cacheId uint64) uint64
-	IsBuildInMemory() bool //表是从内存中构造的，不是从数据库载入的
-	IsNeedWaitLoad() bool  //如果是玩家数据，登录的时候不用等待数据返回
+	GetCacheId(cacheId string) string
 }
 
 type BaseCollection struct {
@@ -51,14 +49,6 @@ func (bc *BaseCollection) GetCacheId(cacheId uint64) uint64 {
 	return 0
 }
 
-func (bc *BaseCollection) IsBuildInMemory() bool {
-	return false
-}
-
-func (bc *BaseCollection) IsNeedWaitLoad() bool {
-	return true
-}
-
 // IMultiCollection MongoDB中多条数据时使用，如用户的mail数据
 type IMultiCollection interface {
 	Clean()                                  //清理所有数据
@@ -70,7 +60,6 @@ type IMultiCollection interface {
 	GetCondition(value interface{}) bson.D   //获取编辑查询条件
 	GetSort() []*db.Sort                     //获取排序字段
 	GetUpdateData() bson.M                   //获取更新数据
-	IsNeedWaitLoad() bool                    //如果是玩家数据，登录的时候不用等待数据返回
 	GetMaxRowLimit() int32                   //查询返回的最大行数
 }
 

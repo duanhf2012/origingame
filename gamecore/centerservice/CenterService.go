@@ -296,7 +296,7 @@ func (cs *CenterService) SyncAreaBalance(timer *timer.Ticker) {
 	//同步到数据库
 	var req db.DBControllerReq
 	data := bson.M{"registerCount": cs.NewCharacterNum + cs.DBCharacterNum}
-	err := db.MakeUpsetId("RealAreaInfo", cs.AreaId, data, uint64(cs.AreaId), &req)
+	err := db.MakeUpsetId("RealAreaInfo", cs.AreaId, data, fmt.Sprintf("%d", cs.AreaId), &req)
 	if err != nil {
 		log.SError("make upsetid fail ", err.Error())
 		return
@@ -567,7 +567,7 @@ func (cs *CenterService) RPC_SaveAreaInfo(ret *rpc.SaveAreaInfo, res *struct{}) 
 	field := fmt.Sprintf("AreaHis.%d", cs.AreaId)
 	data := bson.M{field: time.Now().Unix()}
 
-	err := db.MakeUpsetId(collect.AccountCollectName, ret.PlatId, data, uint64(util.HashString2Number(ret.PlatId)), &req)
+	err := db.MakeUpsetId(collect.AccountCollectName, ret.PlatId, data, ret.PlatId, &req)
 	if err != nil {
 		log.SError("make upsetid fail ", err.Error())
 		return nil
