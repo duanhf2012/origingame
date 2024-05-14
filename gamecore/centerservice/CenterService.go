@@ -83,27 +83,6 @@ func init() {
 }
 
 func (cs *CenterService) OnInit() error {
-
-	cs.OpenConcurrent(1, 1, 100)
-
-	cs.AfterFunc(5*time.Second, func(t *timer.Timer) {
-		for i := int64(1); i <= 1; i++ {
-			cs.AsyncDoByQueue(i%5, func() bool {
-				//fmt.Println("xxx")
-				//panic("sss")
-				//time.Sleep(1 * time.Second)
-				return false
-			}, func(err error) {
-				if err != nil {
-					fmt.Println("end..")
-				}
-
-			})
-
-		}
-
-	})
-
 	log.SInfo("release is ", env.IsRelease)
 
 	cs.mapUserInfo = make(map[string]UserInfo, 100000)

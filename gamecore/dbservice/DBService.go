@@ -32,10 +32,16 @@ import (
 const MaxKeyNum = 33
 
 func init() {
-	AccountDBService := &DBService{}
-	AccountDBService.SetName(util.AccountDBService)
+	node.SetupTemplate(func() service.IService {
+		return &DBService{}
+	})
 
-	node.Setup(AccountDBService, &DBService{})
+	/*
+		AccountDBService := &DBService{}
+		AccountDBService.SetName(util.AccountDBService)
+
+		node.Setup(AccountDBService, &DBService{})
+	*/
 }
 
 var emptyRes [][]byte
@@ -56,10 +62,6 @@ type DBService struct {
 	dbMaxCostTime int64
 	slowQueryTime int64
 
-	//导入昵称
-	importIntervalTime time.Duration //导入间隔时间
-	importNum          int
-
 	performanceAnalyzer *performance.PerformanceAnalyzer //性能分析器
 
 	MapCache     map[string]*util.FCMap
@@ -70,8 +72,6 @@ type DBService struct {
 	ExpirationTimeSecond int64 //最大缓存有效时间(秒)
 	CheckIntervalSecond  int64 //过期检查间隔(秒)
 	IntervalCheckNum     int   //检查检查最大缓存数
-
-	configRedis redismodule.ConfigRedis
 }
 
 // ReadCfg 读取DB配置,配置在service.json中
@@ -79,6 +79,53 @@ func (dbService *DBService) ReadCfg() error {
 	mapDBServiceCfg, ok := dbService.GetServiceCfg().(map[string]interface{})
 	if ok == false {
 		return fmt.Errorf("DBService config is error!")
+	}
+
+	url, ok := mapDBServiceCfg["Url"]
+	if ok == false {
+		return fmt.Errorf("DBService config is error!")
+	}
+	dbService.url = url.(string)
+
+	dbName, ok := mapDBServiceCfg["DBName"]
+	if ok == false {
+		return fmt.Errorf("DBService config is error!")
+	}
+	dbService.dbName = dbName.(string)
+
+	CacheCompress, ok := mapDBServiceCfg["CacheCompress"]
+	if ok == true {
+		dbService.CacheCompress = CacheCompress.(bool)
+	} else {
+		return fmt.Errorf("DBService config CacheCompress is error")
+	}
+
+	MaxCacheCap, ok := mapDBServiceCfg["MaxCacheCap"]
+	if ok == true {
+		dbService.MaxCacheCap = int(MaxCacheCap.(float64))
+	} else {
+		return fmt.Errorf("DBService config MaxCacheCap is error")
+	}
+
+	ExpirationTimeSecond, ok := mapDBServiceCfg["ExpirationTimeSecond"]
+	if ok == true {
+		dbService.ExpirationTimeSecond = int64(ExpirationTimeSecond.(float64))
+	} else {
+		return fmt.Errorf("DBService config ExpirationTimeSecond is error")
+	}
+
+	CheckIntervalSecond, ok := mapDBServiceCfg["CheckIntervalSecond"]
+	if ok == true {
+		dbService.CheckIntervalSecond = int64(CheckIntervalSecond.(float64))
+	} else {
+		return fmt.Errorf("DBService config CheckIntervalSecond is error")
+	}
+
+	IntervalCheckNum, ok := mapDBServiceCfg["IntervalCheckNum"]
+	if ok == true {
+		dbService.IntervalCheckNum = int(IntervalCheckNum.(float64))
+	} else {
+		return fmt.Errorf("DBService config IntervalCheckNum is error")
 	}
 
 	goroutineNum, ok := mapDBServiceCfg["GoroutineNum"]
@@ -192,7 +239,7 @@ func (dbService *DBService) SyncDBIndex() error {
 			return err
 		}
 
-	case util.AccountDBService:
+	case util.AccDBService:
 	}
 
 	return nil

@@ -95,7 +95,10 @@ func (tm *TcpModule) OnInit() error {
 	//3.设置解析处理器
 	tm.process.SetByteOrder(tcpCfg.LittleEndian)
 
-	//4.启动网络模块
+	//4.设置网络事件处理
+	tm.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_Tcp, tm.GetEventHandler(), tm.tcpEventHandler)
+
+	//5.启动网络模块
 	return tm.tcpServer.Start()
 }
 
@@ -115,7 +118,6 @@ func (tm *TcpModule) tcpEventHandler(ev event.IEvent) {
 
 func (tm *TcpModule) SetProcessor(process processor.IRawProcessor) {
 	tm.process = process
-	tm.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_Tcp, tm.GetEventHandler(), tm.tcpEventHandler)
 }
 
 func (tm *TcpModule) NewClient(conn *network.TCPConn) network.Agent {

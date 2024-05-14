@@ -1,0 +1,8 @@
+
+{
+  "Service": {
+    "CenterService": {
+      "GSMaxPlayerNumbers": 4000
+      }
+    }
+}

@@ -11,7 +11,9 @@ import (
 )
 
 func init() {
-	node.Setup(&GameService{})
+	node.SetupTemplate(func() service.IService {
+		return &GameService{}
+	})
 }
 
 type GameService struct {

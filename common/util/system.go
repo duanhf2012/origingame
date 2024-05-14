@@ -22,10 +22,10 @@ const (
 	LoginKey      = "kxZdFA@#fWCNaL^UIbF$YR(oD@qwfQBw!cOeJeb*ASz?@DEdZjV?KsoZ)P&N^FYb"
 	TokenValidity = 24 * 3600 //10分钟
 
-	AccountDBService = "AccountDBService"
-	DBService        = "DBService"
-	GateService      = "GateService"
-	CenterService    = "CenterService"
+	AccDBService  = "AccDBService"
+	DBService     = "DBService"
+	GateService   = "GateService"
+	CenterService = "CenterService"
 
 	AreaDBRequest = "DBService.RPC_DBRequest"
 	AccDBRequest  = "AccDBService.RPC_DBRequest"
