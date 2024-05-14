@@ -5,6 +5,7 @@ import (
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"github.com/duanhf2012/origin/v2/node"
+	originRpc "github.com/duanhf2012/origin/v2/rpc"
 	"github.com/duanhf2012/origin/v2/service"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -38,9 +39,9 @@ type nodeInfo struct {
 type StatusType int
 
 const (
-	//LoginStart StatusType = 0
-	Logining StatusType = 0
-	Logined  StatusType = 1
+	LoginStart StatusType = 0
+	Logging    StatusType = 0
+	Logined    StatusType = 1
 )
 
 func (mr *MsgRouter) OnInit() error {
@@ -79,7 +80,25 @@ func (mr *MsgRouter) Init(process processor.IRawProcessor, tcpModule *tcpmodule.
 }
 
 func (mr *MsgRouter) OnDisconnected(clientId string) {
+	log.SDebug("disconnect clientId ", clientId)
+	//1.查找路由
+	nodeId, gsName := mr.GetRouterId(clientId)
+	if nodeId == "" || gsName == "" {
+		log.SDebug("cannot find clientId ", clientId)
+		return
+	}
 
+	delete(mr.mapRouterCache, clientId)
+
+	mr.performanceAnalyzer.Set(ConnectNumAnalyzer, ClientConnectAnalyzerId, ClientConnectNumColumn, int64(mr.GetClientNum()))
+
+	//2.转发客户端连接断开
+	var rawInputArgs rpc.RawInputArgs
+	rawInputArgs.ClientIdList = []string{clientId}
+	err := mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnClose, gsName, rawInputArgs.GetRawData())
+	if err != nil {
+		log.SError("Router.OnDisconnected RawGoNode err:", err.Error())
+	}
 }
 
 func (mr *MsgRouter) OnConnected(clientId string) {
@@ -337,7 +356,7 @@ func (mr *MsgRouter) loginOk(cliId string, nodeId string, gsName string, msgLogi
 
 	var info nodeInfo
 	info.nodeId = nodeId
-	info.status = Logining
+	info.status = Logging
 	info.gsName = gsName
 	mr.AddNodeInfo(cliId, &info)
 
@@ -415,4 +434,8 @@ func (mr *MsgRouter) GetRouterId(clientId string) (string, string) {
 
 func (mr *MsgRouter) AddNodeInfo(cliId string, info *nodeInfo) {
 	mr.mapRouterCache[cliId] = info
+}
+
+func (mr *MsgRouter) GetClientNum() int {
+	return len(mr.mapRouterCache)
 }

@@ -93,3 +93,7 @@ func (m *ObjectFactoryModule) SafeCancelTimer(timerId *uint64) {
 func (m *ObjectFactoryModule) GetPlayer(id string) *player.Player {
 	return m.mapPlayer[id]
 }
+
+func (m *ObjectFactoryModule) GetPlayerNum() int {
+	return len(m.mapPlayer)
+}
