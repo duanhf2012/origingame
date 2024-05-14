@@ -38,7 +38,7 @@ func (gs *GameService) OnInit() error {
 	gs.objectFactoryModule = factory.NewGameObjectFactoryModule()
 	gs.objectFactoryModule.Analyzer = gs.performanceAnalyzer
 	gs.msgReceiver.Init(gs)
-	
+
 	gs.msgReceiver.RegisterMessage()
 	gs.RegRawRpc(util.RawRpcOnRecv, gs.msgReceiver.RpcOnRecvCallBack)
 	gs.RegRawRpc(util.RawRpcOnClose, gs.RpcOnCloseCallBack)
@@ -64,7 +64,6 @@ func (gs *GameService) OnRetire() {
 }
 
 func (gs *GameService) OnRelease() {
-
 }
 
 func (gs *GameService) attachConn(req *rpc.LoginToGameServiceReq, player *player.Player) {
@@ -165,4 +164,20 @@ func (gs *GameService) CloseClient(clientId string) {
 	}
 
 	gs.closeClient(clientId)
+}
+
+func (gs *GameService) DestroyPlayer(playerId string) bool {
+	p := gs.objectFactoryModule.GetPlayer(playerId)
+	if p == nil {
+		log.Error("cannot find player", log.String("playerId", playerId))
+		return false
+	}
+
+	clientId := p.GetClientId()
+	if clientId != util.IsEmpty {
+		gs.CloseClient(clientId)
+	}
+	gs.objectFactoryModule.ReleasePlayer(p)
+
+	return true
 }

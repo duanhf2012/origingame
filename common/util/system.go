@@ -29,6 +29,8 @@ const (
 
 	AreaDBRequest = "DBService.RPC_DBRequest"
 	AccDBRequest  = "AccDBService.RPC_DBRequest"
+
+	IsEmpty = ""
 )
 
 // 原始Rpc的MethodId定义

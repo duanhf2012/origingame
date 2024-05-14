@@ -18,14 +18,7 @@ func (gs *GameService) RPC_Login(req *rpc.LoginToGameServiceReq, res *rpc.LoginT
 
 	//1.查找Player对象
 	res.Ret = 0
-
 	log.SDebug("GS", gs.GetModuleId(), ":login player:", req.UserId)
-	masterNodeId := util.GetMasterCenterNodeId()
-	if masterNodeId == "" {
-		res.Ret = 1
-		log.SError("getBestMasterNodeId is fail")
-		return nil
-	}
 
 	//验证Session
 	p := gs.objectFactoryModule.GetPlayer(req.UserId)
@@ -53,6 +46,12 @@ func (gs *GameService) RPC_Login(req *rpc.LoginToGameServiceReq, res *rpc.LoginT
 	playerStatus.NodeId = node.GetNodeId()
 	playerStatus.GSName = gs.GetName()
 
+	masterNodeId := util.GetMasterCenterNodeId()
+	if masterNodeId == "" {
+		res.Ret = 1
+		log.SError("getBestMasterNodeId is fail")
+		return nil
+	}
 	err := gs.GoNode(masterNodeId, "CenterService.RPC_UpdateStatus", &playerStatus)
 	if err != nil {
 		res.Ret = 2
@@ -62,7 +61,7 @@ func (gs *GameService) RPC_Login(req *rpc.LoginToGameServiceReq, res *rpc.LoginT
 
 	//3.创建或初始化玩家
 	if p == nil {
-		p = gs.objectFactoryModule.NewPlayer(req.UserId, &gs.msgSender)
+		p = gs.objectFactoryModule.NewPlayer(req.UserId, &gs.msgSender, gs)
 		gs.attachConn(req, p)
 		p.LoadFromDB()
 		res.SessionId = p.GetSessionId()
@@ -88,6 +87,6 @@ func (gs *GameService) RPC_Login(req *rpc.LoginToGameServiceReq, res *rpc.LoginT
 		log.Error("GoNode error", log.String("GateNodeId", req.GetGateNodeId()), log.ErrorAttr("err", err))
 		return fmt.Errorf("GoNode error %s", err.Error())
 	}
-	
+
 	return nil
 }

@@ -89,7 +89,6 @@ func (mr *MsgRouter) OnDisconnected(clientId string) {
 	}
 
 	delete(mr.mapRouterCache, clientId)
-
 	mr.performanceAnalyzer.Set(ConnectNumAnalyzer, ClientConnectAnalyzerId, ClientConnectNumColumn, int64(mr.GetClientNum()))
 
 	//2.转发客户端连接断开
@@ -105,13 +104,36 @@ func (mr *MsgRouter) OnConnected(clientId string) {
 }
 
 func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte) {
-	//登陆消息单独处理
-	if msg.MsgType(msgType) == msg.MsgType_LoginReq {
+	defer mr.tcpModule.ReleaseNetMem(msgBuff)
+
+	//1.登陆消息单独处理
+	switch msg.MsgType(msgType) {
+	case msg.MsgType_LoginReq:
 		mr.login(cliId, msgBuff)
 		return
 	}
 
-	//转发
+	//2.通过clientId获取nodeId
+	nodeId, gsName := mr.GetRouterId(cliId)
+	if nodeId == "" {
+		log.SWarning("cannot find clientId ", cliId)
+		mr.tcpModule.Close(cliId)
+		return
+	}
+
+	//3.组装原始Rpc参数用于转发
+	var inputArgs rpc.RawInputArgs
+	inputArgs.ClientIdList = []string{cliId}
+	inputArgs.RawData = msgBuff[2:]
+	inputArgs.MsgType = uint32(msgType)
+
+	//4.转发消息
+	err := mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnRecv, gsName, inputArgs.GetRawData())
+	if err != nil {
+		//关闭连接
+		mr.tcpModule.Close(cliId)
+		log.SError("RawGoNode fail ", err.Error())
+	}
 }
 
 func (mr *MsgRouter) login(cliId string, msgBuff []byte) {
@@ -239,7 +261,15 @@ func (mr *MsgRouter) loginToGs(cliId string, msgLoginReq *msg.MsgLoginReq) {
 	masterNodeId := util.GetMasterCenterNodeId()
 	if masterNodeId == "" || msgLoginReq.UserId == "" {
 		log.SError("Cannot get center service service,userId:", msgLoginReq.UserId, " masterNodeId:", masterNodeId)
-		mr.tcpModule.Close(cliId)
+
+		var loginRes msg.MsgLoginRes
+		loginRes.Ret = msg.ErrCode_InterNalError
+		errSend := mr.SendMsg(cliId, msg.MsgType_LoginRes, &loginRes)
+		if errSend != nil {
+			log.SError("SendMsg fail:", errSend.Error(), ",userId:", msgLoginReq.UserId)
+		}
+
+		//mr.tcpModule.Close(cliId)
 		return
 	}
 

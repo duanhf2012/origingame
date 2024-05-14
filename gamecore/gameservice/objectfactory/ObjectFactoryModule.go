@@ -35,9 +35,9 @@ func (m *ObjectFactoryModule) OnInit() error {
 	return nil
 }
 
-func (m *ObjectFactoryModule) NewPlayer(id string, sender interfacedef.IMsgSender) *player.Player {
+func (m *ObjectFactoryModule) NewPlayer(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService) *player.Player {
 	player := playerPool.Get().(*player.Player)
-	player.Init(id, sender)
+	player.Init(id, sender, gsService)
 	m.mapPlayer[id] = player
 
 	m.Analyzer.Inc(performance.ObjectNumAnalyzer, int(global.ObjectTypePlayer), performance.NewObjectTotalNumColumn)
@@ -50,6 +50,7 @@ func (m *ObjectFactoryModule) NewPlayer(id string, sender interfacedef.IMsgSende
 func (m *ObjectFactoryModule) ReleasePlayer(object *player.Player) {
 	log.SInfo("player[", object.GetId(), "] release")
 
+	object.SaveToDB(true)
 	delete(m.mapPlayer, object.GetId())
 	playerPool.Put(object)
 	m.Analyzer.Inc(performance.ObjectNumAnalyzer, int(global.ObjectTypePlayer), performance.ReleaseObjectTotalNumColumn)

@@ -128,9 +128,5 @@ func (ms *MsgSender) CastToPlayer(playerUserId []string, msgType msg.MsgType, me
 		cIdList = append(cIdList, clientId)
 	}
 
-	if len(cIdList) > 255 {
-		cIdList = cIdList[:255]
-	}
-
 	return ms.send(cIdList, msgType, message, nil)
 }

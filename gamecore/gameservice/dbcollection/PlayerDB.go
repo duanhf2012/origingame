@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	"github.com/duanhf2012/origin/v2/rpc"
 	"origingame/common/collect"
 	"origingame/common/db"
 	"origingame/common/proto/msg"
@@ -17,7 +16,7 @@ import (
 
 // 玩家存档数据
 type PlayerDB struct {
-	rpcHandler rpc.IRpcHandler
+	gsService interfacedef.IGSService
 
 	rpcSessionKey string //每次创建对象时生成的的唯一key
 
@@ -37,10 +36,10 @@ type PlayerDB struct {
 	proxyNum          int
 }
 
-func (playerDB *PlayerDB) OnInit(playerDBCallBack interfacedef.IPlayerDBCallBack, rpcHandler rpc.IRpcHandler) {
+func (playerDB *PlayerDB) OnInit(playerDBCallBack interfacedef.IPlayerDBCallBack, gsService interfacedef.IGSService) {
 	//以下加入注册新表
 	playerDB.rpcSessionKey = util.NewUnionId()
-	playerDB.rpcHandler = rpcHandler
+	playerDB.gsService = gsService
 	playerDB.playerDBCallBack = playerDBCallBack
 	playerDB.loadProgress = 0
 	playerDB.errProgress = 0
@@ -101,10 +100,6 @@ func (playerDB *PlayerDB) SaveToDB(bForce bool) {
 		return
 	}
 
-	playerDB.SaveToDBNotCheckNickName(bForce)
-}
-
-func (playerDB *PlayerDB) SaveToDBNotCheckNickName(bForce bool) {
 	//没加载完不允许存档
 	if playerDB.IsLoadFinish() == false {
 		log.SWarning("userid:", playerDB.Id, " not load finish.")
@@ -527,12 +522,12 @@ func (playerDB *PlayerDB) GetId() string {
 }
 
 func (playerDB *PlayerDB) GoNode(nodeId string, serviceMethod string, args interface{}) error {
-	return playerDB.rpcHandler.GoNode(nodeId, serviceMethod, args)
+	return playerDB.gsService.GoNode(nodeId, serviceMethod, args)
 }
 
 func AsyncCallNode[RpcMsg any](playerDB *PlayerDB, nodeId string, serviceMethod string, args interface{}, callback func(ret *RpcMsg, err error)) error {
 	rpcKey := playerDB.rpcSessionKey
-	return playerDB.rpcHandler.AsyncCallNode(nodeId, serviceMethod, args, func(ret *RpcMsg, err error) {
+	return playerDB.gsService.AsyncCallNode(nodeId, serviceMethod, args, func(ret *RpcMsg, err error) {
 		nowRpcSessionKey := playerDB.rpcSessionKey
 		if rpcKey != nowRpcSessionKey {
 			log.Stack(fmt.Sprint("serviceMethod:", serviceMethod, " is fail rpc key:", rpcKey, " now rpc key:", nowRpcSessionKey))

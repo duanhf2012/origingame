@@ -344,21 +344,21 @@ func (cs *CenterService) getBestGameServiceNodeId() (string, string) {
 func (cs *CenterService) RPC_Login(req *rpc.LoginGateCheckReq, res *rpc.LoginGateCheckRet) error {
 	// 1.查找登陆缓存
 	var bestGameNodeId string
-	var bestGS string
+	var bestGSName string
 	var userInfo UserInfo
 	var ok bool
 	userInfo, ok = cs.mapUserInfo[req.UserId]
 	//2.已经存在，则继续上次的GameServiceNodeId
 	if ok == true {
 		bestGameNodeId = userInfo.GameServiceNodeId
-		bestGS = userInfo.GSName
+		bestGSName = userInfo.GSName
 	} else {
-		bestGameNodeId, bestGS = cs.getBestGameServiceNodeId()
+		bestGameNodeId, bestGSName = cs.getBestGameServiceNodeId()
 	}
 
 	//3.找到GameService NodeId才需要存储
 	if bestGameNodeId != "" {
-		cs.addUserInfo(req.UserId, rpc.LoginStatus_Logining, bestGameNodeId, bestGS, ok)
+		cs.addUserInfo(req.UserId, rpc.LoginStatus_Logining, bestGameNodeId, bestGSName, ok)
 		cs.mapLogining[req.UserId] = time.Now()
 	} else {
 		log.SError("cannot find gameService")
@@ -366,7 +366,7 @@ func (cs *CenterService) RPC_Login(req *rpc.LoginGateCheckReq, res *rpc.LoginGat
 
 	//4.返回结果
 	res.NodeId = bestGameNodeId
-	res.GSName = bestGS
+	res.GSName = bestGSName
 	res.Ret = 0
 
 	return nil

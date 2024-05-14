@@ -4,5 +4,5 @@ import "origingame/common/collect"
 
 type IPlayerDBCallBack interface {
 	OnLoadDBEnd(suc bool)
-	OnDelayLoadMCDBEnd(collectType collect.MultiCollectionType)
+	OnLoadMultiDBEnd(collectType collect.MultiCollectionType)
 }
