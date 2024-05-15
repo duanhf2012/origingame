@@ -8,6 +8,8 @@ import (
 	_ "origingame/gamecore/dbservice"
 	_ "origingame/gamecore/gameservice"
 	_ "origingame/gamecore/gateservice"
+	_ "origingame/gamemaster/authservice"
+	_ "origingame/gamemaster/httpgateservice"
 )
 
 func main() {

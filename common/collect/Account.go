@@ -4,11 +4,6 @@ const MaxHorseRaceLampCount = 64
 
 var AccountCollectName = "Account"
 
-var ActiveCodeCollectName = "ActiveCode"
-
-var HorseRaceLampCollectName = "HorseRaceLamp"
-var SealCollectName = "Seal"
-
 type CAccount struct {
 	PlatId   string `bson:"_id"`      //生成最新id
 	PlatType int32  `bson:"PlatType"` //平台类型

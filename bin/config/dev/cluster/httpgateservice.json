@@ -1,0 +1,8 @@
+{
+  "Service": {
+    "HttpGateService": {
+      "HttpListen":":9000",
+      "ForbidGustLogin":false
+    }
+  }
+}

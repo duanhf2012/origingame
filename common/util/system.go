@@ -7,7 +7,6 @@ import (
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/rpc"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"math/rand"
 
 	"strconv"

@@ -80,7 +80,6 @@ const (
 	LoginType_TapTap        LoginType = 2
 	LoginType_Facebook      LoginType = 3
 	LoginType_Google        LoginType = 4
-	LoginType_Fusion        LoginType = 5 //动游聚合
 	LoginType_LoginType_Max LoginType = 6
 )
 

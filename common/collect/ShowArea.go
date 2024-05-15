@@ -22,12 +22,6 @@ type CShowAreaInfo struct {
 	DefaultMark int    `bson:"defaultMark"` //是否为默认显示的服务器?
 	MinVersion  string `bson:"minVersion"`  //最低版本号
 	MaxVersion  string `bson:"maxVersion"`  //最高版本号
-
-	//暂时保留a
-	Label int `bson:"label"` //标签
-	IsGm  int `bson:"isGm"`  //gm开关 0:关闭 1:开启
-
-	OpenTimeMilli int64 `bson:"openTimeMilli"` //查询需要
 }
 
 var ShowAreaInfoDBName = "ShowAreaInfo"
