@@ -17,9 +17,8 @@ enum LoginType {
     TapTap        = 2;
     Facebook      = 3;
     Google        = 4;
-    Fusion        = 5; //动游聚合
 
-    LoginType_Max = 6;
+    LoginType_Max = 5;
 }
 
 
@@ -28,12 +27,8 @@ message LoginInfo {
     string PlatId           = 2;
     string AccessToken      = 3;
     string GameId           = 4;
-    string ActiveCode       = 5;
-    string UserName         = 6;
-    int64  LoginCheckTime   = 7;
-	string Sign				= 8;    //登录签名
-	int32 ChanneCode        = 9;	//渠道
-    string ChannePlat       = 10;	//渠道码(平台id)
+    string UserName         = 5;
+    int64  LoginCheckTime   = 6;
 }
 
 //数据库返回结果

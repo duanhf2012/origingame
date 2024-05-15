@@ -61,14 +61,11 @@ type HttpRespone struct {
 	ECode    int
 	Token    string
 	AreaGate string
-	AreaLoad string //区服负载
 	AreaHis  map[string]int64
 }
 
 func (login *LoginModule) loginCheck(c *ginmodule.SafeContext, loginInfo *rpc.LoginInfo) {
-	log.SDebug("http request PlatType:", int32(loginInfo.PlatType), " PlatId:", loginInfo.PlatId, " AccessToken:",
-		loginInfo.AccessToken, " ActiveCode:", loginInfo.ActiveCode, " Sign:", loginInfo.Sign, " ChannelCode:", loginInfo.ChanneCode,
-		" ChannePlat:", loginInfo.ChannePlat)
+	log.SDebug("http request PlatType:", int32(loginInfo.PlatType), " PlatId:", loginInfo.PlatId, " AccessToken:", loginInfo.AccessToken)
 
 	//1.验证平台类型和Id
 	platId := loginInfo.PlatId
@@ -84,7 +81,7 @@ func (login *LoginModule) loginCheck(c *ginmodule.SafeContext, loginInfo *rpc.Lo
 		return
 	}
 	loginInfo.LoginCheckTime = timer.Now().UnixMilli()
-	
+
 	//2.向验证服检查登陆
 	if loginInfo.PlatType == rpc.LoginType_Gust || loginInfo.PlatType == rpc.LoginType_Account {
 		//判断是否限制了游客和账号登录
@@ -246,7 +243,7 @@ func (login *LoginModule) Login(c *ginmodule.SafeContext) {
 	//1.验证Body请求内容
 	var loginInfo rpc.LoginInfo
 	err := c.ShouldBindBodyWith(&loginInfo, binding.JSON)
-	if err != nil || loginInfo.AccessToken == "" {
+	if err != nil {
 		c.JSONAndDone(http.StatusBadRequest, gin.H{"ECode": msg.ErrCode_InterNalError})
 		return
 	}

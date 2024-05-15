@@ -31,10 +31,8 @@ type AreaGate struct {
 	//与客户端列表显示顺序相关
 	ServerMark   collect.EServerMark
 	ServerStatus collect.EServerStatus
-	OpenTime     int64  //开服时间戳 ms
-	DefaultMark  int    //是否为默认显示的服务器 0：否 1：是
-	MinVersion   string //最低版本号——先发过去
-	MaxVersion   string //最高版本号——先发过去
+	OpenTime     int64 //开服时间戳 ms
+	DefaultMark  int   //是否为默认显示的服务器 0：否 1：是
 
 	//IP 端口数据
 	GateInfo []GateInfoResp
@@ -98,9 +96,9 @@ func (gate *HttpGateService) OnInit() error {
 	gate.GetProfiler().SetOverTime(time.Millisecond * 100)
 	gate.GetProfiler().SetMaxOverTime(time.Second * 10)
 
-	//POST方法 请求url:http://127.0.0.1:9402/login
+	//POST方法 请求url:http://127.0.0.1:9000/api/login
 	//返回结果为：{"msg":"hello world"}
-	gate.ginModule.SafePOST("/login", gate.loginModule.Login)
+	gate.ginModule.SafePOST("/api/login", gate.loginModule.Login)
 
 	gate.tryLoadAreaInfoFromDB()
 	return nil
@@ -211,22 +209,13 @@ func (gate *HttpGateService) queryShowAreaCallBack(realAreaRes *db.DBControllerR
 			continue
 		}
 
-		openTime, err := time.Parse(util.TimeLayout, showInfo.OpenTime)
-		if err != nil {
-			log.SError("show areadId ", showInfo.ShowAreaId, " OpenTime is error ", showInfo.OpenTime)
-			continue
-		}
-
 		areaGate := AreaGate{
 			AreaName:     showInfo.AreaName,
 			AreaId:       showInfo.RealAreaId,
 			ShowAreaId:   showInfo.ShowAreaId,
 			ServerMark:   showInfo.ServerMark,
 			ServerStatus: showInfo.ServerStatus,
-			OpenTime:     openTime.UnixMilli(),
 			DefaultMark:  showInfo.DefaultMark,
-			MinVersion:   showInfo.MinVersion,
-			MaxVersion:   showInfo.MaxVersion,
 			GateInfo:     make([]GateInfoResp, 0, 2),
 		}
 		for _, addr := range realInfo.GateList {
@@ -239,7 +228,12 @@ func (gate *HttpGateService) queryShowAreaCallBack(realAreaRes *db.DBControllerR
 		log.SError("No area info data information")
 		return
 	}
-	jsonAreaGate, err := json.Marshal(&mapAreaGate)
+
+	aList := make([]*AreaGate, 0, 32)
+	for _, areaGate := range mapAreaGate {
+		aList = append(aList, areaGate)
+	}
+	jsonAreaGate, err := json.Marshal(&aList)
 	if err != nil {
 		log.Error("Marshal mapAreaGate error", log.ErrorAttr("err", err))
 		return

@@ -7,21 +7,16 @@ import (
 
 type CShowAreaInfo struct {
 	BaseMultiCollection `bson:"-"`
-	ShowAreaId          int    `bson:"_id"`  //显示区服ID
-	AreaName            string `bson:"name"` //区服名称
-	RealAreaId          int    `bson:"rId"`  //真实区服ID
+	ShowAreaId          int    `bson:"_id"`        //显示区服ID
+	AreaName            string `bson:"AreaName"`   //区服名称
+	RealAreaId          int    `bson:"RealAreaId"` //真实区服ID
 
-	ServerMark    EServerMark   `bson:"serverMark"`    //区服标签 0:普通 1:新服 2:推荐
-	ServerStatus  EServerStatus `bson:"serverStatus"`  //区服状态 0:正常 1:维护
-	MaxLoginCount int32         `bson:"maxLoginCount"` //在线人数上限
-	MaxRegCount   int32         `bson:"maxRegCount"`   //注册人数上线
+	ServerMark   EServerMark   `bson:"serverMark"`   //区服标签 0:普通 1:新服 2:推荐
+	ServerStatus EServerStatus `bson:"serverStatus"` //区服状态 0:正常 1:维护
 
 	OpenTime    string `bson:"openTime"`    //开服时间
-	DealTime    string `bson:"dealTime"`    //操作时间
-	CreateTime  string `bson:"createTime"`  //操作时间
 	DefaultMark int    `bson:"defaultMark"` //是否为默认显示的服务器?
-	MinVersion  string `bson:"minVersion"`  //最低版本号
-	MaxVersion  string `bson:"maxVersion"`  //最高版本号
+
 }
 
 var ShowAreaInfoDBName = "ShowAreaInfo"

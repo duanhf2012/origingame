@@ -1,7 +1,7 @@
 {
   "NodeList": [
     {
-      "NodeId": "gate1",
+      "NodeId": "OriginGame1",
       "Private": false,
       "ListenAddr": "0.0.0.0:11000",
 	  "MaxRpcParamLen": 819200,

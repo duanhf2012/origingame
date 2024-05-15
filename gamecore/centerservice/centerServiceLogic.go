@@ -95,7 +95,5 @@ func (cs *CenterService) dealAreaInfoUpdate(res *db.DBControllerRet, err error, 
 		return
 	}
 
-	cs.maxOnlineCount = realInfo.MaxLoginCount
-	cs.maxRegisterCount = realInfo.MaxRegCount
 	cs.isLoadMaxFinish = true
 }

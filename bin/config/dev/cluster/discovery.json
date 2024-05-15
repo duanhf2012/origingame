@@ -14,8 +14,8 @@
       "TTLSecond": 10,
       "MasterNodeList": [
         {
-          "NodeId": "1003",
-          "ListenAddr": "127.0.0.1:11003"
+          "NodeId": "OriginGame1",
+          "ListenAddr": "127.0.0.1:11000"
         }
       ]
     }

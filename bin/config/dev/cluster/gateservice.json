@@ -4,7 +4,7 @@
   },
   "NodeService": [
     {
-      "NodeId": "gate1",
+      "NodeId": "OriginGame1",
       "GateService": {
         "TcpCfg": {
           "ListenAddr":":9001",

@@ -64,11 +64,9 @@ type CenterService struct {
 	//startTime                  int64
 
 	//数量限制
-	loadTimerId      uint64
-	reloadTickerId   uint64
-	isLoadMaxFinish  bool
-	maxRegisterCount int32 //注册数量上限
-	maxOnlineCount   int32 //在线数量上限
+	loadTimerId     uint64
+	reloadTickerId  uint64
+	isLoadMaxFinish bool
 
 	loadShowAreaTickerId   uint64
 	reloadShowAreaTickerId uint64
@@ -680,30 +678,6 @@ func (cs *CenterService) RPC_GetServiceInfo(inParam *[]byte, outParam *[]byte) e
 	*outParam, err = json.Marshal(&ServiceInfo)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// 获取玩家上限状态
-func (cs *CenterService) RPC_GetPlayerMaxStatus(reqInfo *rpc.PlaceHolders, resInfo *rpc.PlayerMaxStatus) error {
-	if cs.isLoadMaxFinish == false {
-		return fmt.Errorf("CenterService is not load finishi")
-	}
-
-	resInfo.RegisterIsFull = true
-	resInfo.OnlineIsFull = true
-
-	if cs.maxRegisterCount == 0 || cs.maxRegisterCount > (cs.DBCharacterNum+cs.NewCharacterNum) {
-		resInfo.RegisterIsFull = false
-	} else {
-		log.SWarning("maxRegisterCount:", cs.maxRegisterCount, ",DBCharacterNum:", cs.DBCharacterNum, ",NewCharacterNum:", cs.NewCharacterNum)
-	}
-
-	if cs.maxOnlineCount == 0 || cs.maxOnlineCount > int32(len(cs.mapUserInfo)) {
-		resInfo.OnlineIsFull = false
-	} else {
-		log.SWarning("maxOnlineCount:", cs.maxOnlineCount, ",len(mapUserInfo):", len(cs.mapUserInfo))
 	}
 
 	return nil

@@ -24,13 +24,7 @@ type CRealAreaInfo struct {
 	BaseMultiCollection `bson:"-"`
 	RealAreaId          int `bson:"_id"` //真实区服ID
 
-	GateList      []string `bson:"gateList"`      //地址列表 ip:端口
-	DealTime      string   `bson:"dealTime"`      //操作时间
-	RegisterCount int32    `bson:"registerCount"` //当前区服注册人数
-
-	//以下数据来源于show area,编辑时绑定
-	MaxLoginCount int32 `bson:"maxLoginCount"` //在线人数上限
-	MaxRegCount   int32 `bson:"maxRegCount"`   //注册人数上线
+	GateList []string `bson:"GateList"` //地址列表 ip:端口
 }
 
 var realAreaInfo = "RealAreaInfo"
