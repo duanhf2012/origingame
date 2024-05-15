@@ -4,6 +4,7 @@ import (
 	"github.com/duanhf2012/origin/v2/node"
 	"time"
 
+	_ "origingame/gamecore/botservice"
 	_ "origingame/gamecore/centerservice"
 	_ "origingame/gamecore/dbservice"
 	_ "origingame/gamecore/gameservice"
