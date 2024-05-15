@@ -2,7 +2,7 @@
   "Service": {
     "AccDBService": {
       "Url": "mongodb://admin:123456@127.0.0.1:27017/?minPoolSize=5&maxPoolSize=30&maxIdleTimeMS=30000",
-      "DBName": "privateAccDB",
+      "DBName": "AccDB",
       "GoroutineNum": 2,
       "ChannelNum": 100000,
       "SlowQueryTime": 500,

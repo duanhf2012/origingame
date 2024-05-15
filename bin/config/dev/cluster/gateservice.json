@@ -7,7 +7,7 @@
       "NodeId": "gate1",
       "GateService": {
         "TcpCfg": {
-          "ListenAddr":":9000",
+          "ListenAddr":":9001",
           "MaxConnNum":10000,
           "PendingWriteNum":10000,
           "LittleEndian": false,
