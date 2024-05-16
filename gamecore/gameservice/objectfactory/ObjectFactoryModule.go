@@ -37,7 +37,7 @@ func (m *ObjectFactoryModule) OnInit() error {
 
 func (m *ObjectFactoryModule) NewPlayer(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService) *player.Player {
 	player := playerPool.Get().(*player.Player)
-	player.Init(id, sender, gsService)
+	player.Init(id, sender, gsService, m)
 	m.mapPlayer[id] = player
 
 	m.Analyzer.Inc(performance.ObjectNumAnalyzer, int(global.ObjectTypePlayer), performance.NewObjectTotalNumColumn)

@@ -13,20 +13,26 @@ import (
 
 type Player struct {
 	PoolObj
+	interfacedef.IPlayerTimer
 	interfacedef.IGSService
 	interfacedef.IMsgSender
 	dbcollection.PlayerDB
 
 	DataInfo
+
+	checkPingTicker uint64
 }
 
-func (p *Player) Init(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService) {
+func (p *Player) Init(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService, playerTimer interfacedef.IPlayerTimer) {
 	p.IMsgSender = sender
 	p.IGSService = gsService
+	p.IPlayerTimer = playerTimer
 	p.Id = id
 	p.GenSessionId()
 
 	p.PlayerDB.OnInit(p, gsService)
+
+	p.SafeTickerTimer(&p.checkPingTicker, time.Second*30, nil, p.checkPingTimeout)
 }
 
 func (p *Player) Reset() {
@@ -42,6 +48,8 @@ func (p *Player) SendMsg(msgType msg.MsgType, message proto.Message) int {
 }
 
 func (p *Player) Destroy() {
+	p.SafeCancelTimer(&p.checkPingTicker)
+	p.SaveToDB(true)
 	p.DestroyPlayer(p.GetId())
 }
 
@@ -83,4 +91,11 @@ func (p *Player) Ping() {
 	var pong msg.MsgPong
 	pong.NowTime = time.Now().Unix()
 	p.SendMsg(msg.MsgType_Pong, &pong)
+}
+
+func (p *Player) checkPingTimeout(uint64, interface{}) {
+	//5分钟后释放
+	if time.Now().Sub(p.pingTime) > 300*time.Second {
+		p.Destroy()
+	}
 }
