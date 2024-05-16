@@ -94,7 +94,12 @@ func (mr *MsgRouter) OnDisconnected(clientId string) {
 	//2.转发客户端连接断开
 	var rawInputArgs rpc.RawInputArgs
 	rawInputArgs.ClientIdList = []string{clientId}
-	err := mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnClose, gsName, rawInputArgs.GetRawData())
+	rawInputBytes, err := proto.Marshal(&rawInputArgs)
+	if err != nil {
+		log.Error("Router.OnDisconnected proto.Marshal err", log.ErrorAttr("err", err))
+		return
+	}
+	err = mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnClose, gsName, rawInputBytes)
 	if err != nil {
 		log.SError("Router.OnDisconnected RawGoNode err:", err.Error())
 	}
@@ -109,7 +114,7 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 	//1.登陆消息单独处理
 	switch msg.MsgType(msgType) {
 	case msg.MsgType_LoginReq:
-		mr.login(cliId, msgBuff)
+		mr.login(cliId, msgBuff[2:])
 		return
 	}
 

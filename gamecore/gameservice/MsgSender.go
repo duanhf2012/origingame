@@ -86,7 +86,14 @@ func (ms *MsgSender) send(clients []string, msgType msg.MsgType, message proto.M
 		rawInputArgs.RawData = rawBytes
 		rawInputArgs.ClientIdList = clientList
 
-		err = ms.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcMsgDispatch, util.GateService, rawInputArgs.GetRawData())
+		var rawInputBytes []byte
+		rawInputBytes, err = proto.Marshal(&rawInputArgs)
+		if err != nil {
+			log.Error("Marshal fail", log.Uint32("msgType", rawInputArgs.MsgType), log.ErrorAttr("err", err))
+			continue
+		}
+
+		err = ms.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcMsgDispatch, util.GateService, rawInputBytes)
 		if err != nil {
 			log.Error(fmt.Sprint("RawGoNode fail :", err.Error(), ",msgType ", int32(msgType), " clientId list err:", err.Error()))
 			continue

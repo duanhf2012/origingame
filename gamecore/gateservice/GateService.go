@@ -5,8 +5,10 @@ import (
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"github.com/duanhf2012/origin/v2/node"
 	"github.com/duanhf2012/origin/v2/service"
+	"google.golang.org/protobuf/proto"
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
+	"origingame/common/util"
 	"origingame/gamecore/gateservice/tcpmodule"
 	"time"
 )
@@ -21,13 +23,17 @@ type GateService struct {
 	tcpModule      tcpmodule.TcpModule
 	pbRawProcessor processor.PBRawProcessor
 	msgRouter      MsgRouter
+	rawPackInfo    processor.PBRawPackInfo
 }
 
 func (gate *GateService) OnInit() error {
 	gate.msgRouter.Init(&gate.pbRawProcessor, &gate.tcpModule)
 	gate.tcpModule.SetProcessor(&gate.pbRawProcessor)
+	gate.AddModule(&gate.msgRouter)
 	gate.AddModule(&gate.tcpModule)
 
+	gate.RegRawRpc(util.RawRpcMsgDispatch, gate.RawRpcDispatch)
+	gate.RegRawRpc(util.RawRpcCloseClient, gate.RawCloseClient)
 	return nil
 }
 
@@ -51,4 +57,52 @@ func (gate *GateService) RPC_GSLoginRet(arg *rpc.GsLoginResult, ret *rpc.PlaceHo
 	}
 
 	return nil
+}
+
+func (gate *GateService) SendMsg(clientId string, msgType uint16, rawMsg []byte) error {
+	gate.rawPackInfo.SetPackInfo(msgType, rawMsg)
+	bytes, err := gate.pbRawProcessor.Marshal(clientId, &gate.rawPackInfo)
+	if err != nil {
+		return err
+	}
+
+	err = gate.tcpModule.SendRawData(clientId, bytes)
+	if err != nil {
+		log.Debug("SendMsg fail ", log.ErrorAttr("err", err), log.String("clientId", clientId))
+	}
+
+	return err
+}
+
+func (gate *GateService) RawRpcDispatch(rawInput []byte) {
+	var rawInputArgs rpc.RawInputArgs
+	err := proto.Unmarshal(rawInput, &rawInputArgs)
+	if err != nil {
+		log.SError("msg is error:%s", err.Error())
+		return
+	}
+
+	for _, clientId := range rawInputArgs.ClientIdList {
+		err = gate.SendMsg(clientId, uint16(rawInputArgs.MsgType), rawInputArgs.RawData)
+		if err != nil {
+			log.SError("SendRawMsg fail:", err.Error())
+		}
+	}
+
+	//消息统计
+	gate.msgRouter.performanceAnalyzer.ChangeDeltaNum(MsgAnalyzer, int(rawInputArgs.MsgType), MsgSendNumColumn, int64(len(rawInputArgs.ClientIdList)))
+	gate.msgRouter.performanceAnalyzer.ChangeDeltaNum(MsgAnalyzer, int(rawInputArgs.MsgType), MsgSendByteColumn, int64(len(rawInputArgs.ClientIdList)*(len(rawInputArgs.RawData)+2))) //排除掉消息ID长度
+}
+
+func (gate *GateService) RawCloseClient(rawInput []byte) {
+	var rawInputArgs rpc.RawInputArgs
+	err := proto.Unmarshal(rawInput, &rawInputArgs)
+	if err != nil {
+		log.Error("msg is error", log.ErrorAttr("err", err))
+		return
+	}
+	
+	for _, clientId := range rawInputArgs.ClientIdList {
+		gate.tcpModule.Close(clientId)
+	}
 }

@@ -23,7 +23,8 @@ func (ts *BotService) OnInit() error {
 func (ts *BotService) OnStart() {
 	for i := 0; i < botNum; i++ {
 		var b Bot
-		b.SetId(i)
+		b.Init(i)
+
 		ts.AsyncDo(b.runBot, nil)
 	}
 

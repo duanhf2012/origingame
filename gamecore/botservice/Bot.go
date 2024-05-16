@@ -1,6 +1,7 @@
 package botservice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
+	"sync"
 	"time"
 )
 
@@ -28,28 +30,28 @@ type Bot struct {
 	token  string
 	status botStatus
 
-	tcpClient      *network.TCPClient
-	conn           *network.TCPConn
+	tcpClient *network.TCPClient
+
+	conn      *network.TCPConn
+	connMutex sync.Mutex
+
 	chanMsg        chan *MsgEvent
 	pbRawProcessor processor.PBRawProcessor
 }
 
-var mapRegisterMsg map[uint16]*MsgEvent
-
-func init() {
-	//RegMsg()
-}
+var mapRegisterMsg map[msg.MsgType]*MsgEvent
 
 type MsgEvent struct {
+	conn   *network.TCPConn
 	msg    proto.Message
-	funcDo func(msg proto.Message)
+	funcDo func(bot *Bot, msg proto.Message)
 }
 
-func RegMsg(msgType uint16, msg proto.Message, funcDo func(msg proto.Message)) {
+func regMsg(msgType msg.MsgType, msg proto.Message, funcDo func(bot *Bot, msg proto.Message)) {
 	mapRegisterMsg[msgType] = &MsgEvent{msg: msg, funcDo: funcDo}
 }
 
-func NewMsgByMsgType(msgType uint16) *MsgEvent {
+func NewMsgByMsgType(msgType msg.MsgType) *MsgEvent {
 	msg, ok := mapRegisterMsg[msgType]
 	if ok == false {
 		return nil
@@ -65,30 +67,50 @@ func NewMsgByMsgType(msgType uint16) *MsgEvent {
 func (bt *Bot) runBot() bool {
 
 	for {
-		if bt.status == httpLogging {
-			bt.httpLogin()
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		
-		switch bt.status {
-		case httpLogging:
-			bt.httpLogin()
-		case gateLogging:
-			bt.gateLogin()
-		case receivingUserInfo:
-			bt.waitReceivingUserInfo()
-		case finish:
-			bt.work()
-			return true
+		cxt, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		select {
+		case <-cxt.Done():
+			cancel()
+			bt.doTimeOut()
+		case receiveMsg := <-bt.chanMsg:
+			if receiveMsg.funcDo != nil {
+				receiveMsg.funcDo(bt, receiveMsg.msg)
+			}
 		}
 	}
 
 	return true
 }
 
-func (bt *Bot) SetId(id int) {
+func (bt *Bot) doTimeOut() {
+	switch bt.status {
+	case httpLogging:
+		bt.httpLogin()
+	case gateLogging:
+		bt.gateLogin()
+	case receivingUserInfo:
+		bt.waitReceivingUserInfo()
+	case finish:
+		bt.work()
+	}
+}
+
+func (bt *Bot) setConn(conn *network.TCPConn) {
+	bt.connMutex.Lock()
+	defer bt.connMutex.Unlock()
+
+	bt.conn = conn
+}
+
+func (bt *Bot) getConn() *network.TCPConn {
+	bt.connMutex.Lock()
+	defer bt.connMutex.Unlock()
+	return bt.conn
+}
+
+func (bt *Bot) Init(id int) {
 	bt.id = id
+	bt.chanMsg = make(chan *MsgEvent, 100)
 }
 
 func (bt *Bot) httpLogin() {
@@ -128,6 +150,14 @@ func (bt *Bot) setGateLogging(token string) {
 	bt.token = token
 }
 
+func (bt *Bot) setLoginReceive() {
+	bt.status = receivingUserInfo
+}
+
+func (bt *Bot) setLoginFinish() {
+	bt.status = finish
+}
+
 func (bt *Bot) initConnect() bool {
 	if bt.tcpClient != nil {
 		bt.tcpClient.Close(false)
@@ -138,12 +168,13 @@ func (bt *Bot) initConnect() bool {
 	bt.tcpClient.ConnectInterval = time.Second * 5
 	bt.tcpClient.ConnNum = 1
 	bt.tcpClient.AutoReconnect = false
-	bt.tcpClient.ReadDeadline = time.Second * 15
-	bt.tcpClient.WriteDeadline = time.Second * 15
+	bt.tcpClient.ReadDeadline = time.Second * 600
+	bt.tcpClient.WriteDeadline = time.Second * 600
 	bt.tcpClient.NewAgent = func(conn *network.TCPConn) network.Agent {
 		agent := BotAgent{}
 		agent.bt = bt
-		agent.bt.conn = conn
+
+		bt.setConn(conn)
 		return &agent
 	}
 
@@ -156,21 +187,45 @@ func (bt *Bot) gateLogin() {
 		time.Sleep(5 * time.Second)
 		return
 	}
+
+	//发送消息
+	time.Sleep(2 * time.Second)
+	if bt.getConn() == nil {
+		return
+	}
+
+	var msgLoginReq msg.MsgLoginReq
+	msgLoginReq.UserId = fmt.Sprintf("bot_%d", bt.id)
+	msgLoginReq.ChannePlat = fmt.Sprintf("bot_%d", bt.id)
+	msgLoginReq.Token = bt.token
+	msgLoginReq.ShowAreaId = 1
+
+	bt.SendMsg(msg.MsgType_LoginReq, &msgLoginReq)
+
+	bt.status = receivingUserInfo
 }
 
 func (bt *Bot) waitReceivingUserInfo() {
-
+	log.Debug("wait...")
 }
 
 func (bt *Bot) work() {
+	log.Debug("nothing to do")
 }
 
 func (bt *Bot) SendMsg(msgType msg.MsgType, msg proto.Message) error {
 	var pbPackInfo processor.PBRawPackInfo
-	bytes, err := bt.pbRawProcessor.Marshal("", pbPackInfo)
+	byteMsg, _ := proto.Marshal(msg)
+	pbPackInfo.SetPackInfo(uint16(msgType), byteMsg)
+	bytes, err := bt.pbRawProcessor.Marshal("", &pbPackInfo)
 	if err != nil {
 		return err
 	}
 
-	return bt.conn.Write(bytes)
+	conn := bt.getConn()
+	if conn == nil {
+		return fmt.Errorf("conn is nil")
+	}
+
+	return conn.WriteMsg(bytes)
 }

@@ -238,7 +238,7 @@ func (tm *TcpModule) SendRawData(clientId string, data []byte) error {
 		return fmt.Errorf("client %d is disconnect!", clientId)
 	}
 	tm.mapClientLocker.Unlock()
-	return client.tcpConn.WriteRawMsg(data)
+	return client.tcpConn.WriteMsg(data)
 }
 
 func (tm *TcpModule) GetConnNum() int {

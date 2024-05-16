@@ -1,16 +1,19 @@
 package gameservice
 
 import (
+	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/node"
 	originRpc "github.com/duanhf2012/origin/v2/rpc"
 	"github.com/duanhf2012/origin/v2/service"
+	"github.com/duanhf2012/origin/v2/util/timer"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/performance"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
 	factory "origingame/gamecore/gameservice/objectfactory"
 	"origingame/gamecore/gameservice/player"
+	"time"
 )
 
 func init() {
@@ -29,11 +32,13 @@ type GameService struct {
 	performanceAnalyzer *performance.PerformanceAnalyzer
 	msgSender           MsgSender
 	msgReceiver         MsgReceiver
+
+	balance rpc.GameServiceBalance //负载同步变量
 }
 
 func (gs *GameService) OnInit() error {
 	gs.mapClientPlayer = make(map[string]*player.Player, 2048)
-
+	gs.initBalance()
 	gs.performanceAnalyzer = &performance.PerformanceAnalyzer{}
 	gs.objectFactoryModule = factory.NewGameObjectFactoryModule()
 	gs.objectFactoryModule.Analyzer = gs.performanceAnalyzer
@@ -56,7 +61,12 @@ func (gs *GameService) OnInit() error {
 	return nil
 }
 
+func (gs *GameService) initBalance() {
+	gs.balance.NodeId = node.GetNodeId()
+	gs.balance.GSName = gs.GetName()
+}
 func (gs *GameService) OnStart() {
+	gs.AfterFunc(time.Second*2, gs.asyncPlayerListTimer)
 }
 
 func (gs *GameService) OnRetire() {
@@ -180,4 +190,52 @@ func (gs *GameService) DestroyPlayer(playerId string) bool {
 	gs.objectFactoryModule.ReleasePlayer(p)
 
 	return true
+}
+
+// 向中心服同步GameService负载
+func (gs *GameService) timerUpdateBalance(timer *timer.Ticker) {
+	nodeId := util.GetMasterCenterNodeId()
+	if nodeId == "" {
+		log.SError("cannot find best centerservice nodeid")
+		return
+	}
+
+	gs.balance.Weigh = int32(gs.objectFactoryModule.GetPlayerNum())
+	err := gs.GoNode(nodeId, "CenterService.RPC_UpdateBalance", &gs.balance)
+	if err != nil {
+		log.SError("RPC_UpdateBalance fail ", err.Error())
+	}
+}
+
+func (gs *GameService) asyncPlayerList() error {
+	nodeId := util.GetMasterCenterNodeId()
+	if nodeId == "" {
+		return fmt.Errorf("cannot find best centerservice nodeid")
+	}
+
+	if gs.IsRetire() == true {
+		log.Info("I am retire...", log.Int("playerCount", gs.objectFactoryModule.GetPlayerNum()))
+		return nil
+	}
+
+	var playerList rpc.UpdatePlayerList
+	playerList.NodeId = node.GetNodeId()
+	playerList.UList = make([]string, 0, 255)
+	playerList.GSName = gs.GetName()
+	for uId := range gs.objectFactoryModule.GetAllPlayer() {
+		playerList.UList = append(playerList.UList, uId)
+	}
+
+	return gs.GoNode(nodeId, "CenterService.RPC_UpdateUserList", &playerList)
+}
+
+func (gs *GameService) asyncPlayerListTimer(t *timer.Timer) {
+	err := gs.asyncPlayerList()
+	if err != nil {
+		log.SWarning("asyncPlayerList fail:", err.Error())
+		gs.AfterFunc(2*time.Second, gs.asyncPlayerListTimer)
+	} else {
+		gs.timerUpdateBalance(nil)
+		gs.NewTicker(10*time.Second, gs.timerUpdateBalance)
+	}
 }

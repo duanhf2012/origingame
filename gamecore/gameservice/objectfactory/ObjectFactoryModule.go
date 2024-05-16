@@ -98,3 +98,7 @@ func (m *ObjectFactoryModule) GetPlayer(id string) *player.Player {
 func (m *ObjectFactoryModule) GetPlayerNum() int {
 	return len(m.mapPlayer)
 }
+
+func (m *ObjectFactoryModule) GetAllPlayer() map[string]*player.Player {
+	return m.mapPlayer
+}

@@ -4,6 +4,7 @@ import (
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"google.golang.org/protobuf/proto"
+	"origingame/common/proto/msg"
 )
 
 type BotAgent struct {
@@ -26,14 +27,14 @@ func (ba *BotAgent) Run() {
 
 		rawPack := data.(*processor.PBRawPackInfo)
 		rawPack.GetMsg()
-		msgProto := NewMsgByMsgType(rawPack.GetPackType())
+		msgProto := NewMsgByMsgType(msg.MsgType(rawPack.GetPackType()))
 		if msgProto == nil {
 			//不关注的消息忽略
 			log.Warning("msg type error", log.Any("msgType", rawPack.GetPackType()))
 			continue
 		}
 
-		err = proto.Unmarshal(rawPack.GetMsg(), msgProto.msg)
+		err = proto.Unmarshal(rawPack.GetMsg()[2:], msgProto.msg)
 		if err != nil {
 			log.Error("Unmarshal error", log.ErrorAttr("err", err))
 			return

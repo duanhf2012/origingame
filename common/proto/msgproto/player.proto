@@ -77,27 +77,7 @@ message InMapInfo {
 }
 
 message MsgLoadFinish {
-    InMapInfo InMapData                     = 1;   //登陆关卡数据
-    uint32 SysTime                      	= 2;	//系统时间
-    bool IsFillPlayerData               	= 3;	//是否填充过玩家数据 false尚未填充
-    int64 LastLogoutTime               		= 4;	//上次离线的时间戳
-    bytes UnlockFuncList		        	= 5;	//已经解锁图标
-    bytes GuideList     		        	= 6;	//已完成的引导
-    int64 RegisterTime                  	= 7;   //注册时间
-    int32 SurveyId                      	= 8;   //问卷配置Id
-	bytes FirstPurchaseFlag		        	= 9;	//首充标记
-	MsgMedalInfo MedalInfo					= 10;	//勋章信息
-	int64 OpenServerTime                    = 11;   //开服时间
-	uint32 MiscUniqueMask                   = 12;   //杂项功能完成标记 按位标记，ID参考keyword EMiscUniqueType, ID从1开始，位从0开始。
-	DrawPetInfo DrawPetInfo 				= 13; 	// 抽卡次数
-	int32 ModifyNickNameCount               = 15;   //已修改昵称次数
-	repeated int32 SharedPetList            = 16;   //已分享的宠物列表
-	uint32 MainLineWeather                  = 17;   //主线天气
-	int64 MainLineWeatherEndTime            = 18;   //主线天气结束时间
-	int32 MainLineObjectiveId               = 19;   //主线目标Id
-	bool IsMainLineObjectiveGotAward        = 20;   //主线目标是否已领取奖励
-	map<int32,int64> MapFoodBuff			= 21;   //食物增加的临时buff信息 map<buff唯一Id,结束时间戳-单位毫秒>
-	map<int32,int32> MainLineTaskGotAward   = 22;   //主线任务领取奖励信息 map<章节Id,已领取的关卡Id>
+    uint32 SysTime                      	= 1;	//系统时间
 }
 
 //服务器负载类型

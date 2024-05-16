@@ -13,7 +13,8 @@ enum MsgType //枚举消息类型
         LoginRes = 1001;
 
         //主动推送的消息
-        NotifyLogout = 5000;
+        LoadFinish = 5000;
+        NotifyLogout = 5001;
 }
 
 

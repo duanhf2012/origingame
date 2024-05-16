@@ -11,11 +11,11 @@
           "MaxConnNum":10000,
           "PendingWriteNum":10000,
           "LittleEndian": false,
-          "LenMsgLen": 4,
+          "LenMsgLen": 2,
           "MinMsgLen": 2,
           "MaxMsgLen": 10240000,
-          "ReadDeadlineSecond": 15,
-          "WriteDeadlineSecond": 15
+          "ReadDeadlineSecond": 1500,
+          "WriteDeadlineSecond": 1500
         }
       }
     }]

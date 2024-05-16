@@ -2,6 +2,7 @@ package player
 
 import (
 	"github.com/duanhf2012/origin/v2/log"
+	"github.com/duanhf2012/origin/v2/util/timer"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/collect"
 	"origingame/common/proto/msg"
@@ -45,7 +46,12 @@ func (p *Player) Destroy() {
 }
 
 func (p *Player) SendPlayerInfo() {
-	//向客户端同步相当信息
+	//todo 向客户端同步相关信息，需要填充
+	var msgLoadFinish msg.MsgLoadFinish
+	now := timer.Now()
+	msgLoadFinish.SysTime = uint32(now.Hour()*3600 + now.Minute()*60 + now.Second())
+
+	p.SendMsg(msg.MsgType_LoadFinish, &msgLoadFinish)
 }
 
 // OnLoadDBEnd 单行数据加载完成
@@ -59,6 +65,9 @@ func (p *Player) OnLoadDBEnd(ok bool) {
 
 	//2.如果玩家是创号流程，直接返回
 	if !p.GetIsInit() {
+		//todo 初始化各种代理数
+
+		//发送数据
 		p.SendPlayerInfo()
 		return
 	}
