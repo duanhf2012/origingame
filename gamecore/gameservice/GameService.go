@@ -168,7 +168,12 @@ func (gs *GameService) CloseClient(clientId string) {
 	nodeId := gs.GetGateNodeIdByClientId(clientId)
 	var rawInputArgs rpc.RawInputArgs
 	rawInputArgs.ClientIdList = []string{clientId}
-	err := gs.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcCloseClient, util.GateService, rawInputArgs.GetRawData())
+	rawInputBytes, err := proto.Marshal(&rawInputArgs)
+	if err != nil {
+		log.Error("GameService.CloseClient proto.Marshal ", log.ErrorAttr("err", err), log.String("clientId", clientId))
+		return
+	}
+	err = gs.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcCloseClient, util.GateService, rawInputBytes)
 	if err != nil {
 		log.SError("GameService.CloseClient RawGoNode err:", err.Error())
 	}

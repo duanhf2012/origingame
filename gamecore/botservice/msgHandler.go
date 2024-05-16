@@ -10,6 +10,7 @@ func init() {
 	mapRegisterMsg = make(map[msg.MsgType]*MsgEvent)
 	regMsg(msg.MsgType_LoginRes, &msg.MsgLoginRes{}, loginRes)
 	regMsg(msg.MsgType_LoadFinish, &msg.MsgLoadFinish{}, loadFinish)
+	regMsg(msg.MsgType_Pong, &msg.MsgPong{}, pong)
 }
 
 func loginRes(bot *Bot, msgProto proto.Message) {
@@ -21,5 +22,11 @@ func loginRes(bot *Bot, msgProto proto.Message) {
 func loadFinish(bot *Bot, msgProto proto.Message) {
 	msgLoadFinish := msgProto.(*msg.MsgLoadFinish)
 	log.Debug("msgLoadFinish", log.Any("msgLoadFinish", msgLoadFinish))
+	bot.setLoginFinish()
+}
+
+func pong(bot *Bot, msgProto proto.Message) {
+	msgPong := msgProto.(*msg.MsgPong)
+	log.Debug("msgPong", log.Any("msgPong", msgPong))
 	bot.setLoginFinish()
 }

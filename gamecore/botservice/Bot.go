@@ -210,7 +210,8 @@ func (bt *Bot) waitReceivingUserInfo() {
 }
 
 func (bt *Bot) work() {
-	log.Debug("nothing to do")
+	var ping msg.MsgPing
+	bt.SendMsg(msg.MsgType_Ping, &ping)
 }
 
 func (bt *Bot) SendMsg(msgType msg.MsgType, msg proto.Message) error {

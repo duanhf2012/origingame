@@ -8,16 +8,16 @@ import (
 	"origingame/common/proto/msg"
 	"origingame/gamecore/gameservice/dbcollection"
 	"origingame/gamecore/interfacedef"
+	"time"
 )
 
 type Player struct {
+	PoolObj
 	interfacedef.IGSService
 	interfacedef.IMsgSender
-
 	dbcollection.PlayerDB
 
 	DataInfo
-	PoolObj
 }
 
 func (p *Player) Init(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService) {
@@ -75,5 +75,12 @@ func (p *Player) OnLoadDBEnd(ok bool) {
 
 // OnDelayLoadMCDBEnd 多行数据加载完成
 func (p *Player) OnLoadMultiDBEnd(collectType collect.MultiCollectionType) {
+}
 
+func (p *Player) Ping() {
+	p.pingTime = time.Now()
+
+	var pong msg.MsgPong
+	pong.NowTime = time.Now().Unix()
+	p.SendMsg(msg.MsgType_Pong, &pong)
 }

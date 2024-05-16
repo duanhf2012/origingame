@@ -101,7 +101,7 @@ func (gate *GateService) RawCloseClient(rawInput []byte) {
 		log.Error("msg is error", log.ErrorAttr("err", err))
 		return
 	}
-	
+
 	for _, clientId := range rawInputArgs.ClientIdList {
 		gate.tcpModule.Close(clientId)
 	}

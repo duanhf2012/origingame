@@ -80,7 +80,3 @@ func (df *DataInfo) GetSessionId() string {
 func (df *DataInfo) SetOnline(onLine bool) {
 	df.isOnline = onLine
 }
-
-func (df *DataInfo) Ping() {
-	df.pingTime = time.Now()
-}

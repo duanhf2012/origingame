@@ -132,8 +132,14 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 	inputArgs.RawData = msgBuff[2:]
 	inputArgs.MsgType = uint32(msgType)
 
+	inputArgBytes, err := proto.Marshal(&inputArgs)
+	if err != nil {
+		log.Error("RouterMessage proto.Marshal err", log.ErrorAttr("err", err))
+		return
+	}
+
 	//4.转发消息
-	err := mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnRecv, gsName, inputArgs.GetRawData())
+	err = mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnRecv, gsName, inputArgBytes)
 	if err != nil {
 		//关闭连接
 		mr.tcpModule.Close(cliId)
