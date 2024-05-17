@@ -1,80 +1,9 @@
 syntax = "proto3";
-import "msgproto/errcode.proto";
-import "msgproto/base.proto";
+
+
 
 package msg;
 option go_package                           = ".;msg";
-
-
-
-// MsgLoadAttribute 5007
-message MsgLoadAttribute {
-    map<int32, int64> MapAttribute = 1;
-    repeated SkillData SkillList   = 2;
-}
-
-// MsgLoadAppearance 5011
-message MsgLoadAppearance {
-    bytes AppearanceData = 1;  //长度为0则是没有外观数据
-    string NickName      = 2;  //昵称
-    int32 RoleConfigID   = 3;  //配置ID
-}
-
-// MsgFillAppearanceReq 1008
-message MsgFillAppearanceReq {
-    bytes AppearanceData = 1;
-    string NickName      = 2;  //昵称
-    int32 RoleConfigID   = 3;  //配置ID
-    int32 Careers   	 = 4;  //职业
-}
-
-// MsgFillAppearanceRes 1009
-message MsgFillAppearanceRes {
-    ErrCode Ret = 1;  // 0 成功
-}
-
-//勋章信息
-message MsgMedalInfo {
-    bytes MedalUnlockInfo								= 1;	//勋章解锁信息-没有后置勋章
-	map<uint32, uint32> MedalHaveAfterUnlockInfo		= 2;	//勋章解锁信息-有后置勋章 key:首个前置勋章 value:已激活的勋章ID
-	map<int32, int32> MapMedalScore						= 3;	//勋章总评分新 key:勋章类型,对应keyword中EMedalType value:勋章总评分
-}
-
-// 单人副本信息
-message SingleMapInfo {
-    int32 SingleMapChapterId = 1; //单人副本关卡ID
-    int32 SingleMapLevelId   = 2; //单人副本地图等级ID
-    int32 EffectIndex        = 3; //选择能力的index
-}
-
-//能力副本
-message SparMapInfo{
-    int32  PetCfgId               = 1; //宠物Id，如果为0时表示
-    uint32 SlotsId                = 2;  //挑战的槽位
-    int32  SparId                 = 3;   //能力Id
-}
-
-// 御灵道场副本
-message SpiritDojoMapInfo{
-    int32 Quality                   = 1;    //关卡品质
-    repeated int32 ChallengeTargets = 2;    //挑战目标信息
-}
-
-// 关卡信息，玩家加载完成且已经在关卡时使用（断线重连）
-message InMapInfo {
-    int32   MapType                       	    = 1;
-    bool    MapStarted                          = 3;    //地图是否否已经开始
-    int32   LevelMapCfgKeyId              	    = 4;	//地图配置唯一ID
-    uint64  EventId                      	    = 5;	//事件ID
-    int32   ThemeId                       	    = 6;
-    uint64  InvadeEventObjId             	    = 7;	//战船战斗地图eventObjId
-    uint64  PvpMirrorPlayerId                   = 8;    //竞技场对手ID
-    SingleMapInfo   SingleInfo                  = 9;    //单人副本数据——不是单人副本则为nil
-    SparMapInfo     SparInfo                    = 10;   //能力副本
-    int32 NihilityMode						    = 11;   //1简单  2困难  3无尽模式
-    bool    IsSummonPet                         = 12;   //是否已经召唤过宠物，执行ChangeBattlePetReq消息
-    SpiritDojoMapInfo SpiritDojoInfo            = 13;   //御灵道场关卡信息
-}
 
 message MsgLoadFinish {
     uint32 SysTime                      	= 1;	//系统时间
@@ -99,28 +28,4 @@ enum LogoutType
 
 message MsgNotifyLogout {
     int32 Reason    = 1;  //退出原因
-}
-
-message MsgSetPlayerInfoReq {
-    string NickName = 1;  //昵称
-    //todo 后续修改其他玩家信息再进行添加
-}
-
-message MsgSetPlayerInfoRes {
-    ErrCode Ret         = 1;
-    string  NickName    = 2;  //昵称
-    int32   ModifyNickNameCount = 3;    //修改昵称次数
-}
-
-//获取随机昵称
-message MsgGetRandomNickNameReq {
-}
-
-message MsgGetRandomNickNameRes {
-    ErrCode Ret                     = 1;
-    repeated string NickNameList    = 2;
-}
-
-//通知修改昵称
-message MsgModifyNickName {
 }

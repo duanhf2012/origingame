@@ -9,24 +9,6 @@ import (
 	"time"
 )
 
-const UserSkillCount = 6 //最大玩家技能
-
-type CUserSkill struct {
-	SkillId    int32 `bson:"SkillId"`
-	SkillLevel int32 `bson:"SkillLevel"`
-}
-
-type CChapterInfo struct {
-	LevelId int32
-	PosX    int32
-	PosY    int32
-}
-
-type StuffPos struct {
-	StuffId int32
-	PosId   int32
-}
-
 type CUserInfo struct {
 	BaseCollection `bson:"-"`
 	UserId         string `bson:"_id"`
