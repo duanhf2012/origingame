@@ -1,8 +1,18 @@
 {
-  "Service": {
-    "HttpGateService": {
-      "HttpListen":":9000",
-      "ForbidGustLogin":false
+  "NodeService": [
+    {
+      "NodeId": "LoginGate1",
+      "HttpGateService": {
+        "HttpListen":":9000",
+        "ForbidGustLogin":false
+      }
+    },
+    {
+      "NodeId": "LoginGate2",
+      "HttpGateService": {
+        "HttpListen":":9001",
+        "ForbidGustLogin":false
+      }
     }
-  }
+  ]
 }
