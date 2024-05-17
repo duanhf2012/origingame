@@ -72,4 +72,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/duanhf2012/origin/v2 => ../origin
+//replace github.com/duanhf2012/origin/v2 => ../origin
