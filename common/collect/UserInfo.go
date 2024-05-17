@@ -1,7 +1,7 @@
 package collect
 
 import (
-	"github.com/duanhf2012/origin/log"
+	"github.com/duanhf2012/origin/v2/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"origingame/common/keyword"
 	global "origingame/common/keyword"

@@ -12,8 +12,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
-	"github.com/duanhf2012/origin/log"
-	"github.com/duanhf2012/origin/util/algorithms"
+	"github.com/duanhf2012/origin/v2/log"
+	"github.com/duanhf2012/origin/v2/util/algorithms"
 )
 
 const WeekDays = int(7) //一周的天数
