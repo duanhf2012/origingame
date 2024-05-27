@@ -1,7 +1,7 @@
 {
   "NodeList": [
     {
-      "NodeId": "OriginGame1",
+      "NodeId": "OriginGame",
       "Private": false,
       "ListenAddr": "0.0.0.0:11000",
 	  "MaxRpcParamLen": 819200,
@@ -15,6 +15,88 @@
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["BotService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "LoginGate1",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:11001",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "LoginGate2",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:11002",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "Gate1",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:12001",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["GateService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "Gate2",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:12002",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["GateService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "Game1",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:13001",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["GS1:GameService","GS2:GameService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "Game2",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:13002",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["GS1:GameService","GS2:GameService"],
+      "DiscoveryService": []
+    },
+
+    {
+      "NodeId": "DBServer1",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:14001",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["AccDBService:DBService","DBService:DBService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "DBServer2",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:14002",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["AccDBService:DBService","DBService:DBService"],
+      "DiscoveryService": []
+    },
+    {
+      "NodeId": "CenterServer",
+      "Private": false,
+      "ListenAddr": "0.0.0.0:10000",
+      "MaxRpcParamLen": 819200,
+      "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
+      "ServiceList": ["CenterService"],
       "DiscoveryService": []
     }
   ]

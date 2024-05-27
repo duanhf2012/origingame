@@ -1,3 +1,11 @@
+
+
+
+
+
+
+一.数据库表的初始化
+
 ```js
 use AccDB;
 db.RealAreaInfo.insertMany([
@@ -34,3 +42,6 @@ db.ShowAreaInfo.insertMany([
 ])
 ```
 
+二. 架构图
+
+![](./doc/architecture.png)

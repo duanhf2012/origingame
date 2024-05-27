@@ -124,7 +124,7 @@ func (bt *Bot) httpLogin() {
 	httpClient.Init("", 1, time.Second*5, time.Second*5, time.Second*5, time.Second*5)
 	byteLogin, _ := json.Marshal(&loginInfo)
 	response := httpClient.Request("POST", "http://127.0.0.1:9000/api/login", byteLogin, nil)
-	log.Debug("response:%s", string(response.Body))
+	log.Debug("response", log.String("body", string(response.Body)))
 
 	var httpRespone struct {
 		ECode    int
@@ -135,7 +135,7 @@ func (bt *Bot) httpLogin() {
 
 	err := json.Unmarshal(response.Body, &httpRespone)
 	if err != nil {
-		log.Error("json unmarshal error:%s", err.Error())
+		log.Error("json unmarshal error", log.ErrorAttr("err", err))
 		return
 	}
 
