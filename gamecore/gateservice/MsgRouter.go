@@ -15,14 +15,13 @@ import (
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
-	"origingame/gamecore/gateservice/tcpmodule"
 	"time"
 )
 
 type MsgRouter struct {
 	service.Module
 
-	tcpModule   *tcpmodule.TcpModule
+	netModule   INetModule
 	rawPackInfo processor.PBRawPackInfo
 
 	mapRouterCache map[string]*nodeInfo //map[clientId]nodeInfo,Client连接信息
@@ -43,6 +42,13 @@ const (
 	Logging    StatusType = 0
 	Logined    StatusType = 1
 )
+
+type INetModule interface {
+	SendRawMsg(clientId string, data []byte) error
+	Close(clientId string)
+	GetClientIp(clientId string) string
+	GetProcessor() processor.IRawProcessor
+}
 
 func (mr *MsgRouter) OnInit() error {
 	mr.mapRouterCache = make(map[string]*nodeInfo, 2048)
@@ -71,12 +77,14 @@ func (mr *MsgRouter) OnInit() error {
 	return nil
 }
 
-func (mr *MsgRouter) Init(process processor.IRawProcessor, tcpModule *tcpmodule.TcpModule) {
+func (mr *MsgRouter) SetNetModule(netModule INetModule) {
+	mr.netModule = netModule
+}
+
+func (mr *MsgRouter) Init(process processor.IRawProcessor) {
 	process.SetConnectedHandler(mr.OnConnected)
 	process.SetDisConnectedHandler(mr.OnDisconnected)
 	process.SetRawMsgHandler(mr.RouterMessage)
-
-	mr.tcpModule = tcpModule
 }
 
 func (mr *MsgRouter) OnDisconnected(clientId string) {
@@ -108,9 +116,8 @@ func (mr *MsgRouter) OnDisconnected(clientId string) {
 func (mr *MsgRouter) OnConnected(clientId string) {
 }
 
+// RouterMessage 函数返回后，msgBuff内存将被内存池回收
 func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte) {
-	defer mr.tcpModule.ReleaseNetMem(msgBuff)
-
 	//1.登陆消息单独处理
 	switch msg.MsgType(msgType) {
 	case msg.MsgType_LoginReq:
@@ -122,7 +129,7 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 	nodeId, gsName := mr.GetRouterId(cliId)
 	if nodeId == "" {
 		log.SWarning("cannot find clientId ", cliId)
-		mr.tcpModule.Close(cliId)
+		mr.netModule.Close(cliId)
 		return
 	}
 
@@ -142,7 +149,7 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 	err = mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnRecv, gsName, inputArgBytes)
 	if err != nil {
 		//关闭连接
-		mr.tcpModule.Close(cliId)
+		mr.netModule.Close(cliId)
 		log.SError("RawGoNode fail ", err.Error())
 	}
 }
@@ -152,13 +159,13 @@ func (mr *MsgRouter) login(cliId string, msgBuff []byte) {
 	err := proto.Unmarshal(msgBuff, &msgLoginReq)
 	if err != nil {
 		log.SError("LoginReq fail,Unmarshal error:", err.Error())
-		mr.tcpModule.Close(cliId)
+		mr.netModule.Close(cliId)
 		return
 	}
 
 	if msgLoginReq.ShowAreaId <= 0 {
 		log.SError("msgLoginReq.ShowAreaId is error:", msgLoginReq.ShowAreaId, " clientId ", cliId)
-		mr.tcpModule.Close(cliId)
+		mr.netModule.Close(cliId)
 		return
 	}
 
@@ -290,7 +297,7 @@ func (mr *MsgRouter) loginToGs(cliId string, msgLoginReq *msg.MsgLoginReq) {
 	req.ShowAreaId = msgLoginReq.ShowAreaId
 	req.ChannePlat = msgLoginReq.ChannePlat
 	req.ChannelUUID = msgLoginReq.ChannelUUID
-	req.ClientIp = mr.tcpModule.GetClientIp(cliId)
+	req.ClientIp = mr.netModule.GetClientIp(cliId)
 
 	err := mr.AsyncCallNode(masterNodeId, "CenterService.RPC_Login", &req, func(res *rpc.LoginGateCheckRet, err error) {
 		var loginRes msg.MsgLoginRes
@@ -355,12 +362,12 @@ func (mr *MsgRouter) SendMsg(clientId string, msgType msg.MsgType, msg proto.Mes
 	}
 
 	mr.rawPackInfo.SetPackInfo(uint16(msgType), byteMsg)
-	bytes, err := mr.tcpModule.GetProcessor().Marshal(clientId, &mr.rawPackInfo)
+	bytes, err := mr.netModule.GetProcessor().Marshal(clientId, &mr.rawPackInfo)
 	if err != nil {
 		return err
 	}
 
-	err = mr.tcpModule.SendRawData(clientId, bytes)
+	err = mr.netModule.SendRawMsg(clientId, bytes)
 	if err != nil {
 		log.Error("SendMsg fail", log.String("clientId", clientId), log.ErrorAttr("error", err), log.String("msgType", fmt.Sprint(msgType)))
 	}
@@ -378,7 +385,7 @@ func (mr *MsgRouter) loginOk(cliId string, nodeId string, gsName string, msgLogi
 	req.UserId = msgLoginReq.UserId
 	req.GateNodeId = node.GetNodeId()
 	req.ClientId = cliId
-	req.Ip = mr.tcpModule.GetClientIp(cliId)
+	req.Ip = mr.netModule.GetClientIp(cliId)
 	req.Os = msgLoginReq.Os
 	req.SessionId = msgLoginReq.SessionId
 

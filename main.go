@@ -2,8 +2,6 @@ package main
 
 import (
 	"github.com/duanhf2012/origin/v2/node"
-	"time"
-
 	_ "origingame/gamecore/botservice"
 	_ "origingame/gamecore/centerservice"
 	_ "origingame/gamecore/dbservice"
@@ -11,6 +9,7 @@ import (
 	_ "origingame/gamecore/gateservice"
 	_ "origingame/gamemaster/authservice"
 	_ "origingame/gamemaster/httpgateservice"
+	"time"
 )
 
 func main() {

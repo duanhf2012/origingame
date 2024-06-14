@@ -1,4 +1,10 @@
 {
+  "Service": {
+    "HttpGateService": {
+      "HttpListen":":9000",
+      "ForbidGustLogin":false
+    }
+  },
   "NodeService": [
     {
       "NodeId": "LoginGate1",

@@ -1,7 +1,7 @@
 package util
 
 import (
-	"github.com/duanhf2012/origin/log"
+	"github.com/duanhf2012/origin/v2/log"
 	"time"
 )
 
@@ -20,29 +20,29 @@ const (
 	GameLogicDailyTime = (24 / GameLogicTimeRatio) * HourOfSecond //游戏逻辑时间每天毫秒
 )
 
-//检测小时是否是有效值
+// 检测小时是否是有效值
 func IsValidHour(hour int) bool {
 	return hour >= 0 && hour < 24
 }
 
-//检测分钟是否是有效值
+// 检测分钟是否是有效值
 func IsValidMinute(minute int) bool {
 	return minute >= 0 && minute < 60
 }
 
-//检测分钟是否是有效值
+// 检测分钟是否是有效值
 func IsValidSecond(second int) bool {
 	return second >= 0 && second < 60
 }
 
-//游戏逻辑时间结构体
+// 游戏逻辑时间结构体
 type GameTime struct {
 	hour   int //游戏逻辑：小时 0-23
 	minute int //游戏逻辑：分钟 0-59
 	second int //游戏逻辑：秒  0-59
 }
 
-//获取当前游戏逻辑时间
+// 获取当前游戏逻辑时间
 func NowGameTime() *GameTime {
 	unixTime := time.Now().Unix()
 	systemElapseTime := int64(unixTime - GetServerFixedTimeSec(unixTime, GameLogicZeroTimeHour, 0, 0))
@@ -118,12 +118,12 @@ func (gt *GameTime) SetGameTime(hour, minute, second int) {
 	gt.second = second
 }
 
-//获取游戏逻辑时间 当天已过秒数
+// 获取游戏逻辑时间 当天已过秒数
 func (gt *GameTime) GetGameTimeSec() int64 {
 	return int64(gt.hour)*HourOfSecond + int64(gt.minute)*MinuteOfSecond + int64(gt.second)
 }
 
-//设置游戏逻辑时间戳 0-24小时的秒杀
+// 设置游戏逻辑时间戳 0-24小时的秒杀
 func (gt *GameTime) SetGameTimeSec(gameTimeSec int64) {
 	if gameTimeSec < 0 || gameTimeSec > DayOfSecond {
 		log.SError("SetGameTimeSec error, gameTimeSec: ", gameTimeSec)
@@ -134,12 +134,12 @@ func (gt *GameTime) SetGameTimeSec(gameTimeSec int64) {
 	gt.second = int(gameTimeSec % 60)
 }
 
-//比较时间前后, 返回true:gt小
+// 比较时间前后, 返回true:gt小
 func (gt *GameTime) Before(b *GameTime) bool {
 	return gt.GetGameTimeSec() < b.GetGameTimeSec()
 }
 
-//判断gt是否在[start,end]时间范围
+// 判断gt是否在[start,end]时间范围
 func (gt *GameTime) InRange(start *GameTime, end *GameTime) bool {
 	currentGameTimeSec := gt.GetGameTimeSec()
 	startGameTimeSec := start.GetGameTimeSec()
@@ -157,7 +157,7 @@ func (gt *GameTime) InRange(start *GameTime, end *GameTime) bool {
 	}
 }
 
-//获取当天服务器真实系统时间戳
+// 获取当天服务器真实系统时间戳
 func (gt *GameTime) GetUnixTime() int64 {
 	unixTime := time.Now().Unix()
 	gameLogicUnixTime := GetServerFixedTimeSec(unixTime, GameLogicZeroTimeHour, 0, 0)

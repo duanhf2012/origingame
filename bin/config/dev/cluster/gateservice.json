@@ -1,6 +1,25 @@
 {
 
   "Service": {
+    "GateService": {
+      "TcpCfg": {
+        "ListenAddr":":9001",
+        "MaxConnNum":10000,
+        "PendingWriteNum":10000,
+        "LittleEndian": false,
+        "LenMsgLen": 2,
+        "MinMsgLen": 2,
+        "MaxMsgLen": 1024000,
+        "ReadDeadlineSecond": 1500,
+        "WriteDeadlineSecond": 1500
+      },
+      "WSCfg_": {
+        "ListenAddr": "",
+        "MaxConnNum": 10000,
+        "PendingWriteNum": 10000,
+        "MaxMsgLen": 1024000
+      }
+    }
   },
   "NodeService": [
     {
@@ -13,9 +32,15 @@
           "LittleEndian": false,
           "LenMsgLen": 2,
           "MinMsgLen": 2,
-          "MaxMsgLen": 10240000,
+          "MaxMsgLen": 1024000,
           "ReadDeadlineSecond": 1500,
           "WriteDeadlineSecond": 1500
+        },
+        "WSCfg_": {
+          "ListenAddr": "",
+          "MaxConnNum": 10000,
+          "PendingWriteNum": 10000,
+          "MaxMsgLen": 1024000
         }
       }
     },
@@ -33,6 +58,12 @@
           "MaxMsgLen": 10240000,
           "ReadDeadlineSecond": 1500,
           "WriteDeadlineSecond": 1500
+        },
+        "WSCfg_": {
+          "ListenAddr": "",
+          "MaxConnNum": 10000,
+          "PendingWriteNum": 10000,
+          "MaxMsgLen": 1024000
         }
       }
     }

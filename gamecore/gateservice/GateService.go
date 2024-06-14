@@ -1,6 +1,8 @@
 package gateservice
 
 import (
+	"errors"
+	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"github.com/duanhf2012/origin/v2/node"
@@ -10,6 +12,7 @@ import (
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
 	"origingame/gamecore/gateservice/tcpmodule"
+	"origingame/gamecore/gateservice/wsmodule"
 	"time"
 )
 
@@ -20,17 +23,39 @@ func init() {
 type GateService struct {
 	service.Service
 
-	tcpModule      tcpmodule.TcpModule
+	tcpModule tcpmodule.TcpModule
+	wsModule  wsmodule.WSModule
+
 	pbRawProcessor processor.PBRawProcessor
 	msgRouter      MsgRouter
 	rawPackInfo    processor.PBRawPackInfo
 }
 
 func (gate *GateService) OnInit() error {
-	gate.msgRouter.Init(&gate.pbRawProcessor, &gate.tcpModule)
+	gate.msgRouter.Init(&gate.pbRawProcessor)
 	gate.tcpModule.SetProcessor(&gate.pbRawProcessor)
 	gate.AddModule(&gate.msgRouter)
-	gate.AddModule(&gate.tcpModule)
+
+	iConfig := gate.GetService().GetServiceCfg()
+	if iConfig == nil {
+		return fmt.Errorf("%s config is error", gate.GetService().GetName())
+	}
+
+	//TcpCfg与WSCfg取其一
+	mapTcpCfg := iConfig.(map[string]interface{})
+	_, tcpOk := mapTcpCfg["TcpCfg"]
+	if tcpOk == true {
+		gate.AddModule(&gate.tcpModule)
+		gate.msgRouter.SetNetModule(&gate.tcpModule)
+	} else {
+		_, wsOk := mapTcpCfg["WSCfg"]
+		if wsOk == true {
+			gate.AddModule(&gate.wsModule)
+			gate.msgRouter.SetNetModule(&gate.wsModule)
+		} else {
+			return errors.New("WSCfg and TcpCfg are not configured")
+		}
+	}
 
 	gate.RegRawRpc(util.RawRpcMsgDispatch, gate.RawRpcDispatch)
 	gate.RegRawRpc(util.RawRpcCloseClient, gate.RawCloseClient)
@@ -66,7 +91,7 @@ func (gate *GateService) SendMsg(clientId string, msgType uint16, rawMsg []byte)
 		return err
 	}
 
-	err = gate.tcpModule.SendRawData(clientId, bytes)
+	err = gate.tcpModule.SendRawMsg(clientId, bytes)
 	if err != nil {
 		log.Debug("SendMsg fail ", log.ErrorAttr("err", err), log.String("clientId", clientId))
 	}

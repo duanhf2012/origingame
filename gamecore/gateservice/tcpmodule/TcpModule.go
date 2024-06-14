@@ -27,16 +27,17 @@ type TcpModule struct {
 type TcpPackType int8
 
 const (
-	TPT_Connected    TcpPackType = 0
-	TPT_DisConnected TcpPackType = 1
-	TPT_Pack         TcpPackType = 2
-	TPT_UnknownPack  TcpPackType = 3
+	TPTConnected    TcpPackType = 0
+	TPTDisConnected TcpPackType = 1
+	TPTPack         TcpPackType = 2
+	TPTUnknownPack  TcpPackType = 3
 )
 
 type TcpPack struct {
-	Type     TcpPackType //0表示连接 1表示断开 2表示数据
-	ClientId string
-	Data     interface{}
+	Type                TcpPackType //0表示连接 1表示断开 2表示数据
+	ClientId            string
+	Data                interface{}
+	RecyclerReaderBytes func(data []byte)
 }
 
 type Client struct {
@@ -105,14 +106,14 @@ func (tm *TcpModule) OnInit() error {
 func (tm *TcpModule) tcpEventHandler(ev event.IEvent) {
 	pack := ev.(*event.Event).Data.(TcpPack)
 	switch pack.Type {
-	case TPT_Connected:
+	case TPTConnected:
 		tm.process.ConnectedRoute(pack.ClientId)
-	case TPT_DisConnected:
+	case TPTDisConnected:
 		tm.process.DisConnectedRoute(pack.ClientId)
-	case TPT_UnknownPack:
-		tm.process.UnknownMsgRoute(pack.ClientId, pack.Data)
-	case TPT_Pack:
-		tm.process.MsgRoute(pack.ClientId, pack.Data)
+	case TPTUnknownPack:
+		tm.process.UnknownMsgRoute(pack.ClientId, pack.Data, pack.RecyclerReaderBytes)
+	case TPTPack:
+		tm.process.MsgRoute(pack.ClientId, pack.Data, pack.RecyclerReaderBytes)
 	}
 }
 
@@ -146,7 +147,7 @@ func (slf *Client) Run() {
 		}
 	}()
 
-	slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPT_Connected}})
+	slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPTConnected}})
 	for {
 		if slf.tcpConn == nil {
 			break
@@ -159,17 +160,16 @@ func (slf *Client) Run() {
 			break
 		}
 		data, err := slf.tcpModule.process.Unmarshal(slf.id, bytes)
-
 		if err != nil {
-			slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPT_UnknownPack, Data: bytes}})
+			slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPTUnknownPack, Data: bytes, RecyclerReaderBytes: slf.tcpConn.GetRecyclerReaderBytes()}})
 			continue
 		}
-		slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPT_Pack, Data: data}})
+		slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPTPack, Data: data, RecyclerReaderBytes: slf.tcpConn.GetRecyclerReaderBytes()}})
 	}
 }
 
 func (slf *Client) OnClose() {
-	slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPT_DisConnected}})
+	slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPTDisConnected}})
 	slf.tcpModule.mapClientLocker.Lock()
 	defer slf.tcpModule.mapClientLocker.Unlock()
 	delete(slf.tcpModule.mapClient, slf.GetId())
@@ -228,17 +228,6 @@ func (tm *TcpModule) SendRawMsg(clientId string, msg []byte) error {
 	}
 	tm.mapClientLocker.Unlock()
 	return client.tcpConn.WriteMsg(msg)
-}
-
-func (tm *TcpModule) SendRawData(clientId string, data []byte) error {
-	tm.mapClientLocker.Lock()
-	client, ok := tm.mapClient[clientId]
-	if ok == false {
-		tm.mapClientLocker.Unlock()
-		return fmt.Errorf("client %d is disconnect!", clientId)
-	}
-	tm.mapClientLocker.Unlock()
-	return client.tcpConn.WriteMsg(data)
 }
 
 func (tm *TcpModule) GetConnNum() int {
