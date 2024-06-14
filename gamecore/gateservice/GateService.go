@@ -44,16 +44,16 @@ func (gate *GateService) OnInit() error {
 	_, tcpOk := mapTcpCfg["TcpCfg"]
 	if tcpOk == true {
 		var tcpModule tcpmodule.TcpModule
-		gate.AddModule(&tcpModule)
 		tcpModule.SetProcessor(&gate.pbRawProcessor)
+		gate.AddModule(&tcpModule)
 		gate.msgRouter.SetNetModule(&tcpModule)
 		gate.netModule = &tcpModule
 	} else {
 		_, wsOk := mapTcpCfg["WSCfg"]
 		if wsOk == true {
 			var wsModule wsmodule.WSModule
-			gate.AddModule(&wsModule)
 			wsModule.SetProcessor(&gate.pbRawProcessor)
+			gate.AddModule(&wsModule)
 			gate.msgRouter.SetNetModule(&wsModule)
 			gate.netModule = &wsModule
 		} else {

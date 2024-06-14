@@ -17,6 +17,7 @@
         "ListenAddr": "0.0.0.0:9444",
         "MaxConnNum": 10000,
         "PendingWriteNum": 10000,
+        "LittleEndian": false,
         "MaxMsgLen": 1024000
       }
     }

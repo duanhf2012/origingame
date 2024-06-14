@@ -33,6 +33,7 @@ type WSCfg struct {
 	MaxConnNum      int
 	PendingWriteNum int
 	MaxMsgLen       uint32
+	LittleEndian    bool //是否小端序
 }
 
 type WSPackType int8
@@ -78,6 +79,9 @@ func (ws *WSModule) OnInit() error {
 	ws.wsServer.PendingWriteNum = wsCfg.PendingWriteNum
 	ws.wsServer.MaxMsgLen = wsCfg.MaxMsgLen
 	ws.wsServer.Addr = wsCfg.ListenAddr
+
+	//3.设置解析处理器
+	ws.process.SetByteOrder(wsCfg.LittleEndian)
 
 	ws.mapClient = make(map[string]*WSClient, ws.wsServer.MaxConnNum)
 	ws.wsServer.NewAgent = ws.NewWSClient
