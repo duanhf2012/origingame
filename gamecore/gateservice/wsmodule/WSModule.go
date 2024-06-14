@@ -83,7 +83,7 @@ func (ws *WSModule) OnInit() error {
 	ws.wsServer.NewAgent = ws.NewWSClient
 
 	//4.设置网络事件处理
-	ws.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_Tcp, ws.GetEventHandler(), ws.wsEventHandler)
+	ws.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_WebSocket, ws.GetEventHandler(), ws.wsEventHandler)
 
 	ws.wsServer.Start()
 
@@ -91,7 +91,7 @@ func (ws *WSModule) OnInit() error {
 }
 
 func (ws *WSModule) wsEventHandler(ev event.IEvent) {
-	pack := ev.(*event.Event).Data.(WSPack)
+	pack := ev.(*event.Event).Data.(*WSPack)
 	switch pack.Type {
 	case WPTConnected:
 		ws.process.ConnectedRoute(pack.ClientId)
@@ -144,6 +144,10 @@ func (wc *WSClient) OnClose() {
 	wc.wsModule.mapClientLocker.Lock()
 	defer wc.wsModule.mapClientLocker.Unlock()
 	delete(wc.wsModule.mapClient, wc.GetId())
+}
+
+func (ws *WSModule) SetProcessor(process processor.IRawProcessor) {
+	ws.process = process
 }
 
 func (ws *WSModule) GetProcessor() processor.IRawProcessor {

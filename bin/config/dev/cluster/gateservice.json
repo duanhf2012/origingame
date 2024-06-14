@@ -2,7 +2,7 @@
 
   "Service": {
     "GateService": {
-      "TcpCfg": {
+      "TcpCfg_": {
         "ListenAddr":":9001",
         "MaxConnNum":10000,
         "PendingWriteNum":10000,
@@ -13,8 +13,8 @@
         "ReadDeadlineSecond": 1500,
         "WriteDeadlineSecond": 1500
       },
-      "WSCfg_": {
-        "ListenAddr": "",
+      "WSCfg": {
+        "ListenAddr": "0.0.0.0:9444",
         "MaxConnNum": 10000,
         "PendingWriteNum": 10000,
         "MaxMsgLen": 1024000

@@ -23,9 +23,7 @@ func init() {
 type GateService struct {
 	service.Service
 
-	tcpModule tcpmodule.TcpModule
-	wsModule  wsmodule.WSModule
-
+	netModule      INetModule
 	pbRawProcessor processor.PBRawProcessor
 	msgRouter      MsgRouter
 	rawPackInfo    processor.PBRawPackInfo
@@ -33,7 +31,7 @@ type GateService struct {
 
 func (gate *GateService) OnInit() error {
 	gate.msgRouter.Init(&gate.pbRawProcessor)
-	gate.tcpModule.SetProcessor(&gate.pbRawProcessor)
+
 	gate.AddModule(&gate.msgRouter)
 
 	iConfig := gate.GetService().GetServiceCfg()
@@ -45,13 +43,19 @@ func (gate *GateService) OnInit() error {
 	mapTcpCfg := iConfig.(map[string]interface{})
 	_, tcpOk := mapTcpCfg["TcpCfg"]
 	if tcpOk == true {
-		gate.AddModule(&gate.tcpModule)
-		gate.msgRouter.SetNetModule(&gate.tcpModule)
+		var tcpModule tcpmodule.TcpModule
+		gate.AddModule(&tcpModule)
+		tcpModule.SetProcessor(&gate.pbRawProcessor)
+		gate.msgRouter.SetNetModule(&tcpModule)
+		gate.netModule = &tcpModule
 	} else {
 		_, wsOk := mapTcpCfg["WSCfg"]
 		if wsOk == true {
-			gate.AddModule(&gate.wsModule)
-			gate.msgRouter.SetNetModule(&gate.wsModule)
+			var wsModule wsmodule.WSModule
+			gate.AddModule(&wsModule)
+			wsModule.SetProcessor(&gate.pbRawProcessor)
+			gate.msgRouter.SetNetModule(&wsModule)
+			gate.netModule = &wsModule
 		} else {
 			return errors.New("WSCfg and TcpCfg are not configured")
 		}
@@ -91,7 +95,7 @@ func (gate *GateService) SendMsg(clientId string, msgType uint16, rawMsg []byte)
 		return err
 	}
 
-	err = gate.tcpModule.SendRawMsg(clientId, bytes)
+	err = gate.netModule.SendRawMsg(clientId, bytes)
 	if err != nil {
 		log.Debug("SendMsg fail ", log.ErrorAttr("err", err), log.String("clientId", clientId))
 	}
@@ -128,6 +132,6 @@ func (gate *GateService) RawCloseClient(rawInput []byte) {
 	}
 
 	for _, clientId := range rawInputArgs.ClientIdList {
-		gate.tcpModule.Close(clientId)
+		gate.netModule.Close(clientId)
 	}
 }
