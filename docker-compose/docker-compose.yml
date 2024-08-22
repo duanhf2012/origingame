@@ -1,0 +1,66 @@
+version: '3'
+
+
+networks:
+  origin_middleware:
+
+# project名称
+name: origin
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.13
+    container_name: etcd
+    #    --name：节点名称，用于在集群中唯一标识一个节点。
+    #  --data-dir：数据目录，用于存储Etcd的数据。
+    #  --listen-client-urls：客户端监听地址，用于监听来自客户端的连接请求。
+    #  --advertise-client-urls：客户端广告地址，用于向客户端公告可用的服务地址。
+    #  --listen-peer-urls：对等体监听地址，用于监听来自对等体的连接请求。
+    #  --initial-advertise-peer-urls：对等体广告地址，用于向对等体公告可用的服务地址。
+    command: etcd -name etcd1 -advertise-client-urls http://0.0.0.0:2379 -listen-client-urls http://0.0.0.0:2379 -listen-peer-urls http://0.0.0.0:2380
+    ports:
+      - 12379:2379
+      - 12380:2380
+    volumes:
+      - ./data:/etcd-data
+    networks:
+      - origin_middleware
+  etcdkeeper:
+    image: deltaprojects/etcdkeeper
+    container_name: etcdkeeper
+    ports:
+      - 8088:8080
+    networks:
+      - origin_middleware
+#nats配置说明，请参考：https://hub.docker.com/r/bitnami/nats
+  nats1:
+    image: bitnami/nats:latest
+    environment:
+      - "NATS_ENABLE_CLUSTER=yes"
+      - "NATS_CLUSTER_ROUTES=nats://nats2:6223,nats://nats3:6224"
+    hostname: nats1
+    ports:
+      - "4222:4222"  # NATS clients
+      - "6222:6222"  # NATS routing
+      - "8222:8222"  # HTTP management
+
+  nats2:
+    image: bitnami/nats:latest
+    environment:
+      - "NATS_ENABLE_CLUSTER=yes"
+      - "NATS_CLUSTER_ROUTES=nats://nats1:6222,nats://nats3:6224"
+    hostname: nats2
+    ports:
+      - "4223:4222"
+      - "6223:6222"
+      - "8223:8222"
+
+  nats3:
+    image: bitnami/nats:latest
+    environment:
+      - "NATS_ENABLE_CLUSTER=yes"
+      - "NATS_CLUSTER_ROUTES=nats://nats1:6222,nats://nats2:6223"
+    hostname: nats3
+    ports:
+      - "4224:4222"
+      - "6224:6222"
+      - "8224:8222"
