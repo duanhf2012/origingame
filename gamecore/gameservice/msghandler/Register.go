@@ -1,13 +1,19 @@
 package msghandler
 
 import (
-	"google.golang.org/protobuf/proto"
 	"origingame/common/proto/msg"
-	"origingame/gamecore/gameservice/player"
+	"origingame/gamecore/gameservice/msgrouter"
 )
 
-type CallBack func(player *player.Player, msg proto.Message)
+type MsgHandle struct {
+	*msgrouter.MsgReceiver
+}
 
-func RegisterMessage(register func(msgType msg.MsgType, message proto.Message, cb CallBack)) {
-	register(msg.MsgType_Ping, &msg.MsgNil{}, ping)
+func (mh *MsgHandle) Init(mr *msgrouter.MsgReceiver) {
+	mh.MsgReceiver = mr
+	mh.RegMgsHandler()
+}
+
+func (mh *MsgHandle) RegMgsHandler() {
+	mh.RegMsgHandler(msgrouter.NewHandler(msg.MsgType_Ping, ping))
 }

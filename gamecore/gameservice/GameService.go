@@ -11,8 +11,11 @@ import (
 	"origingame/common/performance"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
+	"origingame/gamecore/gameservice/msghandler"
+	"origingame/gamecore/gameservice/msgrouter"
 	factory "origingame/gamecore/gameservice/objectfactory"
 	"origingame/gamecore/gameservice/player"
+	"origingame/gamecore/interfacedef"
 	"time"
 )
 
@@ -30,8 +33,9 @@ type GameService struct {
 
 	objectFactoryModule *factory.ObjectFactoryModule
 	performanceAnalyzer *performance.PerformanceAnalyzer
-	msgSender           MsgSender
-	msgReceiver         MsgReceiver
+	msgSender           msgrouter.MsgSender
+	msgReceiver         msgrouter.MsgReceiver
+	msgHandler          msghandler.MsgHandle
 
 	balance rpc.GameServiceBalance //负载同步变量
 }
@@ -42,9 +46,7 @@ func (gs *GameService) OnInit() error {
 	gs.performanceAnalyzer = &performance.PerformanceAnalyzer{}
 	gs.objectFactoryModule = factory.NewGameObjectFactoryModule()
 	gs.objectFactoryModule.Analyzer = gs.performanceAnalyzer
-	gs.msgReceiver.Init(gs)
 
-	gs.msgReceiver.RegisterMessage()
 	gs.RegRawRpc(util.RawRpcOnRecv, gs.msgReceiver.RpcOnRecvCallBack)
 	gs.RegRawRpc(util.RawRpcOnClose, gs.RpcOnCloseCallBack)
 
@@ -58,6 +60,12 @@ func (gs *GameService) OnInit() error {
 		return err
 	}
 
+	_, err = gs.AddModule(&gs.msgReceiver)
+	if err != nil {
+		return err
+	}
+
+	gs.msgHandler.Init(&gs.msgReceiver)
 	return nil
 }
 
@@ -243,4 +251,12 @@ func (gs *GameService) asyncPlayerListTimer(t *timer.Timer) {
 		gs.timerUpdateBalance(nil)
 		gs.NewTicker(10*time.Second, gs.timerUpdateBalance)
 	}
+}
+
+func (gs *GameService) GetClientPlayer(clientID string) interfacedef.IPlayer {
+	return gs.mapClientPlayer[clientID]
+}
+
+func (gs *GameService) GetAnalyzer(analyzerType int, analyzerId int) *performance.Analyzer {
+	return gs.performanceAnalyzer.GetAnalyzer(analyzerType, analyzerId)
 }

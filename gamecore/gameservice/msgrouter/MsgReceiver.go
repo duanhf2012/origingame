@@ -1,19 +1,47 @@
-package gameservice
+package msgrouter
 
 import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
+	"github.com/duanhf2012/origin/v2/service"
 	"github.com/duanhf2012/origin/v2/util/sync"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/performance"
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
-	"origingame/gamecore/gameservice/msghandler"
+	"origingame/gamecore/gameservice/player"
+	"origingame/gamecore/interfacedef"
 )
 
+type IProtoMsg[T any] interface {
+	*T
+	proto.Message
+}
+
+type MsgHandler[T any, P IProtoMsg[T]] struct {
+	call    func(p *player.Player, msg P)
+	msgType msg.MsgType
+}
+
 type MsgReceiver struct {
-	*GameService
-	mapRegisterMsg map[msg.MsgType]*RegMsgInfo //消息注册
+	service.Module
+	gs interfacedef.IGSService
+
+	mapRegisterMsg map[msg.MsgType]interfacedef.IMsgHandler //消息注册
+}
+
+func (mh *MsgHandler[T, P]) GetMsgType() msg.MsgType {
+	return mh.msgType
+}
+
+func (mh *MsgHandler[T, P]) Cb(p interfacedef.IPlayer, msg []byte) {
+	var t T
+	err := proto.Unmarshal(msg, P(&t))
+	if err != nil {
+		return
+	}
+
+	mh.call(p.(*player.Player), P(&t))
 }
 
 type protoMsg struct {
@@ -38,11 +66,8 @@ func (m *protoMsg) UnRef() {
 }
 
 type RegMsgInfo struct {
-	protoMsg    *protoMsg
-	msgPool     *sync.PoolEx
-	msgCallBack msghandler.CallBack
-
-	//retMsgType msg.MsgType //返回的消息ID
+	protoMsg *protoMsg
+	msgPool  *sync.PoolEx
 }
 
 func (r *RegMsgInfo) NewMsg() *protoMsg {
@@ -54,9 +79,11 @@ func (r *RegMsgInfo) ReleaseMsg(msg *protoMsg) {
 	r.msgPool.Put(msg)
 }
 
-func (mr *MsgReceiver) Init(gs *GameService) {
-	mr.GameService = gs
-	mr.mapRegisterMsg = make(map[msg.MsgType]*RegMsgInfo, 256)
+func (mr *MsgReceiver) OnInit() error {
+	mr.gs = mr.GetService().(interfacedef.IGSService)
+	mr.mapRegisterMsg = make(map[msg.MsgType]interfacedef.IMsgHandler, 256)
+
+	return nil
 }
 
 func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
@@ -78,40 +105,28 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 	if err != nil || len(clientIdList) != 1 {
 		for _, clientId := range clientIdList {
 			//断开clientId连接
-			mr.GameService.CloseClient(clientId)
+			mr.gs.CloseClient(clientId)
 		}
 		log.SError("parse message is error:", err.Error())
 		return
 	}
 
 	//反序列化数据
-	msgInfo, ok := mr.mapRegisterMsg[msg.MsgType(rawInput.GetMsgType())]
+	msgHandler, ok := mr.mapRegisterMsg[msg.MsgType(rawInput.GetMsgType())]
 	if ok == false {
 		err = fmt.Errorf("close client %+v, message type %d is not  register.", clientIdList, rawInput.GetMsgType())
 		log.SWarning(err.Error())
 		for _, clientId := range clientIdList {
-			mr.CloseClient(clientId)
-		}
-		return
-	}
-
-	pMsg := msgInfo.NewMsg()
-	err = proto.Unmarshal(rawInput.RawData, pMsg.msg)
-	if err != nil {
-		err = fmt.Errorf("close client %+v, message type %d Unmarshal is fail.", clientIdList, rawInput.GetMsgType())
-		log.SWarning(err.Error())
-
-		for _, clientId := range clientIdList {
-			mr.GameService.CloseClient(clientId)
+			mr.gs.CloseClient(clientId)
 		}
 		return
 	}
 
 	clientId := clientIdList[0]
-	p, ok := mr.GameService.mapClientPlayer[clientId]
-	if ok == false {
+	p := mr.gs.GetClientPlayer(clientId)
+	if p == nil {
 		log.SWarning("close client ", clientId, ",mapClientPlayer not exists clientId")
-		mr.GameService.CloseClient(clientId)
+		mr.gs.CloseClient(clientId)
 		return
 	}
 
@@ -121,32 +136,26 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 		return
 	}
 
-	an := mr.GameService.performanceAnalyzer.GetAnalyzer(performance.MsgAnalyzer, int(msgType))
+	an := mr.gs.GetAnalyzer(performance.MsgAnalyzer, int(msgType))
 	if an != nil {
 		an.StartStatisticalTime()
 	}
 
-	msgInfo.msgCallBack(p, pMsg.msg)
-	msgInfo.ReleaseMsg(pMsg)
+	msgHandler.Cb(p, rawInput.RawData)
+
 	if an != nil {
 		an.EndStatisticalTimeEx(performance.MsgCostTimeAnalyzer)
 	}
 }
 
-func (mr *MsgReceiver) register(msgType msg.MsgType, message proto.Message, cb msghandler.CallBack) {
-	var regMsgInfo RegMsgInfo
-	regMsgInfo.protoMsg = &protoMsg{}
-	regMsgInfo.protoMsg.msg = message
-	regMsgInfo.msgPool = sync.NewPoolEx(make(chan sync.IPoolData, 1000), func() sync.IPoolData {
-		pMsg := protoMsg{}
-		pMsg.msg = proto.Clone(regMsgInfo.protoMsg.msg)
-		return &pMsg
-	})
+func NewHandler[T any, P IProtoMsg[T]](msgType msg.MsgType, call func(p *player.Player, msg P)) *MsgHandler[T, P] {
+	var handler MsgHandler[T, P]
+	handler.call = call
+	handler.msgType = msgType
 
-	regMsgInfo.msgCallBack = cb
-	mr.mapRegisterMsg[msgType] = &regMsgInfo
+	return &handler
 }
 
-func (mr *MsgReceiver) RegisterMessage() {
-	msghandler.RegisterMessage(mr.register)
+func (mr *MsgReceiver) RegMsgHandler(handler interfacedef.IMsgHandler) {
+	mr.mapRegisterMsg[handler.GetMsgType()] = handler
 }

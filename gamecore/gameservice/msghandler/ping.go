@@ -1,10 +1,10 @@
 package msghandler
 
 import (
-	"google.golang.org/protobuf/proto"
+	"origingame/common/proto/msg"
 	"origingame/gamecore/gameservice/player"
 )
 
-func ping(player *player.Player, message proto.Message) {
+func ping(player *player.Player, msg *msg.MsgNil) {
 	player.Ping()
 }

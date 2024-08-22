@@ -1,4 +1,4 @@
-package gameservice
+package msgrouter
 
 import (
 	"fmt"
@@ -9,11 +9,12 @@ import (
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
+	"origingame/gamecore/interfacedef"
 )
 
 type MsgSender struct {
 	service.Module
-	gs *GameService
+	gs interfacedef.IGSService
 
 	buff ProtoBuff
 }
@@ -33,7 +34,8 @@ func (pb *ProtoBuff) Marshal(message proto.Message) ([]byte, error) {
 }
 
 func (ms *MsgSender) OnInit() error {
-	ms.gs = ms.GetService().(*GameService)
+	ms.gs = ms.GetService().(interfacedef.IGSService)
+
 	return nil
 }
 

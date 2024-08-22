@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+type IPlayer interface {
+	IsLoadFinish() bool
+}
+
 type IPlayerDBCallBack interface {
 	OnLoadDBEnd(suc bool)
 	OnLoadMultiDBEnd(collectType collect.MultiCollectionType)
