@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/service"
-	"github.com/duanhf2012/origin/v2/util/sync"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/performance"
 	"origingame/common/proto/msg"
@@ -23,11 +22,11 @@ type MsgHandler[T any, P IProtoMsg[T]] struct {
 	msgType msg.MsgType
 }
 
+var mapRegisterMsg = make(map[msg.MsgType]interfacedef.IMsgHandler, 256) //消息注册
+
 type MsgReceiver struct {
 	service.Module
 	gs interfacedef.IGSService
-
-	mapRegisterMsg map[msg.MsgType]interfacedef.IMsgHandler //消息注册
 }
 
 func (mh *MsgHandler[T, P]) GetMsgType() msg.MsgType {
@@ -44,44 +43,8 @@ func (mh *MsgHandler[T, P]) Cb(p interfacedef.IPlayer, msg []byte) {
 	mh.call(p.(*player.Player), P(&t))
 }
 
-type protoMsg struct {
-	ref bool
-	msg proto.Message
-}
-
-func (m *protoMsg) Reset() {
-	proto.Reset(m.msg)
-}
-
-func (m *protoMsg) IsRef() bool {
-	return m.ref
-}
-
-func (m *protoMsg) Ref() {
-	m.ref = true
-}
-
-func (m *protoMsg) UnRef() {
-	m.ref = false
-}
-
-type RegMsgInfo struct {
-	protoMsg *protoMsg
-	msgPool  *sync.PoolEx
-}
-
-func (r *RegMsgInfo) NewMsg() *protoMsg {
-	pMsg := r.msgPool.Get().(*protoMsg)
-	return pMsg
-}
-
-func (r *RegMsgInfo) ReleaseMsg(msg *protoMsg) {
-	r.msgPool.Put(msg)
-}
-
 func (mr *MsgReceiver) OnInit() error {
 	mr.gs = mr.GetService().(interfacedef.IGSService)
-	mr.mapRegisterMsg = make(map[msg.MsgType]interfacedef.IMsgHandler, 256)
 
 	return nil
 }
@@ -112,7 +75,7 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 	}
 
 	//反序列化数据
-	msgHandler, ok := mr.mapRegisterMsg[msg.MsgType(rawInput.GetMsgType())]
+	msgHandler, ok := mapRegisterMsg[msg.MsgType(rawInput.GetMsgType())]
 	if ok == false {
 		err = fmt.Errorf("close client %+v, message type %d is not  register.", clientIdList, rawInput.GetMsgType())
 		log.SWarning(err.Error())
@@ -148,7 +111,7 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 	}
 }
 
-func NewHandler[T any, P IProtoMsg[T]](msgType msg.MsgType, call func(p *player.Player, msg P)) *MsgHandler[T, P] {
+func newHandler[T any, P IProtoMsg[T]](msgType msg.MsgType, call func(p *player.Player, msg P)) *MsgHandler[T, P] {
 	var handler MsgHandler[T, P]
 	handler.call = call
 	handler.msgType = msgType
@@ -156,6 +119,9 @@ func NewHandler[T any, P IProtoMsg[T]](msgType msg.MsgType, call func(p *player.
 	return &handler
 }
 
-func (mr *MsgReceiver) RegMsgHandler(handler interfacedef.IMsgHandler) {
-	mr.mapRegisterMsg[handler.GetMsgType()] = handler
+func RegMsgHandler[T any, P IProtoMsg[T]](msgType msg.MsgType, call func(p *player.Player, msg P)) {
+	if _, ok := mapRegisterMsg[msgType]; ok {
+		panic(fmt.Errorf("repeated register msg type %d", msgType))
+	}
+	mapRegisterMsg[msgType] = newHandler(msgType, call)
 }

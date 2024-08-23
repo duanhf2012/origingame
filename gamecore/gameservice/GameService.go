@@ -11,7 +11,7 @@ import (
 	"origingame/common/performance"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
-	"origingame/gamecore/gameservice/msghandler"
+	_ "origingame/gamecore/gameservice/msghandler"
 	"origingame/gamecore/gameservice/msgrouter"
 	factory "origingame/gamecore/gameservice/objectfactory"
 	"origingame/gamecore/gameservice/player"
@@ -35,7 +35,6 @@ type GameService struct {
 	performanceAnalyzer *performance.PerformanceAnalyzer
 	msgSender           msgrouter.MsgSender
 	msgReceiver         msgrouter.MsgReceiver
-	msgHandler          msghandler.MsgHandle
 
 	balance rpc.GameServiceBalance //负载同步变量
 }
@@ -65,7 +64,6 @@ func (gs *GameService) OnInit() error {
 		return err
 	}
 
-	gs.msgHandler.Init(&gs.msgReceiver)
 	return nil
 }
 
@@ -73,6 +71,7 @@ func (gs *GameService) initBalance() {
 	gs.balance.NodeId = node.GetNodeId()
 	gs.balance.GSName = gs.GetName()
 }
+
 func (gs *GameService) OnStart() {
 	gs.AfterFunc(time.Second*2, gs.asyncPlayerListTimer)
 }
