@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/duanhf2012/origin/v2 v2.0.11-0.20240830085648-73d384361d00
+	github.com/duanhf2012/origin/v2 v2.0.11-0.20240911065031-7116b509e9b4
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/pierrec/lz4/v4 v4.1.18
