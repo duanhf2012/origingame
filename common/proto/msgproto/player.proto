@@ -29,3 +29,12 @@ enum LogoutType
 message MsgNotifyLogout {
     int32 Reason    = 1;  //退出原因
 }
+
+message MsgGmReq{
+    string Command = 1;
+    repeated string Param = 2;
+}
+
+message MsgGmRes{
+    string Ret = 1;
+}

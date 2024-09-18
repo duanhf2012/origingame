@@ -17,6 +17,12 @@ func loginRes(bot *Bot, msgProto proto.Message) {
 	msgLoginRes := msgProto.(*msg.MsgLoginRes)
 	log.Debug("loginRes", log.Any("loginRes", msgLoginRes))
 	bot.setLoginFinish()
+
+	// 发送gm
+	//var msgGm msg.MsgGmReq
+	//msgGm.Command = "TestMsg"
+	//msgGm.Param = []string{"100", "{}"}
+	//bot.SendMsg(msg.MsgType_GM, &msgGm)
 }
 
 func loadFinish(bot *Bot, msgProto proto.Message) {

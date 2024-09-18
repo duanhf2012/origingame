@@ -8,6 +8,7 @@ enum MsgType //枚举消息类型
         Null       = 0;
         Ping        = 100;
         Pong        = 101;
+        GM          = 102;
 
         LoginReq = 1000;
         LoginRes = 1001;

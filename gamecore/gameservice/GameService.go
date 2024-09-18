@@ -11,6 +11,7 @@ import (
 	"origingame/common/performance"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
+	"origingame/gamecore/gameservice/gm"
 	_ "origingame/gamecore/gameservice/msghandler"
 	"origingame/gamecore/gameservice/msgrouter"
 	factory "origingame/gamecore/gameservice/objectfactory"
@@ -35,8 +36,8 @@ type GameService struct {
 	performanceAnalyzer *performance.PerformanceAnalyzer
 	msgSender           msgrouter.MsgSender
 	msgReceiver         msgrouter.MsgReceiver
-
-	balance rpc.GameServiceBalance //负载同步变量
+	gmModule            gm.GmModule
+	balance             rpc.GameServiceBalance //负载同步变量
 }
 
 func (gs *GameService) OnInit() error {
@@ -60,6 +61,11 @@ func (gs *GameService) OnInit() error {
 	}
 
 	_, err = gs.AddModule(&gs.msgReceiver)
+	if err != nil {
+		return err
+	}
+
+	_, err = gs.AddModule(&gs.gmModule)
 	if err != nil {
 		return err
 	}
@@ -258,4 +264,16 @@ func (gs *GameService) GetClientPlayer(clientID string) interfacedef.IPlayer {
 
 func (gs *GameService) GetAnalyzer(analyzerType int, analyzerId int) *performance.Analyzer {
 	return gs.performanceAnalyzer.GetAnalyzer(analyzerType, analyzerId)
+}
+
+func (gs *GameService) GetMsgReceiver() interfacedef.IMsgReceiver {
+	return &gs.msgReceiver
+}
+
+func (gs *GameService) GetMsgSender() interfacedef.IMsgSender {
+	return &gs.msgSender
+}
+
+func (gs *GameService) GetPlayerTimer() interfacedef.IPlayerTimer {
+	return gs.objectFactoryModule
 }

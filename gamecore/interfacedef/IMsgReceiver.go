@@ -5,9 +5,11 @@ import (
 )
 
 type IMsgHandler interface {
-	Cb(p IPlayer, msg []byte)
+	MsgCb(p IPlayer, msg []byte)
+	GmCb(p IPlayer, msgBody []byte)
 	GetMsgType() msg.MsgType
 }
 
-type IMsgRegister interface {
+type IMsgReceiver interface {
+	GmReceiver(p IPlayer, msgType msg.MsgType, msgBody []byte) bool
 }

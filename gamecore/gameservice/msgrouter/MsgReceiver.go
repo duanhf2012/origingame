@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/service"
+	"github.com/goccy/go-json"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/performance"
 	"origingame/common/proto/msg"
@@ -33,7 +34,7 @@ func (mh *MsgHandler[T, P]) GetMsgType() msg.MsgType {
 	return mh.msgType
 }
 
-func (mh *MsgHandler[T, P]) Cb(p interfacedef.IPlayer, msg []byte) {
+func (mh *MsgHandler[T, P]) MsgCb(p interfacedef.IPlayer, msg []byte) {
 	var t T
 	err := proto.Unmarshal(msg, P(&t))
 	if err != nil {
@@ -43,10 +44,35 @@ func (mh *MsgHandler[T, P]) Cb(p interfacedef.IPlayer, msg []byte) {
 	mh.call(p.(*player.Player), P(&t))
 }
 
+func (mh *MsgHandler[T, P]) GmCb(p interfacedef.IPlayer, msgBody []byte) {
+	var t T
+	err := json.Unmarshal(msgBody, &t)
+	if err != nil {
+		return
+	}
+
+	mh.call(p.(*player.Player), P(&t))
+}
+
+func (mh *MsgHandler[T, P]) NewMsg() P {
+	var t T
+	return &t
+}
+
 func (mr *MsgReceiver) OnInit() error {
 	mr.gs = mr.GetService().(interfacedef.IGSService)
 
 	return nil
+}
+
+func (mr *MsgReceiver) GmReceiver(p interfacedef.IPlayer, msgType msg.MsgType, msgBody []byte) bool {
+	msgHandler, ok := mapRegisterMsg[msgType]
+	if ok == false {
+		return false
+	}
+
+	msgHandler.GmCb(p, msgBody)
+	return true
 }
 
 func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
@@ -104,7 +130,7 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 		an.StartStatisticalTime()
 	}
 
-	msgHandler.Cb(p, rawInput.RawData)
+	msgHandler.MsgCb(p, rawInput.RawData)
 
 	if an != nil {
 		an.EndStatisticalTimeEx(performance.MsgCostTimeAnalyzer)

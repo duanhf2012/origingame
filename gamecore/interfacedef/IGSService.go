@@ -13,4 +13,8 @@ type IGSService interface {
 	GetClientIdByPlayerId(playerId string) string
 	CloseClient(clientId string)
 	DestroyPlayer(playerId string) bool
+
+	GetMsgReceiver() IMsgReceiver
+	GetMsgSender() IMsgSender
+	GetPlayerTimer() IPlayerTimer
 }

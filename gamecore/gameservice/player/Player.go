@@ -13,9 +13,7 @@ import (
 
 type Player struct {
 	PoolObj
-	interfacedef.IPlayerTimer
 	interfacedef.IGSService
-	interfacedef.IMsgSender
 	dbcollection.PlayerDB
 
 	DataInfo
@@ -23,10 +21,8 @@ type Player struct {
 	checkPingTicker uint64
 }
 
-func (p *Player) Init(id string, sender interfacedef.IMsgSender, gsService interfacedef.IGSService, playerTimer interfacedef.IPlayerTimer) {
-	p.IMsgSender = sender
+func (p *Player) Init(id string, gsService interfacedef.IGSService) {
 	p.IGSService = gsService
-	p.IPlayerTimer = playerTimer
 	p.Id = id
 	p.GenSessionId()
 
@@ -44,7 +40,7 @@ func (p *Player) LoadFromDB() {
 }
 
 func (p *Player) SendMsg(msgType msg.MsgType, message proto.Message) int {
-	return p.IMsgSender.SendToClient(p.GetClientId(), msgType, message)
+	return p.GetMsgSender().SendToClient(p.GetClientId(), msgType, message)
 }
 
 func (p *Player) Destroy() {
@@ -98,4 +94,8 @@ func (p *Player) checkPingTimeout(uint64, interface{}) {
 	if time.Now().Sub(p.pingTime) > 300*time.Second {
 		p.Destroy()
 	}
+}
+
+func (p *Player) IsGm() bool {
+	return true
 }
