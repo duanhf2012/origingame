@@ -4,8 +4,9 @@ go 1.22.0
 
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/duanhf2012/origin/v2 v2.0.11-0.20240911070633-8e0ed62fca11
+	github.com/duanhf2012/origin/v2 v2.0.12-0.20240918081920-e6c09064bfa6
 	github.com/gin-gonic/gin v1.10.0
+	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/websocket v1.5.1
 	github.com/pierrec/lz4/v4 v4.1.18
 	go.mongodb.org/mongo-driver v1.9.1
@@ -26,7 +27,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
-	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
