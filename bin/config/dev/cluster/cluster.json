@@ -6,7 +6,7 @@
       "ListenAddr": "0.0.0.0:11000",
 	  "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
-      "ServiceList": ["AuthService","HttpGateService","CenterService","GateService","AccDBService:DBService","DBService:DBService","GS1:GameService"],
+      "ServiceList": ["HotLoadService","AuthService","HttpGateService","CenterService","GateService","AccDBService:DBService","DBService:DBService","GS1:GameService"],
       "DiscoveryService": []
     },{
       "NodeId": "bot",
@@ -59,7 +59,7 @@
       "ListenAddr": "0.0.0.0:13001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
-      "ServiceList": ["GS1:GameService","GS2:GameService"],
+      "ServiceList": ["HotLoadService","GS1:GameService","GS2:GameService"],
       "DiscoveryService": []
     },
     {
@@ -68,7 +68,7 @@
       "ListenAddr": "0.0.0.0:13002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
-      "ServiceList": ["GS1:GameService","GS2:GameService"],
+      "ServiceList": ["HotLoadService","GS1:GameService","GS2:GameService"],
       "DiscoveryService": []
     },
 

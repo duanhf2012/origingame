@@ -2,13 +2,14 @@ package main
 
 import (
 	"github.com/duanhf2012/origin/v2/node"
-	_ "origingame/gamecore/botservice"
-	_ "origingame/gamecore/centerservice"
-	_ "origingame/gamecore/dbservice"
-	_ "origingame/gamecore/gameservice"
-	_ "origingame/gamecore/gateservice"
-	_ "origingame/gamemaster/authservice"
-	_ "origingame/gamemaster/httpgateservice"
+	_ "origingame/service/authservice"
+	_ "origingame/service/botservice"
+	_ "origingame/service/centerservice"
+	_ "origingame/service/dbservice"
+	_ "origingame/service/gameservice"
+	_ "origingame/service/gateservice"
+	_ "origingame/service/hotloadservice"
+	_ "origingame/service/httpgateservice"
 	"time"
 )
 
