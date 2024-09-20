@@ -1,7 +1,7 @@
 package tablecfg
 
 import (
-	tabledef "origingame/table/TableDef"
+	"origingame/table/tabledef"
 	"sync/atomic"
 )
 

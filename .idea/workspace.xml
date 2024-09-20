@@ -5,9 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9dfe59c1-027f-477e-87ea-765209397250" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/common/module/tablecfg/tables.go" beforeDir="false" afterPath="$PROJECT_DIR$/common/module/tablecfg/tables.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/hotloadservice/tablecfg.go" beforeDir="false" afterPath="$PROJECT_DIR$/service/hotloadservice/tablecfg.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/table/gen.bat" beforeDir="false" afterPath="$PROJECT_DIR$/table/gen.bat" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,6 +37,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Go Build.go build .executor": "Debug",
     "Go Build.go build main.go.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
@@ -44,7 +49,8 @@
     "last_opened_file_path": "C:/Users/Administrator",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm"
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "go.vgo"
   }
 }]]></component>
   <component name="RunManager">
@@ -76,7 +82,6 @@
     <option name="version" value="3" />
   </component>
   <component name="VgoProject">
-    <integration-enabled>false</integration-enabled>
     <settings-migrated>true</settings-migrated>
   </component>
 </project>

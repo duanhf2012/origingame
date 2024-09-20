@@ -5,7 +5,7 @@ import (
 	"github.com/duanhf2012/origin/v2/service"
 	jsoniter "github.com/json-iterator/go"
 	"origingame/common/module/tablecfg"
-	tabledef "origingame/table/TableDef"
+	"origingame/table/tabledef"
 	"os"
 	"path/filepath"
 )
