@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/service"
 	jsoniter "github.com/json-iterator/go"
-	"origingame/common/module/tablecfg"
+	"origingame/table/tablecfg"
 	"origingame/table/tabledef"
 	"os"
 	"path/filepath"
