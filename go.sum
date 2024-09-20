@@ -15,8 +15,8 @@ github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSV
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/duanhf2012/origin/v2 v2.0.12-0.20240918081920-e6c09064bfa6 h1:11Y7gqTZ9ObIdzPS9OvxxkNO0PcQgt+SyEKRwGT0Jjo=
-github.com/duanhf2012/origin/v2 v2.0.12-0.20240918081920-e6c09064bfa6/go.mod h1:APPkmx1keoqRbbSCKMfKPsPKkircAiBMiD3Rv8yNZRg=
+github.com/duanhf2012/origin/v2 v2.0.13-0.20240920092508-39116c44024b h1:2eaESpIQhvFjomoV7Re+Immy5jtWQLQKsP5sAZpSNaw=
+github.com/duanhf2012/origin/v2 v2.0.13-0.20240920092508-39116c44024b/go.mod h1:APPkmx1keoqRbbSCKMfKPsPKkircAiBMiD3Rv8yNZRg=
 github.com/gabriel-vasile/mimetype v1.4.3 h1:in2uUcidCuFcDKtdcBxlR0rJ1+fsokWf+uqxgUFjbI0=
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6HKRL6CGdk+aubisF/M5GcPfT7nKyLpA0lbSSk=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=

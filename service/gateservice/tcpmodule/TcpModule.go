@@ -237,16 +237,16 @@ func (tm *TcpModule) GetConnNum() int {
 	return connNum
 }
 
-func (tm *TcpModule) SetNetMempool(mempool bytespool.IBytesMempool) {
-	tm.tcpServer.SetNetMempool(mempool)
+func (tm *TcpModule) SetNetMempool(mempool bytespool.IBytesMemPool) {
+	tm.tcpServer.SetNetMemPool(mempool)
 }
 
-func (tm *TcpModule) GetNetMempool() bytespool.IBytesMempool {
-	return tm.tcpServer.GetNetMempool()
+func (tm *TcpModule) GetNetMempool() bytespool.IBytesMemPool {
+	return tm.tcpServer.GetNetMemPool()
 }
 
 func (tm *TcpModule) ReleaseNetMem(byteBuff []byte) {
-	tm.tcpServer.GetNetMempool().ReleaseBytes(byteBuff)
+	tm.tcpServer.GetNetMemPool().ReleaseBytes(byteBuff)
 }
 
 func (tm *TcpModule) GetProcessor() processor.IRawProcessor {

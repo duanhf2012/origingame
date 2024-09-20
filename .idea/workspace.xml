@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9dfe59c1-027f-477e-87ea-765209397250" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" afterDir="false" />
     </list>
@@ -37,6 +38,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
     "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.go.modules.automatic.dependencies.download": "true",
     "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
     "git-widget-placeholder": "main",
     "go.import.settings.migrated": "true",
@@ -48,6 +50,12 @@
     "settings.editor.selected.configurable": "go.vgo"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Develop\origingame\table" />
+      <recent name="D:\Develop\origingame\common" />
+    </key>
+  </component>
   <component name="RunManager">
     <configuration name="go build main.go" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
       <module name="origingame" />
