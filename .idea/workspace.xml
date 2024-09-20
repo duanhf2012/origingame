@@ -8,10 +8,11 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/discovery.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/cluster/rpc.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/common/module/tablecfg/tables.go" beforeDir="false" afterPath="$PROJECT_DIR$/common/module/tablecfg/tables.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/hotloadservice/tablecfg.go" beforeDir="false" afterPath="$PROJECT_DIR$/service/hotloadservice/tablecfg.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/table/gen.bat" beforeDir="false" afterPath="$PROJECT_DIR$/table/gen.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/config/dev/datas/item_tbitem.json" beforeDir="false" afterPath="$PROJECT_DIR$/bin/config/dev/datas/item_tbitem.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/table/Datas/__beans__.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/table/Datas/__beans__.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/table/Datas/__enums__.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/table/Datas/__enums__.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/table/Datas/item.xlsx" beforeDir="false" afterPath="$PROJECT_DIR$/table/Datas/item.xlsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/table/tabledef/item.Item.go" beforeDir="false" afterPath="$PROJECT_DIR$/table/tabledef/item.Item.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
