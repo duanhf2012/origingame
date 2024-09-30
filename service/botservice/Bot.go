@@ -18,8 +18,17 @@ import (
 
 type botStatus = int
 
-const gateAddr = "127.0.0.1:9001"
-const wsAddr = "ws://0.0.0.0:9444"
+const gateAddr = "127.0.0.1:9001"  // kcp,tcp
+const wsAddr = "ws://0.0.0.0:9444" // ws
+type NetType int
+
+const (
+	Tcp NetType = iota
+	WS
+	Kcp
+)
+
+var netType = WS
 
 const (
 	httpLogging       = 0
@@ -40,9 +49,12 @@ type Bot struct {
 
 	tcpClient *network.TCPClient
 	wsClient  *network.WSClient
+	kcpClient *network.KCPClient
 
-	tcpConn   *network.TCPConn
-	wsConn    *network.WSConn
+	tcpConn *network.NetConn
+	wsConn  *network.WSConn
+	kcpConn *network.NetConn
+
 	conn      IConn
 	connMutex sync.Mutex
 
@@ -53,7 +65,7 @@ type Bot struct {
 var mapRegisterMsg map[msg.MsgType]*MsgEvent
 
 type MsgEvent struct {
-	conn   *network.TCPConn
+	conn   *network.NetConn
 	msg    proto.Message
 	funcDo func(bot *Bot, msg proto.Message)
 }
@@ -76,7 +88,6 @@ func NewMsgByMsgType(msgType msg.MsgType) *MsgEvent {
 }
 
 func (bt *Bot) runBot() bool {
-
 	for {
 		cxt, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		select {
@@ -106,7 +117,7 @@ func (bt *Bot) doTimeOut() {
 	}
 }
 
-func (bt *Bot) setTcpConn(conn *network.TCPConn) {
+func (bt *Bot) setTcpConn(conn *network.NetConn) {
 	bt.connMutex.Lock()
 	defer bt.connMutex.Unlock()
 	bt.conn = conn
@@ -120,7 +131,14 @@ func (bt *Bot) setWsConn(conn *network.WSConn) {
 	bt.wsConn = conn
 }
 
-func (bt *Bot) getTcpConn() *network.TCPConn {
+func (bt *Bot) setKcpConn(conn *network.NetConn) {
+	bt.connMutex.Lock()
+	defer bt.connMutex.Unlock()
+	bt.conn = conn
+	bt.kcpConn = conn
+}
+
+func (bt *Bot) getTcpConn() *network.NetConn {
 	bt.connMutex.Lock()
 	defer bt.connMutex.Unlock()
 	return bt.tcpConn
@@ -188,8 +206,6 @@ func (bt *Bot) setLoginFinish() {
 	bt.status = finish
 }
 
-var IsTcp = false
-
 func (bt *Bot) initConnect() bool {
 	if bt.tcpClient != nil {
 		bt.tcpClient.Close(false)
@@ -199,8 +215,8 @@ func (bt *Bot) initConnect() bool {
 		bt.wsClient.Close()
 	}
 
-	if IsTcp {
-
+	switch netType {
+	case Tcp:
 		bt.tcpClient = &network.TCPClient{}
 		bt.tcpClient.Addr = gateAddr
 		bt.tcpClient.ConnectInterval = time.Second * 5
@@ -208,7 +224,7 @@ func (bt *Bot) initConnect() bool {
 		bt.tcpClient.AutoReconnect = false
 		bt.tcpClient.ReadDeadline = time.Second * 600
 		bt.tcpClient.WriteDeadline = time.Second * 600
-		bt.tcpClient.NewAgent = func(conn *network.TCPConn) network.Agent {
+		bt.tcpClient.NewAgent = func(conn *network.NetConn) network.Agent {
 			agent := BotAgent{}
 			agent.bt = bt
 
@@ -217,7 +233,7 @@ func (bt *Bot) initConnect() bool {
 		}
 
 		bt.tcpClient.Start()
-	} else {
+	case WS:
 		bt.wsClient = &network.WSClient{}
 		bt.wsClient.MessageType = websocket.BinaryMessage
 		bt.wsClient.MaxMsgLen = 65535
@@ -234,6 +250,23 @@ func (bt *Bot) initConnect() bool {
 			return &agent
 		}
 		bt.wsClient.Start()
+	case Kcp:
+		bt.kcpClient = &network.KCPClient{}
+		bt.kcpClient.Addr = gateAddr
+		bt.kcpClient.ConnectInterval = time.Second * 5
+		bt.kcpClient.ConnNum = 1
+		bt.kcpClient.AutoReconnect = false
+		bt.kcpClient.ReadDeadline = time.Second * 600
+		bt.kcpClient.WriteDeadline = time.Second * 600
+		bt.kcpClient.NewAgent = func(conn *network.NetConn) network.Agent {
+			agent := BotAgent{}
+			agent.bt = bt
+
+			bt.setKcpConn(conn)
+			return &agent
+		}
+
+		bt.kcpClient.Start()
 	}
 
 	return true

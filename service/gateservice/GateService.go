@@ -11,6 +11,7 @@ import (
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
+	"origingame/service/gateservice/kcpmodule"
 	"origingame/service/gateservice/tcpmodule"
 	"origingame/service/gateservice/wsmodule"
 	"time"
@@ -39,7 +40,7 @@ func (gate *GateService) OnInit() error {
 		return fmt.Errorf("%s config is error", gate.GetService().GetName())
 	}
 
-	//TcpCfg与WSCfg取其一
+	//TcpCfg与KcpCfg与WSCfg取其一
 	mapTcpCfg := iConfig.(map[string]interface{})
 	_, tcpOk := mapTcpCfg["TcpCfg"]
 	if tcpOk == true {
@@ -48,6 +49,12 @@ func (gate *GateService) OnInit() error {
 		gate.AddModule(&tcpModule)
 		gate.msgRouter.SetNetModule(&tcpModule)
 		gate.netModule = &tcpModule
+	} else if _, kcpOK := mapTcpCfg["KcpCfg"]; kcpOK == true {
+		var kcpModule kcpmodule.KcpModule
+		kcpModule.SetProcessor(&gate.pbRawProcessor)
+		gate.AddModule(&kcpModule)
+		gate.msgRouter.SetNetModule(&kcpModule)
+		gate.netModule = &kcpModule
 	} else {
 		_, wsOk := mapTcpCfg["WSCfg"]
 		if wsOk == true {
@@ -63,7 +70,8 @@ func (gate *GateService) OnInit() error {
 
 	gate.RegRawRpc(util.RawRpcMsgDispatch, gate.RawRpcDispatch)
 	gate.RegRawRpc(util.RawRpcCloseClient, gate.RawCloseClient)
-	return nil
+
+	return gate.netModule.Start()
 }
 
 func (gate *GateService) RPC_GSLoginRet(arg *rpc.GsLoginResult, ret *rpc.PlaceHolders) error {

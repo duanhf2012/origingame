@@ -22,9 +22,7 @@ import (
 )
 
 func init() {
-	node.SetupTemplate(func() service.IService {
-		return &GameService{}
-	})
+	node.SetupTemplate[GameService]()
 }
 
 type GameService struct {

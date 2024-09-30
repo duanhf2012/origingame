@@ -89,8 +89,11 @@ func (ws *WSModule) OnInit() error {
 	//4.设置网络事件处理
 	ws.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_WebSocket, ws.GetEventHandler(), ws.wsEventHandler)
 
-	ws.wsServer.Start()
+	return nil
+}
 
+func (ws *WSModule) Start() error {
+	ws.wsServer.Start()
 	return nil
 }
 

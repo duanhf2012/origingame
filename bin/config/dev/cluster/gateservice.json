@@ -1,5 +1,4 @@
 {
-
   "Service": {
     "GateService": {
       "TcpCfg_": {
@@ -19,6 +18,34 @@
         "PendingWriteNum": 10000,
         "LittleEndian": false,
         "MaxMsgLen": 1024000
+      },
+      "KcpCfg_": {
+        "ListenAddr":":9001",
+        "MaxConnNum":10000,
+        "PendingWriteNum": 10000,
+        "LittleEndian": false,
+        "LenMsgLen": 2,
+        "MinMsgLen": 2,
+        "MaxMsgLen": 1024000,
+
+        "NoDelay": {
+          "NoDelay": 1,
+          "IntervalMill": 10,
+          "Resend": 2,
+          "CongestionControl": 1
+        },
+        "Mtu": 1400,
+        "SndWndSize": 1024,
+        "RcvWndSize": 1024,
+        "ReadDeadlineMill": 15000,
+        "WriteDeadlineMill": 15000,
+        "StreamMode": true,
+        "DSCP": 46,
+        "ReadBuffSize":16777216,
+        "WriteBuffSize": 16777216,
+
+        "DataShards": 10,
+        "ParityShards": 0
       }
     }
   },
@@ -45,7 +72,6 @@
         }
       }
     },
-
     {
       "NodeId": "Gate2",
       "GateService": {

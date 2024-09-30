@@ -32,16 +32,7 @@ import (
 const MaxKeyNum = 33
 
 func init() {
-	node.SetupTemplate(func() service.IService {
-		return &DBService{}
-	})
-
-	/*
-		AccountDBService := &DBService{}
-		AccountDBService.SetName(util.AccountDBService)
-
-		node.Setup(AccountDBService, &DBService{})
-	*/
+	node.SetupTemplate[DBService]()
 }
 
 var emptyRes [][]byte

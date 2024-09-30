@@ -8,7 +8,6 @@ import (
 	"github.com/duanhf2012/origin/v2/network"
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"github.com/duanhf2012/origin/v2/service"
-	"github.com/duanhf2012/origin/v2/util/bytespool"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"runtime"
 	"sync"
@@ -42,7 +41,7 @@ type TcpPack struct {
 
 type Client struct {
 	id        string
-	tcpConn   *network.TCPConn
+	tcpConn   *network.NetConn
 	tcpModule *TcpModule
 }
 
@@ -98,8 +97,10 @@ func (tm *TcpModule) OnInit() error {
 
 	//4.设置网络事件处理
 	tm.GetEventProcessor().RegEventReceiverFunc(event.Sys_Event_Tcp, tm.GetEventHandler(), tm.tcpEventHandler)
+	return nil
+}
 
-	//5.启动网络模块
+func (tm *TcpModule) Start() error {
 	return tm.tcpServer.Start()
 }
 
@@ -121,12 +122,12 @@ func (tm *TcpModule) SetProcessor(process processor.IRawProcessor) {
 	tm.process = process
 }
 
-func (tm *TcpModule) NewClient(conn *network.TCPConn) network.Agent {
+func (tm *TcpModule) NewClient(conn network.Conn) network.Agent {
 	tm.mapClientLocker.Lock()
 	defer tm.mapClientLocker.Unlock()
 
 	clientId := primitive.NewObjectID().Hex()
-	pClient := &Client{tcpConn: conn, id: clientId}
+	pClient := &Client{tcpConn: conn.(*network.NetConn), id: clientId}
 	pClient.tcpModule = tm
 	tm.mapClient[clientId] = pClient
 
@@ -148,11 +149,7 @@ func (slf *Client) Run() {
 	}()
 
 	slf.tcpModule.NotifyEvent(&event.Event{Type: event.Sys_Event_Tcp, Data: TcpPack{ClientId: slf.id, Type: TPTConnected}})
-	for {
-		if slf.tcpConn == nil {
-			break
-		}
-
+	for slf.tcpConn != nil {
 		slf.tcpConn.SetReadDeadline(slf.tcpModule.tcpServer.ReadDeadline)
 		bytes, err := slf.tcpConn.ReadMsg()
 		if err != nil {
@@ -208,10 +205,10 @@ func (tm *TcpModule) Close(clientId string) {
 	return
 }
 
-func (tm *TcpModule) GetClientIp(clientid string) string {
+func (tm *TcpModule) GetClientIp(clientId string) string {
 	tm.mapClientLocker.Lock()
 	defer tm.mapClientLocker.Unlock()
-	pClient, ok := tm.mapClient[clientid]
+	pClient, ok := tm.mapClient[clientId]
 	if ok == false {
 		return ""
 	}
@@ -224,7 +221,7 @@ func (tm *TcpModule) SendRawMsg(clientId string, msg []byte) error {
 	client, ok := tm.mapClient[clientId]
 	if ok == false {
 		tm.mapClientLocker.Unlock()
-		return fmt.Errorf("client %d is disconnect!", clientId)
+		return fmt.Errorf("client %s is disconnect", clientId)
 	}
 	tm.mapClientLocker.Unlock()
 	return client.tcpConn.WriteMsg(msg)
@@ -235,18 +232,6 @@ func (tm *TcpModule) GetConnNum() int {
 	connNum := len(tm.mapClient)
 	tm.mapClientLocker.Unlock()
 	return connNum
-}
-
-func (tm *TcpModule) SetNetMempool(mempool bytespool.IBytesMemPool) {
-	tm.tcpServer.SetNetMemPool(mempool)
-}
-
-func (tm *TcpModule) GetNetMempool() bytespool.IBytesMemPool {
-	return tm.tcpServer.GetNetMemPool()
-}
-
-func (tm *TcpModule) ReleaseNetMem(byteBuff []byte) {
-	tm.tcpServer.GetNetMemPool().ReleaseBytes(byteBuff)
 }
 
 func (tm *TcpModule) GetProcessor() processor.IRawProcessor {

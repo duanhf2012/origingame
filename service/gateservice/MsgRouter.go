@@ -48,6 +48,7 @@ type INetModule interface {
 	Close(clientId string)
 	GetClientIp(clientId string) string
 	GetProcessor() processor.IRawProcessor
+	Start() error
 }
 
 func (mr *MsgRouter) OnInit() error {

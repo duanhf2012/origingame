@@ -56,8 +56,7 @@ func (ms *MsgSender) send(clients []string, msgType msg.MsgType, message proto.M
 	for _, clientId := range clients {
 		nodeId := ms.gs.GetGateNodeIdByClientId(clientId)
 		if nodeId == "" {
-			err = fmt.Errorf("nodeid is error %d", nodeId)
-			log.SError(err.Error())
+			log.SError("GetGateNodeIdByClientId fail", log.String("clientID", clientId))
 			continue
 		}
 
