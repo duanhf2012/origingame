@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/duanhf2012/origin/v2 v2.0.13-0.20241009032637-f600c2a5734f
+	github.com/duanhf2012/origin/v2 v2.0.13-0.20241009093844-c72f2e4582b7
 	github.com/gin-gonic/gin v1.10.0
 	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/websocket v1.5.1
@@ -76,4 +76,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/duanhf2012/origin/v2 => ../origin
+//replace github.com/duanhf2012/origin/v2 => ../origin
