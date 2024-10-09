@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -679,37 +678,6 @@ func ReadFromBsonFile(bsonFileName string, data interface{}, isDeleteFile bool) 
 	}
 
 	return nil
-}
-
-type DataType interface {
-	int | uint | int64 | uint64 | float32 | float64 | int32 | uint32 | int16 | uint16
-}
-
-func ConvertToNumber[DType DataType](val interface{}) (error, DType) {
-	switch val.(type) {
-	case int64:
-		return nil, DType(val.(int64))
-	case int:
-		return nil, DType(val.(int))
-	case uint:
-		return nil, DType(val.(uint))
-	case uint64:
-		return nil, DType(val.(uint64))
-	case float32:
-		return nil, DType(val.(float32))
-	case float64:
-		return nil, DType(val.(float64))
-	case int32:
-		return nil, DType(val.(int32))
-	case uint32:
-		return nil, DType(val.(uint32))
-	case int16:
-		return nil, DType(val.(int16))
-	case uint16:
-		return nil, DType(val.(uint16))
-	}
-
-	return errors.New("unsupported type"), 0
 }
 
 type PickElementType interface {

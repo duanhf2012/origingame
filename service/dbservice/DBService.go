@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/duanhf2012/origin/v2/util/typ"
 	"origingame/common/db"
 	"origingame/common/performance"
 	"origingame/common/util"
@@ -91,30 +92,31 @@ func (dbService *DBService) ReadCfg() error {
 		return fmt.Errorf("DBService config CacheCompress is error")
 	}
 
+	var err error
 	MaxCacheCap, ok := mapDBServiceCfg["MaxCacheCap"]
 	if ok == true {
-		dbService.MaxCacheCap = int(MaxCacheCap.(float64))
+		dbService.MaxCacheCap, _ = typ.ConvertToNumber[int](MaxCacheCap)
 	} else {
 		return fmt.Errorf("DBService config MaxCacheCap is error")
 	}
 
 	ExpirationTimeSecond, ok := mapDBServiceCfg["ExpirationTimeSecond"]
 	if ok == true {
-		dbService.ExpirationTimeSecond = int64(ExpirationTimeSecond.(float64))
+		dbService.ExpirationTimeSecond, _ = typ.ConvertToNumber[int64](ExpirationTimeSecond)
 	} else {
 		return fmt.Errorf("DBService config ExpirationTimeSecond is error")
 	}
 
 	CheckIntervalSecond, ok := mapDBServiceCfg["CheckIntervalSecond"]
 	if ok == true {
-		dbService.CheckIntervalSecond = int64(CheckIntervalSecond.(float64))
+		dbService.CheckIntervalSecond, _ = typ.ConvertToNumber[int64](CheckIntervalSecond)
 	} else {
 		return fmt.Errorf("DBService config CheckIntervalSecond is error")
 	}
 
 	IntervalCheckNum, ok := mapDBServiceCfg["IntervalCheckNum"]
 	if ok == true {
-		dbService.IntervalCheckNum = int(IntervalCheckNum.(float64))
+		dbService.IntervalCheckNum, _ = typ.ConvertToNumber[int](IntervalCheckNum)
 	} else {
 		return fmt.Errorf("DBService config IntervalCheckNum is error")
 	}
@@ -123,34 +125,36 @@ func (dbService *DBService) ReadCfg() error {
 	if ok == false {
 		return fmt.Errorf("DBService config is error!")
 	}
-	dbService.goroutineNum = uint32(goroutineNum.(float64))
+	dbService.goroutineNum, _ = typ.ConvertToNumber[uint32](goroutineNum)
 
 	slowQueryTime, ok := mapDBServiceCfg["SlowQueryTime"]
 	if ok == true {
-		dbService.slowQueryTime = int64(slowQueryTime.(float64))
+		dbService.slowQueryTime, _ = typ.ConvertToNumber[int64](slowQueryTime)
 	}
 
 	channelNum, ok := mapDBServiceCfg["ChannelNum"]
 	if ok == false {
 		return fmt.Errorf("DBService config is error!")
 	}
-	dbService.channelNum = int(channelNum.(float64))
+	dbService.channelNum, _ = typ.ConvertToNumber[int](channelNum)
 
 	//加入性能统计日志
 	var analyzerInterval time.Duration
 	intervalTime, okOpen := mapDBServiceCfg["PerformanceIntervalTime"]
 	if okOpen == true {
-		analyzerInterval = time.Duration(intervalTime.(float64)) * time.Millisecond
+		valTime, _ := typ.ConvertToNumber[time.Duration](intervalTime)
+		analyzerInterval = valTime * time.Millisecond
 	}
+
 	analyzerLogLevel := performance.AnalyzerLogLevel1
 	analyzerLevel, okLogLevel := mapDBServiceCfg["PerformanceLogLevel"]
 	if okLogLevel == true {
-		analyzerLogLevel = int(analyzerLevel.(float64))
+		analyzerLogLevel, _ = typ.ConvertToNumber[int](analyzerLevel)
 	}
 
 	dbService.performanceAnalyzer = &performance.PerformanceAnalyzer{}
 	InitPerformanceAnalyzer(dbService.performanceAnalyzer, analyzerInterval, analyzerLogLevel)
-	_, err := dbService.AddModule(dbService.performanceAnalyzer)
+	_, err = dbService.AddModule(dbService.performanceAnalyzer)
 	if err != nil {
 		log.SError("DBService.OnInit AddModule err:", err.Error())
 		return err
