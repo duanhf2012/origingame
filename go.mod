@@ -4,13 +4,12 @@ go 1.22.0
 
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/duanhf2012/origin/v2 v2.0.13-0.20240930063124-b943ea9a83dc
+	github.com/duanhf2012/origin/v2 v2.0.13-0.20241009025054-6a29ba2c8869
 	github.com/gin-gonic/gin v1.10.0
 	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/websocket v1.5.1
 	github.com/json-iterator/go v1.1.12
 	github.com/pierrec/lz4/v4 v4.1.18
-	github.com/xtaci/kcp-go/v5 v5.6.17
 	go.mongodb.org/mongo-driver v1.9.1
 	google.golang.org/protobuf v1.34.1
 )
@@ -56,6 +55,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.0.2 // indirect
 	github.com/xdg-go/stringprep v1.0.2 // indirect
+	github.com/xtaci/kcp-go/v5 v5.6.17 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.13 // indirect

@@ -1,19 +1,21 @@
 package gateservice
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/duanhf2012/origin/v2/log"
+	"github.com/duanhf2012/origin/v2/network"
 	"github.com/duanhf2012/origin/v2/network/processor"
 	"github.com/duanhf2012/origin/v2/node"
 	"github.com/duanhf2012/origin/v2/service"
+	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/kcpmodule"
+	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/tcpmodule"
+	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/wsmodule"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
 	"origingame/common/util"
-	"origingame/service/gateservice/kcpmodule"
-	"origingame/service/gateservice/tcpmodule"
-	"origingame/service/gateservice/wsmodule"
 	"time"
 )
 
@@ -28,6 +30,83 @@ type GateService struct {
 	pbRawProcessor processor.PBRawProcessor
 	msgRouter      MsgRouter
 	rawPackInfo    processor.PBRawPackInfo
+}
+
+func (gate *GateService) readWSCfg() (*wsmodule.WSCfg, error) {
+	//1解析配置
+	iConfig := gate.GetService().GetServiceCfg()
+	if iConfig == nil {
+		return nil, fmt.Errorf("%s config is error", gate.GetService().GetName())
+	}
+
+	mapWSCfg := iConfig.(map[string]interface{})
+	sWSCfg, ok := mapWSCfg["WSCfg"]
+	if ok == false {
+		return nil, fmt.Errorf("%s.WSCfg config is error", gate.GetService().GetName())
+	}
+
+	var wsCfg wsmodule.WSCfg
+	byteWSCfg, err := json.Marshal(sWSCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.WSCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+	err = json.Unmarshal(byteWSCfg, &wsCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.WSCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+
+	return &wsCfg, nil
+}
+
+func (gate *GateService) readTcpCfg() (*tcpmodule.TcpCfg, error) {
+	//1解析配置
+	iConfig := gate.GetService().GetServiceCfg()
+	if iConfig == nil {
+		return nil, fmt.Errorf("%s config is error", gate.GetService().GetName())
+	}
+	mapTcpCfg := iConfig.(map[string]interface{})
+	iTcpCfg, ok := mapTcpCfg["TcpCfg"]
+	if ok == false {
+		return nil, fmt.Errorf("%s.TcpCfg config is error", gate.GetService().GetName())
+	}
+
+	var tcpCfg tcpmodule.TcpCfg
+	byteTcpCfg, err := json.Marshal(iTcpCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.TcpCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+	err = json.Unmarshal(byteTcpCfg, &tcpCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.TcpCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+
+	return &tcpCfg, nil
+}
+
+func (gate *GateService) readKcpCfg() (*network.KcpCfg, error) {
+	//1解析配置
+	iConfig := gate.GetService().GetServiceCfg()
+	if iConfig == nil {
+		return nil, fmt.Errorf("%s config is error", gate.GetService().GetName())
+	}
+
+	mapKcpCfg := iConfig.(map[string]interface{})
+	iKcpCfg, ok := mapKcpCfg["KcpCfg"]
+	if ok == false {
+		return nil, fmt.Errorf("%s.TcpCfg config is error", gate.GetService().GetName())
+	}
+
+	byteKcpCfg, err := json.Marshal(iKcpCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.TcpCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+	var kcpCfg network.KcpCfg
+	err = json.Unmarshal(byteKcpCfg, &kcpCfg)
+	if err != nil {
+		return nil, fmt.Errorf("%s.TcpCfg config is error:%s", gate.GetService().GetName(), err.Error())
+	}
+
+	return &kcpCfg, nil
 }
 
 func (gate *GateService) OnInit() error {
@@ -45,21 +124,36 @@ func (gate *GateService) OnInit() error {
 	_, tcpOk := mapTcpCfg["TcpCfg"]
 	if tcpOk == true {
 		var tcpModule tcpmodule.TcpModule
-		tcpModule.SetProcessor(&gate.pbRawProcessor)
+		tcpCfg, err := gate.readTcpCfg()
+		if err != nil {
+			return err
+		}
+		tcpModule.Init(tcpCfg, &gate.pbRawProcessor)
+
 		gate.AddModule(&tcpModule)
 		gate.msgRouter.SetNetModule(&tcpModule)
 		gate.netModule = &tcpModule
 	} else if _, kcpOK := mapTcpCfg["KcpCfg"]; kcpOK == true {
 		var kcpModule kcpmodule.KcpModule
-		kcpModule.SetProcessor(&gate.pbRawProcessor)
+		kcpCfg, err := gate.readKcpCfg()
+		if err != nil {
+			return err
+		}
+
+		kcpModule.Init(kcpCfg, &gate.pbRawProcessor)
 		gate.AddModule(&kcpModule)
 		gate.msgRouter.SetNetModule(&kcpModule)
 		gate.netModule = &kcpModule
 	} else {
 		_, wsOk := mapTcpCfg["WSCfg"]
 		if wsOk == true {
+			wsCfg, err := gate.readWSCfg()
+			if err != nil {
+				return err
+			}
 			var wsModule wsmodule.WSModule
-			wsModule.SetProcessor(&gate.pbRawProcessor)
+			wsModule.Init(wsCfg, &gate.pbRawProcessor)
+
 			gate.AddModule(&wsModule)
 			gate.msgRouter.SetNetModule(&wsModule)
 			gate.netModule = &wsModule
