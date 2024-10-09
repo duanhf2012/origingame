@@ -20,8 +20,8 @@ github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSV
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/duanhf2012/origin/v2 v2.0.13-0.20241009025054-6a29ba2c8869 h1:B57dlAOGptmcoDcUHCFu4ztf+gC+MotGBb8yYTbDrbM=
-github.com/duanhf2012/origin/v2 v2.0.13-0.20241009025054-6a29ba2c8869/go.mod h1:APPkmx1keoqRbbSCKMfKPsPKkircAiBMiD3Rv8yNZRg=
+github.com/duanhf2012/origin/v2 v2.0.13-0.20241009032637-f600c2a5734f h1:8em6YSN4lLQpZuGdm5aGB6+qu2HrSAo6vDqeUlb5joA=
+github.com/duanhf2012/origin/v2 v2.0.13-0.20241009032637-f600c2a5734f/go.mod h1:APPkmx1keoqRbbSCKMfKPsPKkircAiBMiD3Rv8yNZRg=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=

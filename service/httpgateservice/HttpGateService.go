@@ -3,7 +3,7 @@ package httpgateservice
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/duanhf2012/origin/v2/sysmodule/ginmodule"
+	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/ginmodule"
 	"math/rand"
 	"origingame/common/collect"
 	"origingame/common/db"

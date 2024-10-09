@@ -3,7 +3,7 @@ package httpgateservice
 import (
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/service"
-	"github.com/duanhf2012/origin/v2/sysmodule/ginmodule"
+	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/ginmodule"
 	"github.com/duanhf2012/origin/v2/util/timer"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
