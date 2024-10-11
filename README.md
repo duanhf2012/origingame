@@ -2,9 +2,11 @@
 
 
 
+启动步骤：
 
+一、先安装mongodb，工程docker-compose目录下有相关的脚本可以直接运行，或者自行另安装mongodb。
 
-一.数据库表的初始化
+二、数据库表的初始化，如下脚本
 
 ```js
 use AccDB;
@@ -42,6 +44,17 @@ db.ShowAreaInfo.insertMany([
 ])
 ```
 
-二. 架构图
+三、在工程目录下编译运行
+
+```
+go build
+go build -o ./bin
+cd bin
+origingame -start nodeid=OriginGame  -config=./config/dev -console=true
+```
+
+
+
+四. 项目架构图如下：
 
 ![](./doc/architecture.png)
