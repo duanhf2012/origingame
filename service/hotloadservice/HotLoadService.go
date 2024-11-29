@@ -33,7 +33,7 @@ func (gs *HotLoadService) RpcReload(req *rpc.Empty, res *rpc.Empty) {
 	log.Debug("start load table config...")
 	err := gs.tableCfgModule.LoadCfg()
 	if err != nil {
-		log.Error("load table config failed", log.ErrorAttr("err", err))
+		log.Error("load table config failed", log.ErrorField("err", err))
 		return
 	}
 	log.Debug("finish load table config...")

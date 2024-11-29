@@ -122,7 +122,7 @@ func (userInfo *CUserInfo) SetUserAttributeByType(attributeType global.Attribute
 	//最大数量理论值判断
 	if _, ok := userInfo.MapUserAttribute[attributeType]; !ok {
 		if int32(len(userInfo.MapUserAttribute)) >= (global.AttributeTypeSaveMaxLen) {
-			log.Stack("SetUserAttributeByType User Save Attribute Count more than global.AttributeTypeSaveMaxLen", log.String("UserId", userInfo.UserId), log.Int32(" AttributeType:", attributeType), log.Int32("AttributeTypeSaveMaxLen", global.AttributeTypeSaveMaxLen))
+			log.StackError("SetUserAttributeByType User Save Attribute Count more than global.AttributeTypeSaveMaxLen", log.String("UserId", userInfo.UserId), log.Int32(" AttributeType:", attributeType), log.Int32("AttributeTypeSaveMaxLen", global.AttributeTypeSaveMaxLen))
 			return
 		}
 	}

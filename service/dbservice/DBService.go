@@ -275,7 +275,7 @@ func (dbService *DBService) ExecuteOptData(channelOptData chan DBRequest) {
 				{
 					err := dbService.DoUpdateField(optData)
 					if err != nil {
-						log.Error("OptType_Update DoUpdate err ", err.Error())
+						log.SError("OptType_Update DoUpdate err ", err.Error())
 					}
 				}
 			case db.OptType_Update:
@@ -357,17 +357,17 @@ func (dbService *DBService) ExecuteOptData(channelOptData chan DBRequest) {
 				var condition interface{}
 				err := bson.Unmarshal(optData.request.GetCondition(), &condition)
 				if err != nil {
-					log.SWarning("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
+					log.SWarn("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
 						optData.request.CollectName, " condition unmarshal error")
 				} else {
 					if bsonE, ok := condition.(primitive.E); ok {
-						log.SWarning("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
+						log.SWarn("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
 							optData.request.CollectName, " condition:", fmt.Sprintf("%v", bsonE))
 					} else if bsonD, ok := condition.(primitive.D); ok {
-						log.SWarning("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
+						log.SWarn("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
 							optData.request.CollectName, " condition:", fmt.Sprintf("%v", bsonD))
 					} else {
-						log.SWarning("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
+						log.SWarn("DBService.ExecuteOptData[", int32(optData.request.GetType()), "] slow[", costTime, "]", " CollectName:",
 							optData.request.CollectName, " condition type unknow")
 					}
 				}
@@ -388,7 +388,7 @@ func (dbService *DBService) findUpdateField(collectName string, cacheId string, 
 			// 这里加一个防御性报错
 			mapCache, _ := dbService.GetMapCacheByCollectName(collectName, false)
 			if mapCache != nil {
-				log.Stack(collectName + " has cache, but cacheId is 0")
+				log.StackError(collectName + " has cache, but cacheId is 0")
 			}
 		}
 		return
@@ -424,7 +424,7 @@ func (dbService *DBService) findUpdateField(collectName string, cacheId string, 
 		for _, rowData := range cacheData {
 			byteData, err := dbService.updateFieldByFieldByte(collectName, fieldValue, rowData)
 			if ok == false {
-				log.Error("updateFieldByFieldByte fail", log.ErrorAttr("error", err))
+				log.Error("updateFieldByFieldByte fail", log.ErrorField("error", err))
 				mapCache.RemoveCache(cacheId)
 				return
 			}
@@ -474,7 +474,7 @@ func (dbService *DBService) findUpdateField(collectName string, cacheId string, 
 		//dbService.updateFieldByFieldByte(fieldValue)
 		byteData, err := dbService.updateFieldByFieldByte(collectName, fieldValue, dest)
 		if err != nil {
-			log.Error("updateFieldByFieldByte fail", log.ErrorAttr("error", err))
+			log.Error("updateFieldByFieldByte fail", log.ErrorField("error", err))
 			mapCache.RemoveCache(cacheId)
 			return
 		}
@@ -636,7 +636,7 @@ func (dbService *DBService) RemoveCache(dbReq DBRequest) {
 		if dbReq.request.CacheId != "" {
 			mapCache.RemoveCache(dbReq.request.CacheId)
 		} else {
-			log.Stack(fmt.Sprint(dbReq.request.CollectName, " has Cache But CacheId is 0"))
+			log.StackError(fmt.Sprint(dbReq.request.CollectName, " has Cache But CacheId is 0"))
 		}
 	}
 }
@@ -1030,7 +1030,7 @@ func (dbService *DBService) updateDBDataToCache(collectName string, cacheId stri
 		if cacheId == "" {
 			mapCache, _ := dbService.GetMapCacheByCollectName(collectName, false)
 			if mapCache != nil {
-				log.Stack(collectName + " has cache, but cacheId is 0")
+				log.StackError(collectName + " has cache, but cacheId is 0")
 			}
 		}
 		return
@@ -1213,11 +1213,11 @@ func (dbService *DBService) updateFieldByFieldByte(collectName string, fieldVal 
 	if ok == true {
 		mfield, cok := mapFields.(bson.M)
 		if cok == false {
-			log.Error("$set not support data format", collectName)
+			log.SError("$set not support data format", collectName)
 		} else {
 			err = dbService.setDoc(document, mfield, false)
 			if err != nil {
-				log.Error("setDoc fail", log.ErrorAttr("error", err), log.Any("field", mfield), "collection", collectName)
+				log.Error("setDoc fail", log.ErrorField("error", err), log.Any("field", mfield), log.String("collection", collectName))
 				return nil, err
 			}
 		}
@@ -1227,11 +1227,11 @@ func (dbService *DBService) updateFieldByFieldByte(collectName string, fieldVal 
 	if ok == true {
 		mfield, cok := mapFields.(bson.M)
 		if cok == false {
-			log.Error("$inc not support data format", collectName)
+			log.Error("$inc not support data format", log.String("collection", collectName))
 		} else {
 			err = dbService.setDoc(document, mfield, true)
 			if err != nil {
-				log.Error("setDoc fail", log.ErrorAttr("error", err), log.Any("field", mfield), "collection", collectName)
+				log.Error("setDoc fail", log.ErrorField("error", err), log.Any("field", mfield), log.String("collection", collectName))
 				return nil, err
 			}
 		}
@@ -1312,7 +1312,7 @@ func (dbService *DBService) findCache(collectName string, cacheId string, mapSel
 			// 这里加一个防御性报错
 			mapCache, _ := dbService.GetMapCacheByCollectName(collectName, false)
 			if mapCache != nil {
-				log.Stack(collectName + " has cache, but cacheId is 0")
+				log.StackError(collectName + " has cache, but cacheId is 0")
 			}
 		}
 		return false, nil
@@ -1443,7 +1443,7 @@ func (dbService *DBService) marshalRowData(rowData interface{}, mapSelectField m
 	ret := util.PickSlice(document, func(pickElement any) bool {
 		e, ok := pickElement.(primitive.E)
 		if ok == false {
-			log.Stack("cannot convert data.")
+			log.StackError("cannot convert data.")
 			return false
 		}
 

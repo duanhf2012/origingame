@@ -198,7 +198,7 @@ func (gate *HttpGateService) queryShowAreaCallBack(realAreaRes *db.DBControllerR
 		}
 
 		if showInfo.AreaName == "" {
-			log.SWarning("show areadId ", showInfo.ShowAreaId, " areaName is empty")
+			log.SWarn("show areadId ", showInfo.ShowAreaId, " areaName is empty")
 			//尚未编辑的服务器就不发给客户端了
 			continue
 		}
@@ -235,7 +235,7 @@ func (gate *HttpGateService) queryShowAreaCallBack(realAreaRes *db.DBControllerR
 	}
 	jsonAreaGate, err := json.Marshal(&aList)
 	if err != nil {
-		log.Error("Marshal mapAreaGate error", log.ErrorAttr("err", err))
+		log.Error("Marshal mapAreaGate error", log.ErrorField("err", err))
 		return
 	}
 
@@ -262,7 +262,7 @@ func (gate *HttpGateService) AddStartListCount() {
 func (gate *HttpGateService) RPC_ReLoadAreaInfo(reqInfo *rpc.PlaceHolders, resInfo *rpc.PlaceHolders) error {
 	if gate.loadAreaTimerId != 0 {
 		if gate.CancelTimerId(&gate.loadAreaTimerId) == false {
-			log.Stack(fmt.Sprint("HttpGateService CancelTimerId[", gate.loadAreaTimerId, "] failed!"))
+			log.StackError(fmt.Sprint("HttpGateService CancelTimerId[", gate.loadAreaTimerId, "] failed!"))
 		}
 	}
 	gate.loadAreaInfo(gate.loadAreaTimerId, nil)

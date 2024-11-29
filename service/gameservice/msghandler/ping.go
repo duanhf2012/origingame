@@ -7,4 +7,5 @@ import (
 
 func ping(player *player.Player, msg *msg.MsgNil) {
 	player.Ping()
+	panic("xx")
 }

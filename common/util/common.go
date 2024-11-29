@@ -194,13 +194,13 @@ func CombinationThreeNumber(n1, n2, n3 uint64) uint64 {
 	maxN3 := uint64(1<<32 - 1)
 
 	if n1 > maxN1 {
-		log.Stack("n1 is overflow ", maxN1)
+		log.SStackError("n1 is overflow ", maxN1)
 	}
 	if n2 > maxN2 {
-		log.Stack("n1 is overflow ", maxN2)
+		log.SStackError("n1 is overflow ", maxN2)
 	}
 	if n3 > maxN3 {
-		log.Stack("n1 is overflow ", maxN3)
+		log.SStackError("n1 is overflow ", maxN3)
 	}
 
 	return (n1 << 48) | (n2 << 32) | n3
@@ -221,13 +221,13 @@ func CombinationTime(n1, n2, n3 int32) int32 {
 	maxN3 := int32(1<<8 - 1)
 
 	if n1 > maxN1 {
-		log.Stack("n1 is overflow ", maxN1)
+		log.SStackError("n1 is overflow ", maxN1)
 	}
 	if n2 > maxN2 {
-		log.Stack("n2 is overflow ", maxN2)
+		log.SStackError("n2 is overflow ", maxN2)
 	}
 	if n3 > maxN3 {
-		log.Stack("n3 is overflow ", maxN3)
+		log.SStackError("n3 is overflow ", maxN3)
 	}
 
 	return (n1 << 32) | (n2 << 8) | n3
@@ -391,7 +391,7 @@ func RandomByWeightAdv[ValueType WeightType, T IWeightMutli[ValueType]](weightLi
 		// 不能重复的话，这里必须进行个数判断，因为可能元素不够用
 		orgLen := len(weightList)
 		if orgLen < count {
-			log.Stack("RandomByWeightAdv len error, in canot dup mode", log.Int("listSize:", orgLen), log.Int("willRandomCount", count))
+			log.StackError("RandomByWeightAdv len error, in canot dup mode", log.Int("listSize:", orgLen), log.Int("willRandomCount", count))
 			return nil, false
 		}
 
@@ -456,7 +456,7 @@ func RandomByWeightAdvWithAdjust[ValueType WeightType, T IWeightMutliWithAdjust[
 		// 不能重复的话，这里必须进行个数判断，因为可能元素不够用
 		orgLen := len(weightList)
 		if orgLen < count {
-			log.Stack("RandomByWeightAdv len error, in canot dup mode, listSize:", orgLen, ", willRandomCount:", count)
+			log.SStackError("RandomByWeightAdv len error, in canot dup mode, listSize:", orgLen, ", willRandomCount:", count)
 			return nil, false
 		}
 

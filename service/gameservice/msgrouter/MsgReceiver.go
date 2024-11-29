@@ -104,7 +104,7 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 	msgHandler, ok := mapRegisterMsg[msg.MsgType(rawInput.GetMsgType())]
 	if ok == false {
 		err = fmt.Errorf("close client %+v, message type %d is not  register.", clientIdList, rawInput.GetMsgType())
-		log.SWarning(err.Error())
+		log.SWarn(err.Error())
 		for _, clientId := range clientIdList {
 			mr.gs.CloseClient(clientId)
 		}
@@ -114,14 +114,14 @@ func (mr *MsgReceiver) RpcOnRecvCallBack(data []byte) {
 	clientId := clientIdList[0]
 	p := mr.gs.GetClientPlayer(clientId)
 	if p == nil {
-		log.SWarning("close client ", clientId, ",mapClientPlayer not exists clientId")
+		log.SWarn("close client ", clientId, ",mapClientPlayer not exists clientId")
 		mr.gs.CloseClient(clientId)
 		return
 	}
 
 	msgType := msg.MsgType(rawInput.MsgType)
 	if msgType != msg.MsgType_Ping && (p.IsLoadFinish() == false) {
-		log.SWarning("close client ", clientId, ", Player data has not been loaded yet")
+		log.SWarn("close client ", clientId, ", Player data has not been loaded yet")
 		return
 	}
 

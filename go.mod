@@ -4,7 +4,7 @@ go 1.22.0
 
 require (
 	github.com/axgle/mahonia v0.0.0-20180208002826-3358181d7394
-	github.com/duanhf2012/origin/v2 v2.0.15-0.20241125094408-000853b479a6
+	github.com/duanhf2012/origin/v2 v2.0.16-0.20241129054751-c9507f9ee908
 	github.com/gin-gonic/gin v1.10.0
 	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/websocket v1.5.1
@@ -12,6 +12,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21
 	go.mongodb.org/mongo-driver v1.9.1
 	google.golang.org/protobuf v1.34.1
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (

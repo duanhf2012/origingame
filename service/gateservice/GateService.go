@@ -171,7 +171,7 @@ func (gate *GateService) OnInit() error {
 func (gate *GateService) RPC_GSLoginRet(arg *rpc.GsLoginResult, ret *rpc.PlaceHolders) error {
 	v, ok := gate.msgRouter.mapRouterCache[arg.ClientId]
 	if ok == false {
-		log.SWarning("Client is close cancel login ")
+		log.SWarn("Client is close cancel login ")
 		return nil
 	}
 
@@ -199,7 +199,7 @@ func (gate *GateService) SendMsg(clientId string, msgType uint16, rawMsg []byte)
 
 	err = gate.netModule.SendRawMsg(clientId, bytes)
 	if err != nil {
-		log.Debug("SendMsg fail ", log.ErrorAttr("err", err), log.String("clientId", clientId))
+		log.Debug("SendMsg fail ", log.ErrorField("err", err), log.String("clientId", clientId))
 	}
 
 	return err
@@ -229,7 +229,7 @@ func (gate *GateService) RawCloseClient(rawInput []byte) {
 	var rawInputArgs rpc.RawInputArgs
 	err := proto.Unmarshal(rawInput, &rawInputArgs)
 	if err != nil {
-		log.Error("msg is error", log.ErrorAttr("err", err))
+		log.Error("msg is error", log.ErrorField("err", err))
 		return
 	}
 

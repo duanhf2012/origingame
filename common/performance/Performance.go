@@ -3,6 +3,8 @@ package performance
 import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/node"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"path/filepath"
 	"time"
 
 	"github.com/duanhf2012/origin/v2/console"
@@ -21,7 +23,7 @@ type PerformanceAnalyzer struct {
 	analyzerInterval time.Duration
 	analyzerLogLevel int
 	analyzerTime     int64
-	logger           log.ILogger
+	logger           *log.Logger
 	//bOpen            bool
 }
 
@@ -51,42 +53,32 @@ func (pa *PerformanceAnalyzer) OnInit() error {
 
 	pa.analyzerTime = time.Now().UnixNano()
 	pa.NewTicker(pa.analyzerInterval, pa.analyzerTicker)
-	var err error
+
 	logPath := console.GetParamStringVal("logpath")
 	if logPath == "" {
 		logPath = "./log"
 	}
 
 	analyzerFileName := fmt.Sprintf("Node_%d_%s_Analyzer_", node.GetNodeId(), pa.GetService().GetName())
-	pa.logger, err = log.NewTextLogger(log.LevelInfo, logPath, analyzerFileName, true, log.LogChannelCap)
-	if err != nil {
-		return err
+
+	pa.logger = &log.Logger{}
+	pa.logger.Encoder = log.GetTxtEncoder()
+	pa.logger.LogConfig = &lumberjack.Logger{
+		Filename:   filepath.Join(logPath, analyzerFileName),
+		MaxSize:    2048,
+		MaxBackups: 0,
+		MaxAge:     0,
+		Compress:   false,
 	}
 
-	/*
-		mapCfg := pa.GetService().GetServiceCfg().(map[string]interface{})
-		isOpen, okOpen := mapCfg["IsOpenStatic"]
-		staticTime, okStatic := mapCfg["StaticTime"]
-		if okOpen == false || okStatic == false {
+	pa.logger.LogConfig.LocalTime = true
+	pa.logger.Init()
 
-		}
-	*/
-	//统计添加
-	//mapCfg := ps.GetServiceCfg().(map[string]interface{})
-	//isOpen, okOpen := mapCfg["IsOpenStatic"]
-	//staticTime, okStatic := mapCfg["StaticTime"]
-	//if okOpen == false || okStatic == false {
-	//	return fmt.Errorf("Canot find IsOpenStatic/StaticTime from config.")
-	//}
-	//if isOpen.(bool) {
-	//ps.staticDealModule = NewStaticMsgDeal(int64(staticTime.(float64)))
-	//	ps.AddModule(ps.staticDealModule)
-	//}
 	return nil
 }
 
 func (pa *PerformanceAnalyzer) WriteLog(log string) {
-	//pa.logger.SInfo(log)
+	pa.logger.SInfo(log)
 }
 
 func (pa *PerformanceAnalyzer) checkGlobalAnalyzerOpen() bool {

@@ -105,7 +105,7 @@ func (mr *MsgRouter) OnDisconnected(clientId string) {
 	rawInputArgs.ClientIdList = []string{clientId}
 	rawInputBytes, err := proto.Marshal(&rawInputArgs)
 	if err != nil {
-		log.Error("Router.OnDisconnected proto.Marshal err", log.ErrorAttr("err", err))
+		log.Error("Router.OnDisconnected proto.Marshal err", log.ErrorField("err", err))
 		return
 	}
 	err = mr.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcOnClose, gsName, rawInputBytes)
@@ -129,7 +129,7 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 	//2.通过clientId获取nodeId
 	nodeId, gsName := mr.GetRouterId(cliId)
 	if nodeId == "" {
-		log.SWarning("cannot find clientId ", cliId)
+		log.SWarn("cannot find clientId ", cliId)
 		mr.netModule.Close(cliId)
 		return
 	}
@@ -142,7 +142,7 @@ func (mr *MsgRouter) RouterMessage(cliId string, msgType uint16, msgBuff []byte)
 
 	inputArgBytes, err := proto.Marshal(&inputArgs)
 	if err != nil {
-		log.Error("RouterMessage proto.Marshal err", log.ErrorAttr("err", err))
+		log.Error("RouterMessage proto.Marshal err", log.ErrorField("err", err))
 		return
 	}
 
@@ -181,7 +181,7 @@ func (mr *MsgRouter) login(cliId string, msgBuff []byte) {
 func (mr *MsgRouter) loginToCenter(cliId string, msgLoginReq *msg.MsgLoginReq) {
 	platId, err := util.DecryptToken(msgLoginReq.Token)
 	if err != nil {
-		log.Error("LoginReq fail", log.String("Token", msgLoginReq.Token), log.String("clientId", cliId), log.ErrorAttr("err", err))
+		log.Error("LoginReq fail", log.String("Token", msgLoginReq.Token), log.String("clientId", cliId), log.ErrorField("err", err))
 		//Token错误时，则需要重新登陆
 		var loginRes msg.MsgLoginRes
 		loginRes.Ret = msg.ErrCode_TokenError
@@ -358,7 +358,7 @@ func (mr *MsgRouter) loginToGs(cliId string, msgLoginReq *msg.MsgLoginReq) {
 func (mr *MsgRouter) SendMsg(clientId string, msgType msg.MsgType, msg proto.Message) error {
 	byteMsg, err := proto.Marshal(msg)
 	if err != nil {
-		log.SError("SendMsg fail", log.String("clientId", clientId), log.ErrorAttr("error", err), log.String("msgType", fmt.Sprint(msgType)))
+		log.SError("SendMsg fail", log.String("clientId", clientId), log.ErrorField("error", err), log.String("msgType", fmt.Sprint(msgType)))
 		return err
 	}
 
@@ -370,7 +370,7 @@ func (mr *MsgRouter) SendMsg(clientId string, msgType msg.MsgType, msg proto.Mes
 
 	err = mr.netModule.SendRawMsg(clientId, bytes)
 	if err != nil {
-		log.Error("SendMsg fail", log.String("clientId", clientId), log.ErrorAttr("error", err), log.String("msgType", fmt.Sprint(msgType)))
+		log.Error("SendMsg fail", log.String("clientId", clientId), log.ErrorField("error", err), log.String("msgType", fmt.Sprint(msgType)))
 	}
 
 	return err

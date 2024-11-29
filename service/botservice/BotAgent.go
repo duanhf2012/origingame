@@ -15,13 +15,13 @@ func (ba *BotAgent) Run() {
 	for {
 		bytes, err := ba.bt.conn.ReadMsg()
 		if err != nil {
-			log.Error("rclient read msg is failed", log.ErrorAttr("error", err))
+			log.Error("rclient read msg is failed", log.ErrorField("error", err))
 			return
 		}
 
 		data, err := ba.bt.pbRawProcessor.Unmarshal("", bytes)
 		if err != nil {
-			log.Error("data error", log.ErrorAttr("err", err))
+			log.Error("data error", log.ErrorField("err", err))
 			return
 		}
 
@@ -30,13 +30,13 @@ func (ba *BotAgent) Run() {
 		msgProto := NewMsgByMsgType(msg.MsgType(rawPack.GetPackType()))
 		if msgProto == nil {
 			//不关注的消息忽略
-			log.Warning("msg type error", log.Any("msgType", rawPack.GetPackType()))
+			log.Warn("msg type error", log.Any("msgType", rawPack.GetPackType()))
 			continue
 		}
 
 		err = proto.Unmarshal(rawPack.GetMsg()[2:], msgProto.msg)
 		if err != nil {
-			log.Error("Unmarshal error", log.ErrorAttr("err", err))
+			log.Error("Unmarshal error", log.ErrorField("err", err))
 			return
 		}
 

@@ -70,13 +70,13 @@ func (login *LoginModule) loginCheck(c *ginmodule.SafeContext, loginInfo *rpc.Lo
 	//1.验证平台类型和Id
 	platId := loginInfo.PlatId
 	if loginInfo.PlatType < 0 || loginInfo.PlatType >= rpc.LoginType_LoginType_Max {
-		log.SWarning("plat type ", loginInfo.PlatType, " is error!")
+		log.SWarn("plat type ", loginInfo.PlatType, " is error!")
 		c.JSONAndDone(http.StatusOK, gin.H{"ECode": msg.ErrCode_PlatTypeError})
 		return
 	}
 
 	if len(platId) == 0 {
-		log.SWarning("plat type ", loginInfo.PlatType, " is error!")
+		log.SWarn("plat type ", loginInfo.PlatType, " is error!")
 		c.JSONAndDone(http.StatusOK, gin.H{"ECode": msg.ErrCode_PlatIdError})
 		return
 	}
@@ -102,7 +102,7 @@ func (login *LoginModule) loginCheck(c *ginmodule.SafeContext, loginInfo *rpc.Lo
 			}
 
 			if loginResult.Ret != 0 {
-				log.SWarning("authservice.RPC_Check fail Ret:", loginResult.Ret, ",platId:", platId)
+				log.SWarn("authservice.RPC_Check fail Ret:", loginResult.Ret, ",platId:", platId)
 				c.JSONAndDone(http.StatusOK, gin.H{"ECode": msg.ErrCode_TokenError})
 				return
 			}

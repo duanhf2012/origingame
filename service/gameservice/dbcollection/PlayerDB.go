@@ -102,7 +102,7 @@ func (playerDB *PlayerDB) SaveToDB(bForce bool) {
 
 	//没加载完不允许存档
 	if playerDB.IsLoadFinish() == false {
-		log.SWarning("userid:", playerDB.Id, " not load finish.")
+		log.SWarn("userid:", playerDB.Id, " not load finish.")
 		return
 	}
 
@@ -498,7 +498,7 @@ func (playerDB *PlayerDB) CheckHasErrProgress() bool {
 
 func (playerDB *PlayerDB) GetCollect(collectType collect.CollectionType) collect.ICollection {
 	if collectType >= collect.CTMax {
-		log.Stack(fmt.Sprint("collectType is error ", collectType))
+		log.StackError(fmt.Sprint("collectType is error ", collectType))
 		return nil
 	}
 
@@ -530,7 +530,7 @@ func AsyncCallNode[RpcMsg any](playerDB *PlayerDB, nodeId string, serviceMethod 
 	return playerDB.gsService.AsyncCallNode(nodeId, serviceMethod, args, func(ret *RpcMsg, err error) {
 		nowRpcSessionKey := playerDB.rpcSessionKey
 		if rpcKey != nowRpcSessionKey {
-			log.Stack(fmt.Sprint("serviceMethod:", serviceMethod, " is fail rpc key:", rpcKey, " now rpc key:", nowRpcSessionKey))
+			log.StackError(fmt.Sprint("serviceMethod:", serviceMethod, " is fail rpc key:", rpcKey, " now rpc key:", nowRpcSessionKey))
 			return
 		}
 

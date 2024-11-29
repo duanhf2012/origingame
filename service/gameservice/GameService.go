@@ -41,6 +41,7 @@ type GameService struct {
 }
 
 func (gs *GameService) OnInit() error {
+
 	gs.mapClientPlayer = make(map[string]*player.Player, 2048)
 	gs.initBalance()
 	gs.performanceAnalyzer = &performance.PerformanceAnalyzer{}
@@ -133,7 +134,7 @@ func (gs *GameService) RpcOnCloseCallBack(rawInput []byte) {
 	var rawInputArgs rpc.RawInputArgs
 	err := proto.Unmarshal(rawInput, &rawInputArgs)
 	if err != nil {
-		log.Error("Unmarshal fail", log.ErrorAttr("err", err))
+		log.Error("Unmarshal fail", log.ErrorField("err", err))
 		return
 	}
 
@@ -177,13 +178,13 @@ func (gs *GameService) CloseClient(clientId string) {
 		return
 	}
 
-	log.SWarning("GameService CloseClient:", clientId)
+	log.SWarn("GameService CloseClient:", clientId)
 	nodeId := gs.GetGateNodeIdByClientId(clientId)
 	var rawInputArgs rpc.RawInputArgs
 	rawInputArgs.ClientIdList = []string{clientId}
 	rawInputBytes, err := proto.Marshal(&rawInputArgs)
 	if err != nil {
-		log.Error("GameService.CloseClient proto.Marshal ", log.ErrorAttr("err", err), log.String("clientId", clientId))
+		log.Error("GameService.CloseClient proto.Marshal ", log.ErrorField("err", err), log.String("clientId", clientId))
 		return
 	}
 	err = gs.RawGoNode(originRpc.RpcProcessorPB, nodeId, util.RawRpcCloseClient, util.GateService, rawInputBytes)
@@ -250,7 +251,7 @@ func (gs *GameService) asyncPlayerList() error {
 func (gs *GameService) asyncPlayerListTimer(t *timer.Timer) {
 	err := gs.asyncPlayerList()
 	if err != nil {
-		log.SWarning("asyncPlayerList fail:", err.Error())
+		log.SWarn("asyncPlayerList fail:", err.Error())
 		gs.AfterFunc(2*time.Second, gs.asyncPlayerListTimer)
 	} else {
 		gs.timerUpdateBalance(nil)

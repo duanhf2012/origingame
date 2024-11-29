@@ -28,7 +28,7 @@ const (
 	Kcp
 )
 
-var netType = WS
+var netType = Kcp
 
 const (
 	httpLogging       = 0
@@ -183,7 +183,7 @@ func (bt *Bot) httpLogin() {
 
 	err := json.Unmarshal(response.Body, &httpRespone)
 	if err != nil {
-		log.Error("json unmarshal error", log.ErrorAttr("err", err))
+		log.Error("json unmarshal error", log.ErrorField("err", err))
 		return
 	}
 

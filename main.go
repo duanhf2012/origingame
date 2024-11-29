@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/node"
 	_ "origingame/service/authservice"
 	_ "origingame/service/botservice"
@@ -14,6 +15,9 @@ import (
 )
 
 func main() {
+	// 使用文本日志格式,默认为json
+	log.GetLogger().SetEncoder(log.GetTxtEncoder())
+
 	node.OpenProfilerReport(time.Second * 10)
 	node.Start()
 }

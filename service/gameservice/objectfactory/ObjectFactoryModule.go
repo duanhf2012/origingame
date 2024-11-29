@@ -79,7 +79,7 @@ func (m *ObjectFactoryModule) SafeTimerTicker(tickerId *uint64, objectId string,
 			funName := runtime.FuncForPC(reflect.ValueOf(cb).Pointer()).Name()
 			log.SError("GameObjectFactoryModule TimerTicker obj[", objectId, "] not be found", ",funName", funName)
 			if m.CancelTimerId(tickerId) == false {
-				log.Stack(fmt.Sprint("GameObjectFactoryModule SafeTimerTicker -> CancelTimerId[", tickerId, "] failed"))
+				log.StackError(fmt.Sprint("GameObjectFactoryModule SafeTimerTicker -> CancelTimerId[", tickerId, "] failed"))
 			}
 		}
 	})
@@ -87,7 +87,7 @@ func (m *ObjectFactoryModule) SafeTimerTicker(tickerId *uint64, objectId string,
 
 func (m *ObjectFactoryModule) SafeCancelTimer(timerId *uint64) {
 	if m.CancelTimerId(timerId) == false {
-		log.Stack(fmt.Sprint("GameObjectFactoryModule SafeCancelTimer[", timerId, "] failed"))
+		log.StackError(fmt.Sprint("GameObjectFactoryModule SafeCancelTimer[", timerId, "] failed"))
 	}
 }
 

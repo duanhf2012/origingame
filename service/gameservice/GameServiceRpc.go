@@ -84,7 +84,7 @@ func (gs *GameService) RPC_Login(req *rpc.LoginToGameServiceReq, res *rpc.LoginT
 
 	err = gs.GoNode(req.GateNodeId, "GateService.RPC_GSLoginRet", &arg)
 	if err != nil {
-		log.Error("GoNode error", log.String("GateNodeId", req.GetGateNodeId()), log.ErrorAttr("err", err))
+		log.Error("GoNode error", log.String("GateNodeId", req.GetGateNodeId()), log.ErrorField("err", err))
 		return fmt.Errorf("GoNode error %s", err.Error())
 	}
 

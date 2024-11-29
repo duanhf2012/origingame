@@ -90,7 +90,7 @@ func (ms *MsgSender) send(clients []string, msgType msg.MsgType, message proto.M
 		var rawInputBytes []byte
 		rawInputBytes, err = proto.Marshal(&rawInputArgs)
 		if err != nil {
-			log.Error("Marshal fail", log.Uint32("msgType", rawInputArgs.MsgType), log.ErrorAttr("err", err))
+			log.Error("Marshal fail", log.Uint32("msgType", rawInputArgs.MsgType), log.ErrorField("err", err))
 			continue
 		}
 
