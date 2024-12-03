@@ -11,7 +11,7 @@
     },{
       "NodeId": "bot",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11000",
+      "ListenAddr": "0.0.0.0:11001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["BotService"],
@@ -20,7 +20,7 @@
     {
       "NodeId": "LoginGate1",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11001",
+      "ListenAddr": "0.0.0.0:11002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
@@ -29,7 +29,7 @@
     {
       "NodeId": "LoginGate2",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11002",
+      "ListenAddr": "0.0.0.0:11003",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
