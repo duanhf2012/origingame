@@ -1776,7 +1776,7 @@ func (dbService *DBService) RPC_GsReleaseDBCheckLink(arg *bool, ret *bool) error
 }
 
 // RPC_DBRequest 对外提供的RPC方法，接收DB操作数据后，写入管道，交给执行协程执行
-func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *db.DBControllerRedisReq) error {
+func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *db.DBControllerRedisReq) {
 	index := uint64(0)
 	if request.ModKey > 0 {
 		index = request.ModKey % uint64(dbService.goroutineNum-1)
@@ -1787,7 +1787,7 @@ func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *d
 		log.SError("channel is full ", index)
 
 		responder(nil, rpc.RpcError("channel is full"))
-		return nil
+		return
 	}
 
 	var dbRequest DBRequest
@@ -1795,11 +1795,11 @@ func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *d
 	dbRequest.responder = responder
 
 	dbService.channelOptData[index] <- dbRequest
-	return nil
+	return
 }
 
 // RPC_DBRequest 对外提供的RPC方法，接收DB操作数据后，写入管道，交给执行协程执行
-func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.DBControllerReq) error {
+func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.DBControllerReq) {
 	index := uint64(0)
 	if request.GetKey() != "" {
 		index = uint64(util.HashString2Number(request.GetKey())) % uint64(dbService.goroutineNum-1)
@@ -1810,7 +1810,7 @@ func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.D
 		log.SError("channel is full ", index)
 
 		responder(nil, rpc.RpcError("channel is full"))
-		return nil
+		return
 	}
 
 	var dbRequest DBRequest
@@ -1818,7 +1818,7 @@ func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.D
 	dbRequest.responder = responder
 
 	dbService.channelOptData[index] <- dbRequest
-	return nil
+	return
 }
 
 func (dbService *DBService) RPC_GetServiceInfo(inParam *[]byte, outParam *[]byte) (err error) {

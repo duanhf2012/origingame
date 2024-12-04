@@ -60,11 +60,11 @@ func (auth *AuthService) Sign(username, token, gameId string) string {
 	return strings.ToUpper(fmt.Sprintf("%x", md5.Sum([]byte(rawStr))))
 }
 
-func (auth *AuthService) RPCCheck(responder originRpc.Responder, loginInfo *rpc.LoginInfo) error {
+func (auth *AuthService) RPCCheck(responder originRpc.Responder, loginInfo *rpc.LoginInfo) {
 	if timer.Now().UnixMilli()-loginInfo.LoginCheckTime > 5000 {
 		log.SError("time too lang ", int(loginInfo.PlatType))
 		responder(nil, originRpc.RpcError("time too lang"))
-		return nil
+		return
 	}
 
 	switch loginInfo.PlatType {
@@ -74,25 +74,25 @@ func (auth *AuthService) RPCCheck(responder originRpc.Responder, loginInfo *rpc.
 			return true
 		}, nil)
 
-		return nil
+		return
 	case rpc.LoginType_Account:
 		auth.AsyncDo(func() bool {
 			auth.accountCheck(responder, loginInfo)
 			return true
 		}, nil)
-		return nil
+		return
 	case rpc.LoginType_TapTap:
 		auth.AsyncDo(func() bool {
 			auth.tapTapCheck(responder, loginInfo)
 			return true
 		}, nil)
 
-		return nil
+		return
 	}
 
 	responder(nil, originRpc.RpcError("unknown platType"))
 	log.SError("platType is error:", int(loginInfo.PlatType))
-	return nil
+	return
 }
 
 // guestCheck 游客登陆Check,非线程安全

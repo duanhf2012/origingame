@@ -482,7 +482,7 @@ func (cs *CenterService) RPC_GetCenterServerBalance(req *struct{}, ret *rpc.MsgC
 	return nil
 }
 
-func (cs *CenterService) RPC_GetGameServicePlayerInfo(responder rpcHelper.Responder, req *rpc.GameNodePlayerInfo) error {
+func (cs *CenterService) RPC_GetGameServicePlayerInfo(responder rpcHelper.Responder, req *rpc.GameNodePlayerInfo) {
 	coroutine.Go(func() {
 		var empty struct{}
 		getNodePlayerInfoResult := rpc.GameNodePlayerInfoResult{}
@@ -500,10 +500,10 @@ func (cs *CenterService) RPC_GetGameServicePlayerInfo(responder rpcHelper.Respon
 		}
 		responder(&getNodePlayerInfoResult, rpcHelper.NilError)
 	})
-	return nil
+	return
 }
 
-func (cs *CenterService) RPC_GetGateServiceInfo(responder rpcHelper.Responder, req *rpc.GetGateServiceInfo) error {
+func (cs *CenterService) RPC_GetGateServiceInfo(responder rpcHelper.Responder, req *rpc.GetGateServiceInfo) {
 	coroutine.Go(func() {
 		var empty rpc.PlaceHolders
 		getGateInfoResult := rpc.GetGateServiceInfoResult{}
@@ -519,7 +519,7 @@ func (cs *CenterService) RPC_GetGateServiceInfo(responder rpcHelper.Responder, r
 		}
 		responder(&getGateInfoResult, rpcHelper.NilError)
 	})
-	return nil
+	return
 }
 
 func (cs *CenterService) RPC_GetAllServerNode(req *struct{}, ret *rpc.MsgAllServerNode) error {
@@ -591,7 +591,7 @@ func (cs *CenterService) getServiceNode(nodeId string, serviceName string, mapNo
 	return retCount
 }
 
-func (cs *CenterService) RPC_CallAreaServiceReq(responder rpcHelper.Responder, areaServiceReq *rpc.CallAreaServiceReq) error {
+func (cs *CenterService) RPC_CallAreaServiceReq(responder rpcHelper.Responder, areaServiceReq *rpc.CallAreaServiceReq) {
 	//整理下需要通知的服务
 	coroutine.Go(func() {
 		var callAreaServiceRes rpc.CallAreaServiceRes
@@ -643,7 +643,6 @@ func (cs *CenterService) RPC_CallAreaServiceReq(responder rpcHelper.Responder, a
 		}
 		responder(&callAreaServiceRes, rpcHelper.NilError)
 	})
-	return nil
 }
 
 func (cs *CenterService) RPC_GetServiceInfo(inParam *[]byte, outParam *[]byte) error {
