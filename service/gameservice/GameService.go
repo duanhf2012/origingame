@@ -41,7 +41,6 @@ type GameService struct {
 }
 
 func (gs *GameService) OnInit() error {
-
 	gs.mapClientPlayer = make(map[string]*player.Player, 2048)
 	gs.initBalance()
 	gs.performanceAnalyzer = &performance.PerformanceAnalyzer{}

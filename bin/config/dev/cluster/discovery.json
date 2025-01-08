@@ -6,7 +6,12 @@
       "EtcdList": [
         {
           "NetworkName": ["network1"],
-          "Endpoints": ["http://127.0.0.1:12379"]
+          "Endpoints": ["http://127.0.0.1:12379"],
+          "UserName": "",
+          "Password": "",
+          "Cert": "",
+          "CertKey": "",
+          "Ca": ""
         }
       ]
     },
