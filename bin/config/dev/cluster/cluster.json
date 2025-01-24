@@ -3,7 +3,7 @@
     {
       "NodeId": "OriginGame",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11000",
+      "ListenAddr": "127.0.0.1:11000",
 	  "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["HotLoadService","AuthService","HttpGateService","CenterService","GateService","AccDBService:DBService","DBService:DBService","GS1:GameService"],
@@ -11,7 +11,7 @@
     },{
       "NodeId": "bot",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11001",
+      "ListenAddr": "127.0.0.1:11001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["BotService"],
@@ -20,7 +20,7 @@
     {
       "NodeId": "LoginGate1",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11002",
+      "ListenAddr": "127.0.0.1:11002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
@@ -29,7 +29,7 @@
     {
       "NodeId": "LoginGate2",
       "Private": false,
-      "ListenAddr": "0.0.0.0:11003",
+      "ListenAddr": "127.0.0.1:11003",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["_AuthService","_HttpGateService","_AccDBService:DBService"],
@@ -38,7 +38,7 @@
     {
       "NodeId": "Gate1",
       "Private": false,
-      "ListenAddr": "0.0.0.0:12001",
+      "ListenAddr": "127.0.0.1:12001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["GateService"],
@@ -47,7 +47,7 @@
     {
       "NodeId": "Gate2",
       "Private": false,
-      "ListenAddr": "0.0.0.0:12002",
+      "ListenAddr": "127.0.0.1:12002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["GateService"],
@@ -56,7 +56,7 @@
     {
       "NodeId": "Game1",
       "Private": false,
-      "ListenAddr": "0.0.0.0:13001",
+      "ListenAddr": "127.0.0.1:13001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["HotLoadService","GS1:GameService","GS2:GameService"],
@@ -65,7 +65,7 @@
     {
       "NodeId": "Game2",
       "Private": false,
-      "ListenAddr": "0.0.0.0:13002",
+      "ListenAddr": "127.0.0.1:13002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["HotLoadService","GS1:GameService","GS2:GameService"],
@@ -75,7 +75,7 @@
     {
       "NodeId": "DBServer1",
       "Private": false,
-      "ListenAddr": "0.0.0.0:14001",
+      "ListenAddr": "127.0.0.1:14001",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["AccDBService:DBService","DBService:DBService"],
@@ -84,7 +84,7 @@
     {
       "NodeId": "DBServer2",
       "Private": false,
-      "ListenAddr": "0.0.0.0:14002",
+      "ListenAddr": "127.0.0.1:14002",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["AccDBService:DBService","DBService:DBService"],
@@ -93,7 +93,7 @@
     {
       "NodeId": "CenterServer",
       "Private": false,
-      "ListenAddr": "0.0.0.0:10000",
+      "ListenAddr": "127.0.0.1:10000",
       "MaxRpcParamLen": 819200,
       "remark": "//以_打头的，表示只在本机进程，不对整个子网开发",
       "ServiceList": ["CenterService"],
