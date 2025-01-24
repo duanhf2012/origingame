@@ -3,6 +3,7 @@ package performance
 import (
 	"fmt"
 	"github.com/duanhf2012/origin/v2/node"
+	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"path/filepath"
 	"time"
@@ -63,15 +64,18 @@ func (pa *PerformanceAnalyzer) OnInit() error {
 
 	pa.logger = &log.Logger{}
 	pa.logger.Encoder = log.GetTxtEncoder()
-	pa.logger.LogConfig = &lumberjack.Logger{
-		Filename:   filepath.Join(logPath, analyzerFileName),
-		MaxSize:    2048,
-		MaxBackups: 0,
-		MaxAge:     0,
-		Compress:   false,
+	syncerFun := func() zapcore.WriteSyncer {
+		return zapcore.AddSync(&lumberjack.Logger{
+			Filename:   filepath.Join(logPath, analyzerFileName),
+			MaxSize:    log.MaxSize,
+			MaxBackups: 0,
+			MaxAge:     0,
+			Compress:   false,
+			LocalTime:  true,
+		})
 	}
 
-	pa.logger.LogConfig.LocalTime = true
+	pa.logger.AppendSyncerFun(syncerFun)
 	pa.logger.Init()
 
 	return nil

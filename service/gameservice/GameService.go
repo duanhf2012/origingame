@@ -70,6 +70,10 @@ func (gs *GameService) OnInit() error {
 		return err
 	}
 
+	var i uint64
+	gs.SafeNewTicker(&i, 1*time.Second, nil, func(u uint64, i interface{}) {
+		log.Info("xxxxxxxx")
+	})
 	return nil
 }
 

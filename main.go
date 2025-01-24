@@ -15,9 +15,15 @@ import (
 )
 
 func main() {
-	// 使用文本日志格式,默认为json
+	// 使用文本日志格式,默认为json格式
 	log.GetLogger().SetEncoder(log.GetTxtEncoder())
 
+	// 默认使用rotatelogs日志分割，以下为Lumberjack分割
+	//log.GetLogger().SetSyncers(log.GetLogger().NewLumberjackWriter)
+
+	// 打开性能报告
 	node.OpenProfilerReport(time.Second * 10)
+
+	// 开启Node
 	node.Start()
 }

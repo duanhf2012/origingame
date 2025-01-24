@@ -1,6 +1,6 @@
 Service:
   DBService:
-    Url: mongodb://admin:123456@127.0.0.1:27017/?minPoolSize=5&maxPoolSize=35&maxIdleTimeMS=30000
+    Url: mongodb://admin:123456@192.168.1.6:27017/?minPoolSize=5&maxPoolSize=35&maxIdleTimeMS=30000
     DBName: AreaDB1
     使用环境变量方式: ${AreaDB1}
     GoroutineNum: 2

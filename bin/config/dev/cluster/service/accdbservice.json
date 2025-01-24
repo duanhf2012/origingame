@@ -1,7 +1,7 @@
 {
   "Service": {
     "AccDBService": {
-      "Url": "mongodb://admin:123456@127.0.0.1:27017/?minPoolSize=5&maxPoolSize=30&maxIdleTimeMS=30000",
+      "Url": "mongodb://admin:123456@192.168.1.6:27017/?minPoolSize=5&maxPoolSize=30&maxIdleTimeMS=30000",
       "DBName": "AccDB",
       "DBName使用环境变量的方式": "${AreaDB1}",
       "GoroutineNum": 2,

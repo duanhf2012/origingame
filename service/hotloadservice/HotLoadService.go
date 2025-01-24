@@ -20,7 +20,7 @@ type HotLoadService struct {
 }
 
 func (gs *HotLoadService) OnInit() error {
-	gs.tableCfgModule.SetJsonPath(filepath.Join(node.GetConfigDir(), "datas"))
+	gs.tableCfgModule.SetJsonPath(filepath.Join(node.GetConfigDir(), "../datas"))
 	_, err := gs.AddModule(&gs.tableCfgModule)
 	if err != nil {
 		return err

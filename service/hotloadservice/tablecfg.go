@@ -2,6 +2,7 @@ package hotloadservice
 
 import (
 	"fmt"
+	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/service"
 	jsoniter "github.com/json-iterator/go"
 	"origingame/table/tablecfg"
@@ -23,6 +24,7 @@ type TableCfgModule struct {
 
 // SetJsonPath 设置Json路径
 func (tc *TableCfgModule) SetJsonPath(path string) error {
+	log.Debug("xxxxxxxxxxxxxxxxx", log.Any("path", path))
 	if !pathExists(path) {
 		return fmt.Errorf("path %s does not exist", path)
 	}
