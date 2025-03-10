@@ -74,6 +74,15 @@ func (gs *GameService) OnInit() error {
 	gs.SafeNewTicker(&i, 1*time.Second, nil, func(u uint64, i interface{}) {
 		log.Info("xxxxxxxx")
 	})
+
+	//打开性能分析工具
+	gs.OpenProfiler()
+	//监控超过1秒的慢处理
+	gs.GetProfiler().SetOverTime(time.Millisecond * 50)
+	//监控超过10秒的超慢处理，您可以用它来定位是否存在死循环
+	//比如以下设置10秒，我的应用中是不会发生超过10秒的一次函数调用
+	//所以设置为10秒。
+	gs.GetProfiler().SetMaxOverTime(time.Second * 10)
 	return nil
 }
 
