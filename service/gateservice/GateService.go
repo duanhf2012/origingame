@@ -12,6 +12,7 @@ import (
 	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/kcpmodule"
 	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/tcpmodule"
 	"github.com/duanhf2012/origin/v2/sysmodule/netmodule/wsmodule"
+	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"origingame/common/proto/msg"
 	"origingame/common/proto/rpc"
@@ -153,7 +154,7 @@ func (gate *GateService) OnInit() error {
 			}
 			var wsModule wsmodule.WSModule
 			wsModule.Init(wsCfg, &gate.pbRawProcessor)
-
+			wsModule.SetMessageType(websocket.BinaryMessage)
 			gate.AddModule(&wsModule)
 			gate.msgRouter.SetNetModule(&wsModule)
 			gate.netModule = &wsModule
