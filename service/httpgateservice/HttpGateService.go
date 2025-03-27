@@ -15,6 +15,7 @@ import (
 	"github.com/duanhf2012/origin/v2/log"
 	"github.com/duanhf2012/origin/v2/node"
 	"github.com/duanhf2012/origin/v2/service"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -86,6 +87,7 @@ func (gate *HttpGateService) OnInit() error {
 	gate.ginModule.Init(gateCfg.HttpListen, time.Second*15, nil)
 	gate.ginModule.AppendDataProcessor(gate)
 	gate.AddModule(&gate.ginModule)
+	gate.ginModule.Use(cors.Default())
 
 	gate.loginModule = &LoginModule{}
 	gate.loginModule.SetForbidGuestLogin(gateCfg.ForbidGustLogin)
