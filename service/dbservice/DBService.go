@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/duanhf2012/origin/v2/util/typ"
 	"origingame/common/db"
 	"origingame/common/performance"
 	"origingame/common/util"
 	"runtime"
+
+	"github.com/duanhf2012/origin/v2/util/typ"
 
 	"sync"
 	"sync/atomic"
@@ -1779,8 +1780,7 @@ func (dbService *DBService) RPC_GsReleaseDBCheckLink(arg *bool, ret *bool) error
 func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *db.DBControllerRedisReq) {
 	index := uint64(0)
 	if request.ModKey > 0 {
-		index = request.ModKey % uint64(dbService.goroutineNum-1)
-		index += 1
+		index = request.ModKey % uint64(dbService.goroutineNum)
 	}
 
 	if len(dbService.channelOptData[index]) == cap(dbService.channelOptData[index]) {
@@ -1802,8 +1802,7 @@ func (dbService *DBService) RPC_RedisRequest(responder rpc.Responder, request *d
 func (dbService *DBService) RPC_DBRequest(responder rpc.Responder, request *db.DBControllerReq) {
 	index := uint64(0)
 	if request.GetKey() != "" {
-		index = uint64(util.HashString2Number(request.GetKey())) % uint64(dbService.goroutineNum-1)
-		index += 1
+		index = uint64(util.HashString2Number(request.GetKey())) % uint64(dbService.goroutineNum)
 	}
 
 	if len(dbService.channelOptData[index]) == cap(dbService.channelOptData[index]) {
