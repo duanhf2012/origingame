@@ -1,7 +1,7 @@
 # LoginService 设计
 
-> 状态：MVP 已实现
-> 更新日期：2026-08-12
+> 状态：MVP 已实现；HTTP Module 职责调整已确认，待重构
+> 更新日期：2026-08-13
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
 ## 1. 服务定位
@@ -92,6 +92,57 @@ POST /api/v1/login
 ```
 
 `RealAreaId` 是服务端内部路由信息，不返回客户端。HTTP 层错误码和 Gateway 二进制协议错误码共用一份 Protobuf `ErrorCode` 枚举，见 [错误码设计](../protocols/错误码设计.md)。
+
+### 3.1 HTTP Module 职责边界
+
+`httpapi.Module` 是 LoginService 对外 HTTP 边界，负责：
+
+- HTTP Server 的 Setup、启动、停止和监听资源生命周期；
+- 注册 LoginService 的 HTTP 路由和 HTTP Middleware；
+- 定义并解析 JSON DTO；
+- 实现各路由对应的 Handler；
+- 将 HTTP 状态码、业务错误码和响应 DTO 写回客户端；
+- 协调只由 HTTP 请求触发的登录流程。
+
+`LoginService` 根包只负责顶层配置聚合、业务能力创建、Module 装配、启动顺序以及真正跨多个子包的协调流程。它不保存具体 HTTP Handler，也不向 `httpapi.NewModule` 逐个传入 `loginHandler`、`areaHandler` 等路由函数。新增同类 HTTP 接口时，应主要修改 `httpapi` 包，不应导致 `LoginService` 随接口数量增加 Handler 字段、构造参数或无业务价值的转发方法。
+
+`httpapi.Module` 的 Handler 通过 Module 方法注册：
+
+```go
+func (module *Module) OnInit() error {
+    // 完成 Server Setup 和 Middleware 注册。
+    module.SafePOST("/api/v1/login", module.login)
+    return nil
+}
+```
+
+构造 `httpapi.Module` 时注入完成登录流程所需的最小业务能力，例如平台鉴权、账号 Repository、Token 签发、区服快照和登录限流；注入的是能力，不是属于 HTTP Module 自身的 Handler。具体依赖优先直接使用现有最小类型，只有参数数量或可读性确有需要时才使用依赖聚合结构，不为未来接口预建 Controller、UseCase 或注册器层。
+
+当前登录请求处理顺序保持不变：
+
+```text
+httpapi.Module
+    -> 解析并校验 LoginRequest
+    -> 执行登录限流
+    -> 调用平台鉴权能力
+    -> 调用账号 Repository
+    -> 调用 Token 签发能力
+    -> 读取区服快照
+    -> 返回 LoginResponse
+```
+
+HTTP Handler 可以调用 Module 继承的 `Await`，在数据库、Redis 等真实 I/O 期间协作式释放所属 Service 的执行权；请求仍通过 `SafePOST` 进入所属 Service 工作协程，不得在 Handler 中创建无法停止和等待的业务 goroutine。
+
+文件按具体职责拆分：
+
+```text
+service/loginservice/httpapi/
+├── httpmodule.go       # Module、HTTP 生命周期、依赖和路由/Middleware 注册
+├── loginhandler.go     # POST /api/v1/login Handler 及其专属辅助逻辑
+└── logindto.go         # 登录请求和响应 JSON DTO
+```
+
+如果后续出现新的 HTTP 业务域，应先判断它是否仍属于 LoginService 对外登录边界。属于同一边界时在 `httpapi` 内按具体 Handler 和 DTO 文件扩展；具有不同监听地址、鉴权、安全策略或生命周期的 GM、运维和内部管理接口，应建立独立边界 Module，不与公开登录接口混合。
 
 ## 4. 登录路径
 
