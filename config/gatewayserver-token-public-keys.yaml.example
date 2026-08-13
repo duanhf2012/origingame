@@ -1,0 +1,6 @@
+# GatewayServer 后续实现时加载本文件对应结构；这里只有公钥，没有 LoginService 私钥。
+token:
+  issuer: "origingame-login"
+  audience: "origingame-gateway"
+  public_keys:
+    dev-key-1: "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ="

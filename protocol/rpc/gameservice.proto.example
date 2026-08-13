@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package origingame.rpc;
+
+option go_package = "origingame/protocol/rpc;rpcapi";
+
+// SyncPlayerRequest 是 GameService RPC 使用的 Protobuf 请求样例。
+message SyncPlayerRequest {
+  string player_id = 1;
+  int64 session_fence = 2;
+}
+
+// SyncPlayerResult 是 GameService RPC 使用的 Protobuf 返回样例。
+message SyncPlayerResult {
+  bool accepted = 1;
+}

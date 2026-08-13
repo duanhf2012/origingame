@@ -1,0 +1,136 @@
+name: origingame-v3
+
+# OriginGame v3 本地开发基础设施。
+# 只用于开发、学习和集成测试，不是生产部署模板。
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.7.1
+    container_name: origingame-etcd
+    restart: unless-stopped
+    command:
+      - etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd=http://etcd:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=origingame-v3-etcd
+    ports:
+      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_ETCD_PORT:-2379}:2379"
+    volumes:
+      - etcd-data:/etcd-data
+    healthcheck:
+      test:
+        - CMD
+        - etcdctl
+        - --endpoints=http://127.0.0.1:2379
+        - endpoint
+        - health
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - origingame-net
+
+  nats:
+    image: nats:2.14.3
+    container_name: origingame-nats
+    restart: unless-stopped
+    command:
+      - --config=/etc/nats/nats.conf
+    ports:
+      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_NATS_PORT:-4222}:4222"
+      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_NATS_MONITOR_PORT:-8222}:8222"
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      # 官方 NATS 镜像是无 shell 的极简镜像；容器存活由主进程保证，
+      # 这里使用 nats-server 自身验证当前配置。HTTP /healthz 在启动验收中检查。
+      test:
+        - CMD
+        - nats-server
+        - --config=/etc/nats/nats.conf
+        - --test
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - origingame-net
+
+  redis:
+    image: redis:7.2.15-alpine3.21
+    container_name: origingame-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - origingame-net
+
+  mongodb:
+    # 当前开发机使用 Linux 7.0.0 内核；较新的 MongoDB 镜像会因
+    # Linux 6.19~7.0.13 与 TCMalloc 的已知兼容问题拒绝启动。
+    # 8.0.4 仅作为本地开发兼容版本，正式环境应升级内核后更新 MongoDB。
+    image: mongo:8.0.4
+    container_name: origingame-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin_123456
+      MONGO_INITDB_DATABASE: origingame
+    ports:
+      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - ./mongodb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host 127.0.0.1 --port 27017
+          --username admin --password admin_123456
+          --authenticationDatabase admin
+          --eval "quit(db.adminCommand('ping').ok ? 0 : 2)"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    networks:
+      - origingame-net
+
+networks:
+  origingame-net:
+    name: origingame-v3-net
+    driver: bridge
+
+volumes:
+  etcd-data:
+    name: origingame-v3-etcd-data
+  mongodb-data:
+    name: origingame-v3-mongodb-data
+  redis-data:
+    name: origingame-v3-redis-data

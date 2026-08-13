@@ -1,0 +1,105 @@
+log:
+  mode: async
+  console:
+    enabled: true
+    level: info
+    format: text
+
+nodes:
+  - id: login-1
+    services:
+      - LoginService
+
+services:
+  LoginService:
+    http:
+      server:
+        # LoginServer 对外监听地址；公网部署应由反向代理、TLS 和防火墙共同保护。
+        address: "0.0.0.0:8080"
+        request_timeout: 15s
+        read_header_timeout: 5s
+        read_timeout: 15s
+        write_timeout: 20s
+        idle_timeout: 60s
+        max_header_bytes: 1M
+        max_request_body_size: 64KB
+        max_safe_response_body_size: 1M
+        max_active_requests: 1024
+        trusted_proxies: []
+
+    mongodb:
+      # 本地开发账号密码与 deploy/compose/compose.yaml 一致；正式环境必须改为 Secret。
+      uri: "mongodb://admin:admin_123456@127.0.0.1:27017/origingame?authSource=admin&appName=origingame-login"
+      database: "origingame"
+      tls_ca_file: ""
+
+    redis:
+      mode: standalone
+      addresses: ["127.0.0.1:6379"]
+      username: ""
+      password: ""
+      database: 0
+      client_name: "origingame-login"
+      protocol: 3
+      tls: false
+      tlsca_file: ""
+      dial_timeout: 5s
+      dial_attempts: 5
+      dial_retry_interval: 100ms
+      read_timeout: 5s
+      write_timeout: 5s
+      pool_timeout: 6s
+      pool_size: 32
+      max_concurrent_dials: 32
+      max_active_connections: 32
+      min_idle_connections: 0
+      connection_max_idle_time: 30m
+      max_retries: 0
+      min_retry_backoff: 10ms
+      max_retry_backoff: 1s
+      sentinel: {}
+      cluster: {}
+
+    token:
+      issuer: "origingame-login"
+      audience: "origingame-gateway"
+      expire: 24h
+      active_kid: "dev-key-1"
+      # 固定开发 Seed，仅用于学习和本地运行。生产必须替换，且不能提交真实私钥。
+      private_key: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+
+    area:
+      refresh_interval: 30s
+
+    authentication:
+      # TODO: 当前不调用平台 SDK。接入真实实现前不能关闭此开关，否则服务会拒绝启动。
+      development_passthrough: true
+
+    login_rate_limit:
+      enabled: true
+      # local 表示 Redis 运行期故障时使用有界的实例本地窗口；生产可改成 deny。
+      redis_failure_mode: local
+      ip:
+        enabled: true
+        windows:
+          - duration: 1s
+            max_requests: 10
+          - duration: 10s
+            max_requests: 30
+          - duration: 1m
+            max_requests: 120
+      identity:
+        enabled: true
+        windows:
+          - duration: 10s
+            max_requests: 5
+          - duration: 5m
+            max_requests: 20
+      auth_failure:
+        enabled: true
+        window: 5m
+        max_failures: 5
+        cooldown: 30s
+      concurrency:
+        enabled: true
+        max_in_flight: 256

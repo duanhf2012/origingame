@@ -1,0 +1,25 @@
+// Package rpcapi 定义 OriginGame 各 Service 共享的 Origin RPC 契约。
+package rpcapi
+
+import "context"
+
+// GameService 是 GameService 对其他 Service 公开的 RPC 能力样例。
+//
+//origin:rpc
+type GameService interface {
+	// LoginPlayer 使用普通 Go 结构体参数，由 origingen 生成静态 Codec。
+	LoginPlayer(context.Context, LoginPlayerRequest) (LoginPlayerResult, error)
+	// SyncPlayer 使用顶层 Protobuf 参数，由 origingen 调用官方 Protobuf Codec。
+	SyncPlayer(context.Context, *SyncPlayerRequest) (*SyncPlayerResult, error)
+}
+
+// LoginPlayerRequest 是登录玩家 RPC 的请求样例。
+type LoginPlayerRequest struct {
+	AccountID string
+	RealAreaID int64
+}
+
+// LoginPlayerResult 是登录玩家 RPC 的返回样例。
+type LoginPlayerResult struct {
+	PlayerID string
+}

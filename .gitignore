@@ -1,0 +1,6 @@
+/build/
+/run/
+/*.exe
+/coverage
+*.cover
+coverage.out
