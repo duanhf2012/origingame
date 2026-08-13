@@ -288,6 +288,7 @@ protocol/rpc/
 - 每个对外提供 RPC 的 Service 只使用一个 `<service>.go` 手写文件，该 Service 的接口、普通 Go 请求、返回和专用枚举集中在此文件；
 - 每个手写契约文件由 `origingen` 生成同名 `.rpc.gen.go`；生成物提交仓库且禁止手工修改；
 - RPC 接口使用与目标 Service 模板一致的名称，并通过 `//origin:rpc` 标记；业务实现使用编译期断言确认实现该接口；
+- RPC 契约方法按具体业务动作命名，不添加 `Rpc` 或 `RPC` 前缀；调用语义由 `origingen` 生成的 `Await`、`Call`、`Async`、`Notify` 和 `Broadcast` 前缀表达，避免形成 `AwaitRpcXxx`、`NotifyRpcXxx` 等重复名称；
 - 普通 Go RPC 参数与接口放在同一个 `protocol/rpc/<service>.go`，由 `origingen` 生成静态 Codec；
 - 需要 Protobuf 线格式时，在同层创建 `protocol/rpc/<service>.proto`，生成同层 `<service>.pb.go`；Protobuf `package` 固定为 `origingame.rpc`，`go_package` 固定为 `origingame/protocol/rpc;rpcapi`；
 - 同一 Service 没有 Protobuf 参数时不得创建对应 `.proto`；普通 Go 类型与 Protobuf 消息不得重名；

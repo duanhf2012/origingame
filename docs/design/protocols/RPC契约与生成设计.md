@@ -23,6 +23,8 @@ protocol/rpc/
 
 当前仓库尚无已经确认并实现的业务 RPC 契约，因此 `protocol/rpc` 只保存目录说明、`gameservice.go.example` 和 `gameservice.proto.example` 样例。样例不参与 Go 编译、Protobuf 生成和 `origingen`；第一个 RPC 设计确认后，应按实际契约创建对应源文件，不能直接把未确认的样例改名为生产契约。
 
+RPC 契约方法按具体业务动作命名，不添加 `Rpc` 或 `RPC` 前缀。调用方式由 `origingen` 生成的 `Await`、`Call`、`Async`、`Notify` 和 `Broadcast` 前缀表达；例如契约方法 `ExecuteMongo` 生成 `AwaitExecuteMongo` 和 `NotifyExecuteMongo`，不得声明成会生成 `AwaitRpcExecuteMongo` 的 `RpcExecuteMongo`。
+
 ## 2. 依赖边界
 
 - `protocol/rpc` 不得导入 `service/<xxxservice>`；
