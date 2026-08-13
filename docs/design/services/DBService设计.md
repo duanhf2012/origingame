@@ -1,6 +1,6 @@
 # DBService 设计
 
-> 状态：职责、部署模型、有序执行模型和 RPC 总体形态已确认；MongoDB/Redis 操作契约设计稿待确认
+> 状态：职责、部署模型、有界 KeyExecutor、有序执行模型和 RPC 总体形态已确认；MongoDB/Redis 操作契约设计稿待确认
 > 更新日期：2026-08-13
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
@@ -113,56 +113,99 @@ Origin 的 `Await` 还会为每个 Waiting 根任务保留原任务 goroutine，
 
 ## 6. 有界 KeyExecutor
 
-DBService 采用“动态 Key FIFO + 固定共享 Worker 池”方案：
+DBService 采用“动态 Key FIFO + 统一可运行队列 + 固定共享 Worker 池”方案。Key 只拥有轻量队列状态，不拥有 goroutine：
 
 ```text
-                    ┌─ Key A FIFO: A1 -> A2 -> A3
-RPC -> KeyExecutor ─┼─ Key B FIFO: B1
-                    ├─ Key C FIFO: C1 -> C2
-                    └─ 空 Key公共队列: X1、X2
-                              |
-                       固定 N 个 I/O Worker
-                              |
-                    MongoDB Module / Redis Module
+Key Map                              Runnable FIFO
+Key A -> A1 -> A2 -> A3 ───────┐
+Key B -> B1 ────────────────────┼──> [Key A, X1, Key B, X2, Key C]
+Key C -> C1 -> C2 ──────────────┘                 |
+空 Key请求 X1、X2 直接作为独立项 ──────────────────┘
+                                                   |
+                                           固定 N 个 I/O Worker
+                                                   |
+                                      MongoDB Module / Redis Module
 ```
 
-执行规则：
+核心状态可以实现为：
+
+```go
+type KeyExecutor struct {
+    mu        sync.Mutex
+    keyQueues map[string]*keyQueue
+    runnable  runnableQueue
+    cond      *sync.Cond
+
+    pendingRequests int
+    runningWorkers  int
+    accepting       bool
+    workers         sync.WaitGroup
+}
+
+type keyQueue struct {
+    requests      requestQueue
+    state         keyState // ready、running
+    runnableEntry *runnableEntry
+}
+```
+
+以上状态由一把短临界区锁保护。锁内只执行准入检查、链表增删、状态切换和计数，不执行 BSON/Redis 编解码、数据库 I/O、日志回调或 Ticket 等待。每个 Ticket 保存自己在 `requestQueue` 中的节点引用；Ready Key 保存 `runnableEntry`，空 Key Ticket 直接保存自己的 Runnable 节点引用。因此排队取消、Key 重新排队和队列删除都能 O(1) 完成，不通过遍历长队列清理超时请求。
+
+KeyExecutor 在启动时一次性创建恰好 `worker_count` 个 Worker goroutine。条件变量 `cond` 与上述状态使用同一把锁；Worker 在 `runnable` 为空且仍可继续运行时通过 `for` 循环等待，Submit 每新增一个 Runnable 项至少 `Signal` 一个 Worker，停止时 `Broadcast` 全部 Worker。条件变量只负责唤醒，锁内 `runnable` 才是唯一事实来源，因此虚假唤醒和暂时没有等待者都不会丢任务。Submit 只负责入队和唤醒，不启动 goroutine；全部 Worker 在已接受任务排空或停止 Context 生效后退出，由 DBService 通过 `WaitGroup` 统一等待。
+
+非空 Key 请求准入和执行规则：
 
 - 非空 Key 拥有一个逻辑 FIFO，同一个 Key 同时最多只有一个请求执行；
 - MongoDB 和 Redis 请求共用同一套 Key FIFO，按 KeyExecutor 成功准入顺序交叉串行；
-- 不为每个 Key 创建 goroutine，也不为每个请求创建额外 I/O goroutine；
+- 新 Key 创建 `keyQueue` 并追加请求；已有 Key 只向该 Key FIFO 追加请求；
+- 一个未运行的非空 Key 在统一 Runnable FIFO 中最多出现一次，不把该 Key 的每个请求都重复放入 Runnable FIFO；
+- Worker 从 Runnable FIFO 取得 Key 后，只取该 Key 队首的一个请求并把 Key 标为 Running；实际 MongoDB/Redis I/O 在锁外由该 Worker 同步执行；
+- 一个请求实际 I/O 返回后，Worker 才重新加锁并释放该 Key；如果仍有后续请求，把 Key 重新放到 Runnable FIFO 尾部，从而避免热点 Key 连续独占 Worker；
+- Key 队列清空后立即从 Key Map 删除，不形成永久增长的 Key 状态；
+- 空 Key 请求不创建 Key 状态，作为独立 Runnable 项进入同一个 FIFO，与非空 Key 共同参与 Worker 公平调度；
+- 排队请求取消时从对应队列 O(1) 删除并完成 Ticket；正在运行的请求只取消 Driver Context，必须等实际 I/O 返回后才能释放 Key；
 - 全部 Key 共享固定数量的 Worker，Worker 直接执行实际 MongoDB 或 Redis I/O；
-- 一个请求实际 I/O 返回后，才释放该 Key 并使同 Key 下一个请求成为可运行；
-- 同 Key 下一个请求重新进入公共可运行队列尾部，避免热点 Key 连续独占 Worker；
-- Key 队列清空后立即删除对应状态，不形成永久增长的 Key Map；
-- 空 Key 请求直接进入公共无序队列，由下一个空闲 Worker 取得；
+- 不为每个 Key 创建 goroutine，也不为每个请求创建额外 I/O goroutine；
 - Worker 数量运行期间冻结，修改后必须重启并按生命周期排空旧实例。
+
+例如同时准入 10000 个不同 Key、`worker_count` 为 64 时，KeyExecutor 最多只有 64 个数据库 I/O 同时执行，其余 Key 只是 Key Map 和 Runnable FIFO 中的有界状态，不会创建 10000 个 I/O goroutine。但每个等待 RPC 都会保留一个 Origin Await 任务 goroutine，所以总体等待数量必须继续由 `scheduler.max_await_tasks` 限制。
 
 本方案不采用 `hash(key) % worker_count` 的固定私有 Worker 队列。固定分片虽然简单，但慢 Key 会阻塞碰巧哈希到同一 Worker 的无关 Key，也可能出现一个队列已满而其他 Worker 空闲的问题。动态 Key FIFO 保留固定资源上限，同时减少无关 Key 的队头阻塞；实现复杂度集中封装在 DBService 的专用执行能力中。
 
 ## 7. 容量和过载
 
-DBService 的所有排队和并发必须有界，至少具有：
+采用“先 Await、后 Submit”后，KeyExecutor 不再重复配置全局 Pending 和活动 Key 上限，只保留两个不能从框架推导的字段：
 
-- 固定 `worker_count`；
-- 全局未完成请求上限；
-- 单个非空 Key 的未完成请求上限；
-- Origin `scheduler.max_tasks`；
-- Origin `scheduler.max_await_tasks`；
-- RPC 请求 Payload 上限；
-- 单次数据库结果和批量操作上限；
-- 单次请求 Deadline。
-
-全局未完成请求包含 KeyExecutor 已接受但尚未完成的排队和运行请求。达到全局或单 Key 上限时立即返回稳定的过载错误，不等待队列腾空，不临时增加 Worker，也不创建补偿 goroutine。
-
-容量必须作为一套预算联合核算。原则上：
-
-```text
-executor.max_pending_total <= scheduler.max_await_tasks
-scheduler.max_tasks >= executor.max_pending_total + 少量准入与恢复余量
+```yaml
+key_executor:
+  worker_count: 64                    # MongoDB和Redis共享的实际I/O Worker数量；启动后冻结
+  max_pending_requests_per_key: 128  # 单个非空dispatch_key的运行加排队请求上限；空Key不适用
 ```
 
-具体数值必须结合单请求最大内存、MongoDB/Redis 连接池、数据库可承受并发以及 P95/P99 压测确定，不在设计阶段猜测固定默认值。
+以上数值只是便于说明字段语义的示例，不是已经确认的首期默认值。两个字段都必须大于零，并且不能超过当前 Node 的 `scheduler.max_await_tasks`；Worker 数量还必须结合 MongoDB/Redis 连接池和数据库可承受并发确定。
+
+全局未完成请求上限直接复用 Origin `scheduler.max_await_tasks`。DBService 的 `Submit` 是私有能力，只允许在已经成功进入 `Await` 的函数内调用，因此每个排队或运行 Ticket 必然对应一个 Await 名额：
+
+```text
+KeyExecutor Pending <= scheduler.max_await_tasks
+活动非空 Key数量 <= KeyExecutor Pending
+Runnable FIFO项数量 <= KeyExecutor Pending
+```
+
+因此不增加 `max_pending_requests`、`max_active_keys`、`max_unordered_pending_requests` 和 `runnable_queue_size`：它们都能由已有 Await 上限推导。空 Key 和非空 Key 共用全局容量，当前没有真实需求证明需要再划分隔离配额；以后若监控表明确认空 Key 挤压有序请求，再单独讨论。
+
+`scheduler.max_tasks`、`scheduler.max_await_tasks` 和 `scheduler.default_await_timeout` 继续配置在 DBService 所在 Node 的 `<node>-node.yaml`，不是 DBService 重复定义的字段：
+
+```yaml
+nodes:
+  - id: acc-db-1
+    scheduler:
+      max_tasks: 12000          # 当前Service已接受但尚未完整返回的根任务总上限
+      max_await_tasks: 10000    # DBService等待中RPC和KeyExecutor Pending的实际全局上限
+      default_await_timeout: 15s # 调用方未提供更短Deadline时使用的真实时间等待上限
+```
+
+Node Scheduler 可能同时承载生命周期、Timer 或其他 Ready 任务，因此 `max_tasks` 应大于 `max_await_tasks` 并保留准入和恢复余量；最终数值结合单请求最大内存、RPC Payload、数据库连接池、目标排队时间和 P95/P99 压测确定。达到 Origin Await 上限时由框架返回队列满；达到单 Key 上限时由 KeyExecutor 立即返回稳定的热点 Key 过载错误。两者都不等待容量释放、不临时增加 Worker，也不创建补偿 goroutine。
 
 ## 8. 请求执行、取消与返回
 
@@ -172,17 +215,18 @@ scheduler.max_tasks >= executor.max_pending_total + 少量准入与恢复余量
 RPC Runtime
     -> Origin ServiceScheduler 准入根任务
     -> DBService 校验并完整拥有请求数据
-    -> KeyExecutor.Submit
-    -> Handler 使用 Await 等待 Ticket
-    -> 固定 Worker 执行 MongoDB/Redis I/O
-    -> Ticket 完成
+    -> Handler 成功进入 Origin Await并释放Service执行槽
+        -> Await函数内调用KeyExecutor.Submit
+        -> Await函数等待Ticket
+        -> 固定Worker执行MongoDB/Redis I/O
+        -> Ticket完成，Await函数返回
     -> 原 RPC Task 进入 Origin 恢复 FIFO
     -> 返回响应
 ```
 
-KeyExecutor 成功接收请求后，如果 Handler 无法进入 Await，必须撤销尚未执行的 Ticket；已经开始执行的请求则继续由执行器持有到 I/O 实际返回并完成资源清理。
+必须先成功进入 Await，再调用 KeyExecutor.Submit，禁止先 Submit 后尝试 Await。Origin 在调用 Await 函数前已经原子检查并占用 `max_await_tasks` 名额；因此不会出现 Ticket 已占用 KeyExecutor 容量，但 Handler 随后因 Await 满而无法等待、必须撤销 Ticket 的窗口。
 
-排队请求在开始前已经取消或超时时，可以从逻辑 Key FIFO 跳过并释放容量。正在执行的请求收到取消或超时时，必须取消传给 Driver 的 Context，但不能立即释放 Key；只有实际 MongoDB/Redis 调用返回后，才能启动同 Key 下一个请求，避免前一个 I/O 尚未结束时重新形成同 Key 并发。
+Await 函数等待 Ticket 时必须区分排队和运行状态：排队请求收到取消或超时时，由当前 Await goroutine 同步调用 KeyExecutor 取消，在锁内 O(1) 删除 Ticket、释放 Pending 并返回，不创建取消回调 goroutine；如果请求已经被 Worker 取得，则取消传给 Driver 的 Context，但 Await 函数仍必须等待 Worker 报告实际 I/O 返回后才能结束。运行请求不能因调用方已经超时就提前释放 Await 名额、Ticket 或 Key，否则既会重新形成同 Key 并发，也会破坏 `KeyExecutor Pending <= scheduler.max_await_tasks` 的容量关系。
 
 调用方可能已经因 Deadline 收到错误，而数据库操作的最终状态仍不确定。DBService 只返回实际可观察结果，不根据超时推断写入一定未发生；业务层按自身需要使用幂等 Key、数据库原子条件或查询确认。
 
@@ -566,10 +610,12 @@ rpc_limits:
 
 - 相同 Key 的 MongoDB/Redis 模拟操作严格按准入顺序执行；
 - 不同 Key 在 Worker 上限内并发；
+- 10000个不同Key排队时，实际数据库I/O并发和KeyExecutor Worker goroutine数量始终不超过`worker_count`；
 - 慢 Key 不阻塞无关 Key；
 - 空 Key 请求可以由任意空闲 Worker 执行；
-- 全局和单 Key 容量超限立即拒绝；
+- `scheduler.max_await_tasks` 全局容量和单Key容量超限时立即拒绝；
 - 排队取消、运行取消和超时不会提前释放 Key；
+- Await成功但Submit失败时不残留Ticket、Key状态或Pending计数；
 - Key 队列清空后删除；
 - 重复停止、部分启动失败和逆序回滚；
 - 停止期间拒绝新请求并在预算内排空；
@@ -588,5 +634,5 @@ rpc_limits:
 3. 各标准 MongoDB Operation 的最终字段及允许 Options；Redis 白名单配置的最终字段。
 4. RPC 稳定错误码、MongoDB/Redis 错误分类和部分结果的最终 Go 类型。
 5. 请求大小、结果大小、操作/命令数量和事务时间的首期默认值。
-6. KeyExecutor 的公平队列细节及具体配置字段名称。
+6. `worker_count`、`max_pending_requests_per_key` 以及DBService所在Node Scheduler容量的首期数值。
 7. AccDBService、RoleDBService 的首期配置、Node 拓扑和副本数。
