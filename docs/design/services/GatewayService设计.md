@@ -1,7 +1,7 @@
 # GatewayService 设计
 
 > 状态：当前阶段设计基线
-> 更新日期：2026-08-12
+> 更新日期：2026-08-13
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
 ## 1. 服务定位
@@ -173,7 +173,7 @@ GatewayServer 只有在 GatewayService 完成以下准备后才能进入 Ready�
 - Token 验签公钥及当前支持的 `kid` 已加载；
 - 消息协议注册表已经完成并冻结；
 - 连接、会话、登录状态和路由组件已经初始化；
-- Redis `RouteStore` 已连接，所需原子 Function 版本已校验，并完成初始可写性探测；
+- RouteStore 使用的 DBService RPC 已可用，并已通过 DBService 完成 Redis 原子 Function 版本校验和初始可写性探测；GatewayService 不直接组合 Redis Module；
 - TCP、KCP、WebSocket 三个 Server Module 均已成功监听；
 - 访问后端服务所需的服务发现或其他必需依赖已经可用。
 

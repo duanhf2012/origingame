@@ -1,6 +1,6 @@
 # LoginService 设计
 
-> 状态：MVP 已实现；HTTP Module 职责调整已确认，待重构
+> 状态：MVP 已实现；HTTP Module 与 DBService 接入调整已确认，待重构
 > 更新日期：2026-08-13
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
@@ -208,11 +208,11 @@ token:
 
 GatewayServer 配置相同 `kid` 对应的公钥。示例配置中的开发密钥只用于学习和本地运行，使用者可以自行替换。以后生产化时可以把私钥来源改为 Secret、环境变量或密钥文件，但当前不增加这层复杂度。
 
-## 6. MongoDB 访问设计
+## 6. 数据访问设计
 
-LoginService 通过 Origin v3 MongoDB Module 直接连接 MongoDB，不再建立老版本那种通用 CRUD RPC `DBService`。
+LoginService 不再直接组合 MongoDB 和 Redis Module，账号、区服和登录限流所需的全部 MongoDB/Redis 操作统一通过 AccDBService RPC 执行。AccDBService 是业务无关 DBService 模板面向账号数据域的实际实例，固定账号数据库名并集中持有 MongoDB、Redis 连接池，见 [DBService 设计](DBService设计.md)。
 
-数据库操作通过 LoginService 内部的数据访问组件封装，避免 HTTP Handler 直接散布集合名和 BSON 查询：
+数据库操作仍由 LoginService 内部 Repository 封装，避免 HTTP Handler 散布集合名、BSON 查询和 Redis 命令：
 
 ```text
 LoginService
@@ -220,12 +220,13 @@ LoginService
 ├── TokenIssuer
 ├── AccountStore
 ├── AreaCatalogStore
-└── MongoDB Module
+└── AccDBService RPC Client
 ```
 
 - `AccountStore` 负责账号查询、原子创建和历史区服更新；
 - `AreaCatalogStore` 负责加载真实区服和显示区服；
-- MongoDB Client 按 LoginService 实例创建并在整个 Service 生命周期内复用，不能按 HTTP 请求创建连接。
+- 登录限流组件负责构造 Redis 原子操作并通过 AccDBService 执行；
+- Repository 和限流组件选择 AccDBService，并对同一业务身份使用一致的非空 `dispatch_key` 和 `Route(key)`；DBService 只执行操作，不理解登录业务。
 
 MongoDB 集合名、BSON 文档结构及集合内嵌字段类型统一定义在仓库级 `internal/mongodb`，不再增加 `collection` 子目录。该包是 OriginGame 各 Service 共享的持久化契约，不包含 Client、Repository、查询更新、生命周期或业务逻辑。LoginService 的 `account`、`area` 包负责 Repository、数据校验以及持久化结构到业务视图的转换；HTTP DTO 不复用 BSON 文档结构。
 
@@ -365,9 +366,9 @@ Redis 暂时不可用时降级为实例本地窗口，不能因为限流依赖�
 
 ## 10. Ready 条件
 
-LoginServer 只有在 LoginService 完成以下准备后才能开放 HTTP 登录接口：
+LoginService 只有在完成以下准备后才能开放 HTTP 登录接口：
 
-- MongoDB 已连接并通过启动可用性检查；
+- AccDBService RPC 已可用，并完成账号数据库及所需 Redis 能力的可用性检查；
 - 登录所需账号集合已经可访问；
 - `RealAreaInfo` 已查询完成；
 - `ShowAreaInfo` 已查询完成；
