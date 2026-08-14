@@ -1,6 +1,6 @@
 # DBService 设计
 
-> 状态：职责、部署模型、有界 KeyExecutor、有序执行模型、基础配置收敛和 RPC 总体形态已确认；MongoDB/Redis 操作契约设计稿待确认
+> 状态：职责、部署模型、有界 KeyExecutor、有序执行模型、基础配置收敛、RPC 总体形态、Redis首期执行模式和观测字段已确认；MongoDB/Redis其余操作契约设计稿待确认
 > 更新日期：2026-08-14
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
@@ -41,7 +41,7 @@ DBService 不负责：
 - Update：更新文档；
 - Delete：删除文档。
 
-DBService 对外只声明 `ExecuteMongo` 和 `ExecuteRedis` 两个业务无关 RPC 方法。高频 MongoDB 能力使用结构化操作，特殊能力使用受登记约束的原始 BSON Command；Redis 以受限原始命令为基础单元，并为 Pipeline、MULTI/EXEC、Function 和 Script 提供明确执行模式。所有 Redis 访问，包括在线路由、登录限流和需要的分布式协调操作，都必须经过 DBService。
+DBService 对外只声明 `ExecuteMongo` 和 `ExecuteRedis` 两个业务无关 RPC 方法。高频 MongoDB 能力使用结构化操作，特殊能力使用受登记约束的原始 BSON Command；Redis 以受限原始命令为基础单元，并为 Pipeline、MULTI/EXEC 和 Script 提供明确执行模式。所有 Redis 访问，包括在线路由、登录限流和需要的分布式协调操作，都必须经过 DBService。
 
 ## 3. 模板实例与数据库归属
 
@@ -203,7 +203,7 @@ dbservice:
 | 根任务、Await框架硬上限和默认Await超时 | Origin ServiceScheduler | 否，DBService自身准入上限必须不超过它 |
 | RPC请求和响应Payload | Origin RPC | 否，当前默认4MiB |
 | 单Key积压、操作/命令数量和结果数量 | DBService代码常量 | 否 |
-| RawCommand、Function和Script登记 | DBService可选扩展 | 基础配置不出现，真实使用时才增加登记项 |
+| RawCommand和Script登记 | DBService可选扩展 | 基础配置不出现，真实使用时才增加登记项 |
 
 DBService使用`max_inflight_requests`作为自身主要请求准入边界，Origin `scheduler.max_await_tasks`继续作为整个Service的框架硬上限。Handler只进行一次非阻塞Inflight预留，不在Service执行槽内等待；只有预留成功后才进入Await并调用私有`KeyExecutor.Execute`：
 
@@ -277,7 +277,7 @@ DBService 进入 Ready 前必须完成：
 - Redis Module 连接及必要可用性检查；
 - `max_io_concurrency`、`max_inflight_requests`关系校验以及Key Map、Inflight Gate和全局并发信号量初始化；
 - 对外 RPC 契约注册完成；
-- 必需数据库能力、可选MongoDB RawCommand登记以及Redis Function/Script登记和版本校验。
+- 必需数据库能力、可选MongoDB RawCommand登记以及Redis Script登记、内容摘要和约束校验。
 
 任一步失败必须按成功创建资源的逆序回滚，DBService 不以缺少 MongoDB、Redis 或可用KeyExecutor的半初始化状态对外服务。
 
@@ -467,7 +467,6 @@ type RedisRequest struct {
     DispatchKey string
     ExecuteMode RedisExecuteMode
     Commands    []RedisCommand
-    Function    *RedisFunctionCall
     Script      *RedisScriptCall
 }
 ```
@@ -477,7 +476,6 @@ type RedisRequest struct {
 | `Command` | 恰好执行一条命令 |
 | `Pipeline` | 顺序收集多条命令并一次发送，减少往返，不保证原子性 |
 | `Transaction` | 使用 MULTI/EXEC 提交多条命令；运行时命令错误不会像 MongoDB 事务一样自动回滚 |
-| `Function` | 调用启动阶段已校验的 Redis Function |
 | `Script` | 调用启动阶段已登记的短 Lua Script |
 
 模式对应字段必须恰好一组有效。一个 RedisRequest 也是 KeyExecutor 的一个 Ticket；请求内的命令在结束前不会插入同 Key 的其他 MongoDB/Redis 请求。Redis 与 MongoDB 仍不存在跨资源原子事务。
@@ -514,9 +512,9 @@ Pipeline 返回每条命令对应的结果或命令错误，并保持数组下�
 
 Standalone/Sentinel 中，同一 Pipeline 发往同一服务端连接时按提交顺序写入；Cluster Pipeline 可能拆分到多个节点，跨节点命令之间不承诺全局执行顺序。无论何种拓扑，整个 RedisRequest 实际返回前 KeyExecutor 都不会释放其 `dispatch_key`。
 
-首期不在 DBService 内实现 WATCH 回调，因为后续写入通常依赖 WATCH 后读取的值，会要求请求内表达结果引用、条件分支和可重入回调。需要乐观并发时优先使用 Function/Script、版本字段加条件命令或业务幂等；出现无法表达的真实需求后再单独设计受限 WATCH Plan。
+首期不在 DBService 内实现 WATCH 回调，因为后续写入通常依赖 WATCH 后读取的值，会要求请求内表达结果引用、条件分支和可重入回调。需要乐观并发时优先使用 Script、版本字段加条件命令或业务幂等；出现无法表达的真实需求后再单独设计受限 WATCH Plan。
 
-Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整体原子性；Transaction、Function、Script和要求原子的多Key命令必须由调用方使用Hash Tag保证全部Key位于同一Slot。Function/Script的Keys与Args在协议上分离；普通命令优先复用go-redis及Redis服务端的Command Metadata完成Key提取和路由。Key布局动态且Driver无法可靠识别的命令不允许进入原子模式，不为此增加普通命令白名单配置。
+Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整体原子性；Transaction、Script和要求原子的多Key命令必须由调用方使用Hash Tag保证全部Key位于同一Slot。Script的Keys与Args在协议上分离；普通命令优先复用go-redis及Redis服务端的Command Metadata完成Key提取和路由。Key布局动态且Driver无法可靠识别的命令不允许进入原子模式，不为此增加普通命令白名单配置。
 
 以下命令硬拒绝：
 
@@ -524,22 +522,16 @@ Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整
 - `FLUSHDB`、`FLUSHALL`、`MIGRATE`、`RESTORE` 等大范围破坏或迁移命令；
 - `SUBSCRIBE`、`PSUBSCRIBE`、`MONITOR` 和其他长期占用连接或持续流式返回的命令；
 - `KEYS`、无界阻塞命令和无法在当前 RPC Deadline 内确定结束的命令；
-- `MULTI`、`EXEC`、`DISCARD`、`WATCH`、`EVAL/EVALSHA` 和 `FCALL`；这些只能由 Transaction、Function 或 Script 专用模式生成；
-- Function/Script 的装载、删除和刷新命令；这些由 DBService 启动配置管理，不由业务请求执行。
+- `MULTI`、`EXEC`、`DISCARD`和`WATCH`只能由Transaction模式生成或由首期不支持的能力使用；`EVAL/EVALSHA`只能由Script模式内部生成；首期没有Function执行模式，因此`FCALL/FCALL_RO`始终拒绝；
+- `SCRIPT`、`FUNCTION`等脚本或函数管理命令；Script登记和本地缓存由DBService管理，业务请求不得装载、删除或刷新服务器脚本与函数。
 
 扫描类命令允许在命令结果中返回下一页Cursor，但一次RPC只执行一页；调用方使用新请求继续扫描。`HGETALL`、`SMEMBERS`、`LRANGE 0 -1`等可能产生大结果的命令仍受统一结果节点数、RPC Payload和Deadline限制，不为单个命令增加独立配置。
 
-## 19. Redis Function、Script 和结果
+## 19. Redis Script 和结果
 
-Function 和 Script 不允许请求携带任意代码。配置保存经过审核的 Function 名称或 Script ID、源码/摘要、只读属性、Key 数量、参数上限和返回上限；DBService 在 Ready 前加载或校验版本。请求只携带登记 ID、Keys 和 Args：
+Script 不允许请求携带任意代码。只有出现真实脚本需求时，才增加登记项，将稳定Script ID映射到经过审核的源码、内容摘要、只读属性、Key数量、参数上限和返回上限；DBService在Ready前校验登记冲突、内容摘要和约束，并构造进程内Script对象。请求只携带登记ID、Keys和Args：
 
 ```go
-type RedisFunctionCall struct {
-    Name string
-    Keys []string
-    Args [][]byte
-}
-
 type RedisScriptCall struct {
     ID   string
     Keys []string
@@ -547,9 +539,13 @@ type RedisScriptCall struct {
 }
 ```
 
-Function/Script 适合登录限流、在线路由 Compare-And-Set、带 TTL 的幂等写等少量短命令原子组合。脚本会阻塞 Redis 执行线程，必须短小、有界、可观测；不得把通用业务流程或长循环放入脚本。
+执行时通过Redis Module的`RunScript`调用登记脚本：优先使用`EVALSHA`，Redis返回`NOSCRIPT`时由Driver自动回退到`EVAL`并重新进入脚本缓存。Redis脚本缓存是可丢失的运行时状态，DBService不把预加载成功作为脚本永久存在的假设，也不增加单独的脚本装载生命周期。
 
-Redis Module 的进程内 Lease `Lock` 对象不跨 RPC 暴露，也不由 DBService 保存跨请求锁状态。需要分布式锁时，使用登记的 Function/Script 以随机 Owner Token 完成获取、刷新和条件释放，并让业务层持有 Token；获取、刷新和释放请求必须选择同一个实际 DBService 和一致的 `dispatch_key`。Redis Lease 仍不能替代数据库事务、唯一约束或业务幂等。
+Script 适合登录限流、在线路由 Compare-And-Set、带 TTL 的幂等写等少量短命令原子组合。脚本会阻塞 Redis 执行线程，必须短小、有界、可观测；不得把通用业务流程或长循环放入脚本。
+
+首期不提供Redis Function模式。它与Script的当前业务能力重叠，同时要求Redis 7及以上、服务器端函数库部署和版本生命周期管理，而Origin v3 Redis Module当前没有对应封装。以后只有在部署统一保证Redis版本、多个调用方确需共享服务器端函数库，并明确函数发布、升级、回滚和兼容策略后，才重新设计Function能力；业务方不能先通过普通Command执行`FCALL`绕过该边界。
+
+Redis Module 的进程内 Lease `Lock` 对象不跨 RPC 暴露，也不由 DBService 保存跨请求锁状态。需要分布式锁时，使用登记的Script以随机Owner Token完成获取、刷新和条件释放，并让业务层持有Token；获取、刷新和释放请求必须选择同一个实际DBService和一致的`dispatch_key`。Redis Lease仍不能替代数据库事务、唯一约束或业务幂等。
 
 Redis Driver 已经解析 RESP 帧，DBService 返回的是其可观察到的语义值，不承诺保留 Blob String、Simple String、Set 等已经被 Driver 归一化掉的线格式差异。为避免 RPC 类型递归，同时仍能表达嵌套 Array/Map，返回值使用“节点表 + 索引引用”的非递归结构：
 
@@ -576,9 +572,9 @@ type RedisResult struct {
 
 Value Kind 至少支持 Null、Bytes、Integer、BigNumber、Double、Boolean、Array 和 Map；BigNumber 使用十进制字节表示，避免溢出 Go `int64`。Array 的 `Children` 按元素顺序保存子节点索引；Map 按 Key、Value 交替保存索引，因此数量必须为偶数；标量节点的 `Children` 必须为空。`RootIndex` 和所有子索引必须指向同一 `Nodes`，节点图必须从 Root 可达、无环且每个节点只出现一次。该形态没有 Go 类型递归，可由 `origingen` 生成静态 Codec。
 
-Null 表达 Redis Miss，不作为基础设施失败。Command/Pipeline/Transaction 的结果与命令下标一一对应；Function/Script 使用一个结果项。协议拒绝无法安全表达或超过节点数量、逻辑嵌套深度、单值字节数、子索引数量和总结果字节数的返回。Pub/Sub Push 消息不属于普通请求响应，首期硬拒绝对应命令。
+Null 表达 Redis Miss，不作为基础设施失败。Command/Pipeline/Transaction 的结果与命令下标一一对应；Script使用一个结果项。协议拒绝无法安全表达或超过节点数量、逻辑嵌套深度、单值字节数、子索引数量和总结果字节数的返回。Pub/Sub Push 消息不属于普通请求响应，首期硬拒绝对应命令。
 
-`RedisCommandResult` 包含一个 Value 和可选的逐命令 Failure。Pipeline/Transaction 必须允许多个命令结果与逐项错误同时返回；`RedisResult.Failure` 只表达无法归属于某一命令的整体失败，例如连接中断、EXECABORT、超时或最终状态未知。与 MongoDB 相同，RPC `error` 只表达未取得可解释报告的框架/准入/校验问题。稳定分类至少表达 WrongType、NoScript、FunctionNotFound、TransactionAborted、CrossSlot、Timeout、Canceled、Network 和 Unknown；Null 是正常 Redis Miss，不是 Failure。原始 Redis 错误文本和命令参数不得直接回传或记录。
+`RedisCommandResult` 包含一个 Value 和可选的逐命令 Failure。Pipeline/Transaction 必须允许多个命令结果与逐项错误同时返回；`RedisResult.Failure` 只表达无法归属于某一命令的整体失败，例如连接中断、EXECABORT、超时或最终状态未知。与 MongoDB 相同，RPC `error` 只表达未取得可解释报告的框架/准入/校验问题。稳定分类至少表达 WrongType、NoScript、TransactionAborted、CrossSlot、Timeout、Canceled、Network 和 Unknown；Null 是正常 Redis Miss，不是 Failure。原始 Redis 错误文本和命令参数不得直接回传或记录。
 
 ## 20. 固定安全边界
 
@@ -602,7 +598,9 @@ MongoDB查询允许调用方提供更小的Limit；未提供或超过100000时�
 
 ## 21. 监控、慢处理与测试
 
-每个请求从Handler取得执行权开始，记录以下独立阶段：
+本节是DBService观测输出的唯一字段字典。其他章节只描述触发场景，不再重复枚举字段。指标用于聚合、趋势和告警，慢日志用于定位单次请求；两者不得输出`dispatch_key`原值、MongoDB BSON、Redis Key/Value、Script参数、Token、连接串、凭证或原始Driver错误文本。
+
+每个请求从Handler取得执行权开始，按以下不重叠阶段计时：
 
 ```text
 handler_total_duration
@@ -614,19 +612,101 @@ handler_total_duration
 └── response_build_duration
 ```
 
-阶段时间不重叠，`handler_total_duration`还包含阶段切换等少量开销。多Operation/Command请求除记录整个数据库阶段外，还记录每一项的执行耗时，并在诊断中保留最慢项的下标、类别和耗时。
+`executor_queue_duration = key_wait_duration + slot_wait_duration`；空`dispatch_key`的`key_wait_duration`为0。`handler_total_duration`还包含阶段切换等少量开销，因此不要求严格等于各子阶段之和。多Operation/Command请求还记录每一项执行耗时，用于计算最慢项，但不为每个集合、命令、Script ID或Key创建指标标签。
 
-至少记录以下指标：
+### 21.1 统一维度
 
-- Origin ServiceScheduler的Accepted、Ready、Awaiting、高水位和拒绝数；
-- KeyExecutor当前Inflight、Inflight高水位、Inflight准入拒绝、活动Key、等待Key请求、等待并发槽请求、实际运行I/O和信号量利用率；
-- 单KeyPending高水位，但日志和指标不得暴露敏感原始Key；
-- 请求总耗时、等待Key、等待并发槽、KeyExecutor总排队、MongoDB/Redis I/O和响应构造耗时直方图，用于观察P50、P95、P99和最大值；
-- 慢排队、慢MongoDB、慢Redis和慢总请求计数，按实际Service、资源类型、执行模式和稳定操作类别聚合；
-- MongoDB/Redis操作成功、错误、取消、超时、状态未知、操作/命令数量、结果文档/节点数量和结果字节数；
-- 停止排空耗时和被取消请求数。
+指标标签和日志枚举使用以下稳定小写值。指标表未列出的标签不得自行增加；特别禁止把Key、集合名、Script ID、错误文本或请求ID作为指标标签。
 
-首期不增加慢处理阈值配置。代码固定参考线为：KeyExecutor排队100ms、Redis I/O 100ms、MongoDB I/O 500ms、请求总耗时1s；达到任一参考线时增加对应慢处理计数，并输出限频结构化警告。警告只包含实际Service、资源类型、执行模式、稳定操作类别、最慢项下标、各阶段耗时、Inflight和结果大小，不包含原始Key或数据。生产告警阈值使用监控系统按P95/P99、持续时间和错误率配置，无需重启DBService。
+| 标签 | 值与含义 |
+| --- | --- |
+| `service` | 实际Service实例模板名，例如`acc_dbservice`、`role_dbservice` |
+| `resource` | `mongo`或`redis` |
+| `mode` | MongoDB为`sequential`或`transaction`；Redis为`command`、`pipeline`、`transaction`或`script` |
+| `outcome` | `success`、`error`、`timeout`、`canceled`或`state_unknown`；同一已执行请求只归入一个最终结果 |
+| `operation_kind` | MongoDB单操作使用稳定OperationKind，多操作统一为`multi`；Redis使用`command`、`pipeline`、`transaction`或`script`，不使用具体命令名或Script ID |
+| `reject_reason` | `inflight_limit`、`key_limit`、`origin_limit`、`not_ready`或`stopping` |
+| `slow_stage` | `queue`、`io`或`total`；同一请求可以同时命中多个阶段 |
+
+请求/BSON/命令非法属于RPC校验错误，不记为容量拒绝；它可以进入框架RPC错误统计，但不增加高基数的DBService错误标签。Origin ServiceScheduler已经提供的Accepted、Ready、Awaiting、高水位和拒绝统计直接复用，DBService不重复输出同义指标；DBService仪表盘同时展示这些框架指标与下表指标。
+
+### 21.2 DBService指标字段
+
+指标时间单位统一为秒，容量、条目和字节数使用整数。`Counter`只增不减，`Gauge`表示采样时刻状态，`Histogram`用于观察分布以及计算P50、P95和P99。
+
+| 指标名 | 类型 | 标签 | 含义 |
+| --- | --- | --- | --- |
+| `dbservice_inflight_limit` | Gauge | `service` | 当前实例固定的`max_inflight_requests`，启动时设置，便于计算容量利用率 |
+| `dbservice_io_concurrency_limit` | Gauge | `service` | 当前实例固定的`max_io_concurrency`，启动时设置，便于计算I/O槽利用率 |
+| `dbservice_inflight_requests` | Gauge | `service` | 已通过DBService准入但尚未完成的请求数，包括排队和I/O运行请求 |
+| `dbservice_active_dispatch_keys` | Gauge | `service` | 当前存在运行或排队请求的非空`dispatch_key`数量，不暴露Key本身 |
+| `dbservice_waiting_key_requests` | Gauge | `service` | 正在等待同Key FIFO执行权的请求数 |
+| `dbservice_waiting_io_slot_requests` | Gauge | `service` | 已取得Key执行权、正在等待全局I/O槽的请求数 |
+| `dbservice_running_io_requests` | Gauge | `service` | 正在执行MongoDB或Redis Driver调用的请求数；除采样瞬间外不得超过`max_io_concurrency` |
+| `dbservice_key_pending_requests` | Histogram | `service` | 非空Key请求成功进入FIFO时，该Key的“运行加排队”请求数分布；用于发现热点程度但不输出Key |
+| `dbservice_requests_total` | Counter | `service`,`resource`,`mode`,`outcome` | 已取得可解释执行结果的请求总数；准入或协议校验失败不计入 |
+| `dbservice_rejected_requests_total` | Counter | `service`,`resource`,`reject_reason` | 未进入数据库执行的容量或生命周期拒绝总数 |
+| `dbservice_request_duration_seconds` | Histogram | `service`,`resource`,`mode`,`outcome` | `handler_total_duration`分布 |
+| `dbservice_executor_queue_duration_seconds` | Histogram | `service`,`resource`,`mode` | 从进入KeyExecutor到取得I/O槽的总等待时间 |
+| `dbservice_key_wait_duration_seconds` | Histogram | `service`,`resource`,`mode` | 等待相同Key前序请求完成的时间 |
+| `dbservice_io_slot_wait_duration_seconds` | Histogram | `service`,`resource`,`mode` | 已取得Key执行权后等待全局I/O槽的时间 |
+| `dbservice_database_io_duration_seconds` | Histogram | `service`,`resource`,`mode`,`outcome` | 实际Driver调用从开始到返回的时间，不包含排队和响应编码 |
+| `dbservice_request_operations` | Histogram | `service`,`resource`,`mode` | 每个请求包含的Operation或Command数量；Script固定为1 |
+| `dbservice_result_items` | Histogram | `service`,`resource`,`mode` | MongoDB返回文档数或Redis返回节点数 |
+| `dbservice_result_bytes` | Histogram | `service`,`resource`,`mode` | 编码前可观察结果的估算字节数，用于提前发现大结果趋势 |
+| `dbservice_slow_requests_total` | Counter | `service`,`resource`,`mode`,`slow_stage` | 达到固定慢处理参考线的次数；同一请求命中多个阶段时分别增加 |
+| `dbservice_slow_log_suppressed_total` | Counter | `service`,`resource`,`mode` | 因限频而未输出慢日志的请求数，避免限频掩盖问题规模 |
+| `dbservice_stop_drain_duration_seconds` | Histogram | `service` | 停止阶段从关闭新请求准入到已接受请求排空完成或预算耗尽的时间 |
+| `dbservice_stop_canceled_requests_total` | Counter | `service` | 停止预算耗尽后由生命周期Context取消的请求数 |
+
+不单独输出Inflight高水位、I/O槽利用率和各类当前值的高水位：监控系统分别通过`max_over_time(dbservice_inflight_requests)`、`dbservice_running_io_requests / dbservice_io_concurrency_limit`以及对应Gauge的时间窗口最大值计算，避免为同一事实维护重复状态。单Key积压通过固定到128的Histogram Bucket观察，无需维护会增加KeyExecutor复杂度的动态最大值。逐项Operation/Command耗时只在请求内计算最慢项并用于慢日志，避免一次批量请求产生大量指标采样；`validation_duration`和`response_build_duration`首期也只进入慢日志。出现持续性能问题后再基于真实需求增加对应直方图。
+
+### 21.3 慢处理参考线与日志字段
+
+首期不增加慢处理阈值配置，代码固定使用以下诊断参考线。生产告警阈值在监控系统中按P95/P99、持续时间和错误率配置，无需重启DBService。
+
+| 检查项 | 固定参考线 | 命中的`slow_stage` |
+| --- | ---: | --- |
+| `executor_queue_duration` | 100ms | `queue` |
+| Redis `database_io_duration` | 100ms | `io` |
+| MongoDB `database_io_duration` | 500ms | `io` |
+| `handler_total_duration` | 1s | `total` |
+
+一个请求即使命中多个参考线也只输出一条`WARN`结构化日志，`slow_reasons`同时列出全部原因。日志按`service + resource + mode + operation_kind`限频；被抑制的数量进入`dbservice_slow_log_suppressed_total`。以下是慢日志的完整字段集合，未满足适用条件的可选字段直接省略，不输出空字符串占位：
+
+| 字段 | 类型/单位 | 含义 |
+| --- | --- | --- |
+| `event` | string | 固定为`dbservice_slow_request` |
+| `service` | string | 实际Service实例模板名 |
+| `resource` | enum | `mongo`或`redis` |
+| `mode` | enum | 与统一维度中的执行模式一致 |
+| `operation_kind` | enum | 稳定操作类别；多项请求为`multi` |
+| `registered_operation` | string，可选 | 仅用于登记式RawCommand或Script，记录受控登记ID；不记录源码或参数 |
+| `outcome` | enum | 与统一维度中的最终结果一致 |
+| `error_category` | enum，可选 | 失败时记录稳定错误分类，不记录Driver原始错误文本 |
+| `state_unknown` | bool | 数据库操作最终状态是否无法确认 |
+| `slow_reasons` | enum数组 | 本请求命中的`queue`、`io`、`total`，至少一项 |
+| `trace_id` | string，可选 | RPC上下文已经提供安全Trace ID时用于跨Service关联；不自行生成额外请求ID |
+| `total_duration_ms` | number | `handler_total_duration`，毫秒 |
+| `validation_duration_ms` | number | 请求结构、边界和登记项校验耗时，毫秒 |
+| `executor_queue_duration_ms` | number | Key等待与I/O槽等待总和，毫秒 |
+| `key_wait_duration_ms` | number | 等待同Key FIFO执行权耗时，毫秒 |
+| `io_slot_wait_duration_ms` | number | 等待全局I/O槽耗时，毫秒 |
+| `database_io_duration_ms` | number | Driver调用耗时，毫秒 |
+| `response_build_duration_ms` | number | 结果转换和RPC响应构造耗时，毫秒 |
+| `operation_count` | integer | MongoDB Operation或Redis Command数量；Script为1 |
+| `slowest_item_index` | integer，可选 | 多Operation/Command请求中最慢项的零基下标 |
+| `slowest_item_kind` | string，可选 | MongoDB记录稳定OperationKind；Redis记录通过校验后的规范大写命令名，Script固定为`script`；不记录命令参数 |
+| `slowest_item_duration_ms` | number，可选 | 最慢项耗时，毫秒 |
+| `result_item_count` | integer | MongoDB文档数或Redis结果节点数 |
+| `result_bytes` | integer/byte | 编码前可观察结果的估算字节数 |
+| `inflight_requests` | integer | 输出日志瞬间的DBService Inflight数 |
+| `key_pending_requests` | integer | 当前请求所属非空Key的运行加排队数量；空Key请求为0 |
+| `waiting_key_requests` | integer | 输出日志瞬间等待Key的请求总数 |
+| `waiting_io_slot_requests` | integer | 输出日志瞬间等待I/O槽的请求总数 |
+| `running_io_requests` | integer | 输出日志瞬间实际运行的Driver调用数 |
+
+普通成功请求不输出逐请求日志，只更新指标。普通失败继续使用统一错误日志；如果同一失败请求同时达到慢处理参考线，错误信息合并到上述单条慢日志，避免重复刷屏。
 
 测试必须覆盖：
 
@@ -647,16 +727,17 @@ handler_total_duration
 - MongoDB 全部标准 Operation 的参数判别、结果映射和 BSON 边界；
 - Sequential 部分成功、Transaction 回滚、Driver 事务重试和结果断言失败；
 - RawCommand可选登记、固定数据库、Cursor有界读取和硬拒绝命令；
-- Redis Command、Pipeline、MULTI/EXEC、Function/Script 的结果映射和逐项错误；
+- Redis Command、Pipeline、MULTI/EXEC、Script的结果映射、`NOSCRIPT`回退和逐项错误；
 - Redis Cluster 同 Slot 校验、Standalone/Sentinel 扫描续页、Null，以及扁平节点表的索引、无环和嵌套容量；
-- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，限频日志不泄漏原始Key或数据；
+- 指标名称、类型、标签和计数时机符合本节字段字典，Gauge在正常、错误、取消和panic后回到真实值；
+- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，同一请求只输出一条慢日志，限频抑制计数准确且日志不泄漏原始Key或数据；
 - Notify 只验证提交语义，不把它误测成远端执行确认；
 - `go test -race` 和针对热点 Key、随机 Key、慢 I/O 的 Benchmark。
 
 ## 22. 待继续确认
 
 1. 本文 MongoDB 标准操作、RawCommand、Sequential/Transaction 和结果断言设计是否确认。
-2. 本文 Redis 原始命令基础单元、Pipeline、MULTI/EXEC、Function/Script 和扁平结果节点表设计是否确认。
+2. 本文Redis原始命令基础单元、Pipeline、MULTI/EXEC、Script和扁平结果节点表设计是否确认；首期不提供Function模式已经确认。
 3. 各标准MongoDB Operation的最终字段及允许Options。
 4. RPC 稳定错误码、MongoDB/Redis 错误分类和部分结果的最终 Go 类型。
 5. AccDBService、RoleDBService的首期完整MongoDB/Redis资源配置、Node拓扑和副本数。
