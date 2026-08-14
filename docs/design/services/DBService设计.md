@@ -1,6 +1,6 @@
 # DBService 设计
 
-> 状态：职责、部署模型、有界 KeyExecutor、有序执行模型、基础配置收敛、RPC 总体形态、Redis首期执行模式和观测字段已确认；MongoDB/Redis其余操作契约设计稿待确认
+> 状态：职责、部署模型、有界 KeyExecutor、有序执行模型、基础配置收敛、RPC总体形态、MongoDB/Redis首期能力边界和观测字段已确认；最终字段、错误类型与首期部署配置待确认
 > 更新日期：2026-08-14
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
@@ -420,18 +420,20 @@ Transaction 模式具有独立的操作允许表。DBService 在开始事务前�
 
 ```go
 type MongoRawCommand struct {
+    ID           string
     Command      []byte
-    ResultMode   MongoRawResultMode
     MaxDocuments int64
 }
 ```
 
-`Document` 模式使用 `Database.RunCommand` 返回单 BSON 响应；`Cursor` 模式使用 `Database.RunCommandCursor`，只在当前 RPC 内有界读取并关闭。RawCommand首期默认关闭；实际业务出现结构化操作无法表达的命令时，才按命令名登记并重启对应DBService，不要求修改RPC契约或重新编译DBService。
+RawCommand首期默认关闭；实际业务出现结构化操作无法表达的命令时，才按稳定`ID`增加登记项并重启对应DBService，不要求修改RPC契约或重新编译DBService。登记项固定MongoDB命令名、`Document`或`Cursor`结果模式、是否允许进入Transaction、最大结果文档数和其他安全限制；请求不能自行覆盖这些约束。
+
+请求只通过`ID`选择登记项并携带实际Command BSON。`Document`模式使用`Database.RunCommand`返回单BSON响应，此时`MaxDocuments`必须为0；`Cursor`模式使用`Database.RunCommandCursor`，请求必须提供正数`MaxDocuments`且不能超过登记上限，DBService只在当前RPC内有界读取并关闭Cursor。`ID`未知、Command首字段命令名与登记项不一致或请求约束超过登记上限时，在执行前拒绝。
 
 原始 Command 必须遵守：
 
 - 只能访问实际 DBService 固定绑定的数据库；请求不得携带或覆盖 `$db`、Session 和事务号等 Driver 管理字段；
-- 登记项明确命令名、结果模式和是否允许进入Transaction，并继续受MongoDB账号权限约束；
+- 登记项明确稳定ID、命令名、结果模式、是否允许进入Transaction和结果上限，并继续受MongoDB账号权限约束；
 - Cursor 不跨 RPC 暴露或保存；请求和结果仍受统一容量与 Deadline 限制；
 - 原始 BSON 不写入普通日志，只记录命令名、耗时、错误类别和结果大小；
 - `dropDatabase`、用户权限、拓扑管理、`shutdown`、Change Stream和长期Cursor等能力硬拒绝，不能通过误登记绕过。
@@ -731,7 +733,7 @@ handler_total_duration
 - 停止期间拒绝新请求并在预算内排空；
 - MongoDB 全部标准 Operation 的参数判别、结果映射和 BSON 边界；
 - Sequential 部分成功、Transaction 回滚、Driver 事务重试和结果断言失败；
-- RawCommand可选登记、固定数据库、Cursor有界读取和硬拒绝命令；
+- RawCommand按稳定ID可选登记、命令名复核、固定数据库、Cursor有界读取和硬拒绝命令；
 - Redis Command、Pipeline、MULTI/EXEC、Script的结果映射、`NOSCRIPT`回退和逐项错误；
 - Redis Cluster 同 Slot 校验、Standalone/Sentinel 扫描续页、Null，以及扁平节点表的索引、无环和嵌套容量；
 - 指标名称、类型、标签和计数时机符合本节字段字典，Gauge在正常、错误、取消和panic后回到真实值；
@@ -742,8 +744,10 @@ handler_total_duration
 
 ## 22. 待继续确认
 
-1. 本文 MongoDB 标准操作、RawCommand、Sequential/Transaction 和结果断言设计是否确认。
-2. 本文Redis原始命令基础单元、Pipeline、MULTI/EXEC、Script和扁平结果节点表设计是否确认；首期不提供Function模式已经确认。
-3. 各标准MongoDB Operation的最终字段及允许Options。
-4. RPC 稳定错误码、MongoDB/Redis 错误分类和部分结果的最终 Go 类型。
-5. AccDBService、RoleDBService的首期完整MongoDB/Redis资源配置、Node拓扑和副本数。
+MongoDB标准操作集合、登记式RawCommand、Sequential/Transaction、通用结果断言，以及Redis Command、Pipeline、MULTI/EXEC、登记式Script和扁平结果节点表的总体能力边界已经确认。首期不提供BulkWrite、Redis Function、WATCH回调、阻塞命令、Pub/Sub或跨请求Cursor。
+
+剩余事项按依赖顺序继续确认：
+
+1. 各标准MongoDB Operation的最终字段及允许Options，包括公共`Collection`、通用`Expectation`与各专属参数的归属。
+2. RPC使用的Origin稳定错误码、MongoDB/Redis执行错误分类、Sequential/Transaction/Pipeline部分结果规则及最终Go类型。
+3. AccDBService、RoleDBService的首期完整MongoDB/Redis资源配置、Node拓扑和副本数。
