@@ -131,11 +131,12 @@ Origin Await goroutine
 
 ```go
 type KeyExecutor struct {
-    mu              sync.Mutex
-    keyQueues       map[string]*keyQueue
-    slots           *semaphore.Weighted
-    pendingRequests int
-    runningRequests int
+    mu                  sync.Mutex
+    keyQueues           map[string]*keyQueue
+    slots               *semaphore.Weighted
+    maxInflightRequests int64
+    inflightRequests    atomic.Int64
+    runningRequests     atomic.Int64
 }
 
 type keyQueue struct {
@@ -143,13 +144,15 @@ type keyQueue struct {
 }
 ```
 
-`slots` 在 DBService 启动时以 `max_concurrent_requests` 创建，所有 MongoDB 和 Redis 请求每次以权重 1 申请同一个信号量。只有申请成功后才能进入实际数据库 I/O，Driver 实际返回后才释放，因此任意时刻都满足：
+`slots` 在 DBService 启动时以 `max_io_concurrency` 创建，所有 MongoDB 和 Redis 请求每次以权重 1 申请同一个信号量。只有申请成功后才能进入实际数据库 I/O，Driver 实际返回后才释放，因此任意时刻都满足：
 
 ```text
-MongoDB运行请求数 + Redis运行请求数 <= max_concurrent_requests
+MongoDB运行请求数 + Redis运行请求数 <= max_io_concurrency
 ```
 
-`mu` 只保护 Key Map、Key FIFO 和计数。锁内只执行准入检查、链表增删、队首交接和计数，不执行信号量等待、BSON/Redis 编解码、数据库 I/O、日志回调或 Ticket 等待。每个 Ticket 保存自己在 `requestQueue` 中的节点引用，因此排队取消可以 O(1) 完成，不遍历长队列清理超时请求。
+`max_inflight_requests`限制DBService已经准入但尚未完成的请求总量，包括等待Key、等待I/O槽位和实际执行I/O的请求。Handler在进入Await前通过原子CAS执行非阻塞`TryReserve`；达到上限立即返回DBService过载，不进入Await、不创建Key状态。成功预留后在当前Handler调用栈立即登记释放，Await准入失败、正常返回、错误和panic都会归还名额。
+
+`mu` 只保护 Key Map 和 Key FIFO。锁内只执行链表增删和队首交接，不执行容量等待、信号量等待、BSON/Redis 编解码、数据库 I/O、日志回调或 Ticket 等待。每个 Ticket 保存自己在 `requestQueue` 中的节点引用，因此排队取消可以 O(1) 完成，不遍历长队列清理超时请求。
 
 非空 Key 请求准入和执行规则：
 
@@ -166,19 +169,20 @@ MongoDB运行请求数 + Redis运行请求数 <= max_concurrent_requests
 - 正在运行的请求只取消 Driver Context，必须等实际 I/O 返回后才能释放槽位和 Key；
 - 热点 Key 同时最多只有一个请求参与全局并发竞争，不能占用多个槽位；
 - 不为每个 Key、每个请求或信号量槽位创建额外 goroutine；等待和执行都复用 Origin Await 的原根任务 goroutine；
-- `max_concurrent_requests` 启动后冻结，修改后必须重启并按生命周期排空旧实例。
+- `max_io_concurrency`和`max_inflight_requests`启动后冻结，修改后必须重启并按生命周期排空旧实例。
 
-例如同时准入 10000 个不同 Key、`max_concurrent_requests` 为 64 时，最多只有 64 个 Await goroutine 正在执行数据库 I/O，其余请求等待自己的 Key 执行权或全局并发槽。KeyExecutor 不额外创建 10000 个 I/O goroutine，但每个等待 RPC 本来就会保留一个 Origin Await 根任务 goroutine，所以总体等待数量继续由 `scheduler.max_await_tasks` 限制。
+例如`max_io_concurrency`为64、`max_inflight_requests`为128时，等待与运行请求合计最多128个，其中实际执行数据库I/O的请求最多64个，其余请求可能等待Key或全局并发槽。第129个未完成请求在进入Await前立即被拒绝，不会继续把Origin Await goroutine增长到框架默认上限。KeyExecutor不创建额外I/O goroutine，每个已准入请求仍复用其Origin根任务goroutine。
 
 本方案不采用“对 Key 取模后进入固定私有 Worker 队列”的分片调度。固定分片虽然简单，但慢 Key 会阻塞碰巧落入同一分片的无关 Key。两级门控不产生 Hash 碰撞：一个慢 Key 只占用一个实际 I/O 槽，其余 Key 仍可使用剩余槽位；全部槽位都被实际 I/O 占用时的等待属于预期的全局并发限制。不同 Key 之间不承诺执行顺序，也不额外实现强制轮转公平。
 
 ## 7. 容量、配置和过载
 
-DBService 不再暴露 `key_executor` 和 `rpc_limits` 两组配置。单个实际 DBService 的基础配置只聚合资源连接和一个业务并发字段：
+DBService 不再暴露 `key_executor` 和 `rpc_limits` 两组配置。单个实际 DBService 只保留两个含义不同且不能互相替代的请求容量字段：
 
 ```yaml
 dbservice:
-  max_concurrent_requests: 64       # MongoDB和Redis共享的最大实际I/O并发数；省略时默认64
+  max_io_concurrency: 64            # MongoDB和Redis正在执行的Driver I/O总并发上限；省略时默认64
+  max_inflight_requests: 128        # 已准入但未完成的请求总量，包含等待Key、等待I/O槽位和实际I/O；省略时默认128
   mongodb:
     uri: mongodb://127.0.0.1:27017  # MongoDB连接地址，可携带Driver连接池和超时参数
     database: account               # 当前实际DBService固定绑定的数据库名
@@ -186,7 +190,7 @@ dbservice:
     addresses: [127.0.0.1:6379]     # 当前实际DBService使用的Redis数据节点地址
 ```
 
-示例只列当前职责必需字段；Redis拓扑、认证和连接池等真实需要的字段继续使用Redis Module配置，MongoDB连接池继续使用URI参数，不在DBService层复制一套同义字段。`max_concurrent_requests`必须大于零且不能超过Origin的`scheduler.max_await_tasks`，启动后冻结；调整它需要重启并排空旧实例。
+示例只列当前职责必需字段；Redis拓扑、认证和连接池等真实需要的字段继续使用Redis Module配置，MongoDB连接池继续使用URI参数，不在DBService层复制一套同义字段。两个容量值必须满足`0 < max_io_concurrency <= max_inflight_requests <= scheduler.max_await_tasks`，启动后冻结；调整任一字段都需要重启并排空旧实例。
 
 配置所有权统一如下：
 
@@ -194,23 +198,24 @@ dbservice:
 | --- | --- | --- |
 | MongoDB地址、固定数据库、连接池和Driver超时 | MongoDB Module | 否，DBService只聚合Module原配置 |
 | Redis拓扑、地址、认证、连接池和网络超时 | Redis Module | 否，DBService只聚合Module原配置 |
-| MongoDB/Redis共享I/O并发 | DBService | 是，唯一业务并发字段`max_concurrent_requests` |
-| 根任务、Await总量和默认Await超时 | Origin ServiceScheduler | 否，首期直接使用Origin默认值 |
+| MongoDB/Redis实际Driver I/O并发 | DBService | 是，`max_io_concurrency` |
+| DBService已准入未完成请求总量 | DBService | 是，`max_inflight_requests` |
+| 根任务、Await框架硬上限和默认Await超时 | Origin ServiceScheduler | 否，DBService自身准入上限必须不超过它 |
 | RPC请求和响应Payload | Origin RPC | 否，当前默认4MiB |
 | 单Key积压、操作/命令数量和结果数量 | DBService代码常量 | 否 |
 | RawCommand、Function和Script登记 | DBService可选扩展 | 基础配置不出现，真实使用时才增加登记项 |
 
-全局未完成请求上限直接复用 Origin `scheduler.max_await_tasks`。DBService 的 `KeyExecutor.Execute` 是私有能力，只允许在已经成功进入 `Await` 的函数内调用，因此每个等待 Key、等待槽位或运行中的请求必然对应一个 Await 名额：
+DBService使用`max_inflight_requests`作为自身主要请求准入边界，Origin `scheduler.max_await_tasks`继续作为整个Service的框架硬上限。Handler只进行一次非阻塞Inflight预留，不在Service执行槽内等待；只有预留成功后才进入Await并调用私有`KeyExecutor.Execute`：
 
 ```text
-KeyExecutor Pending <= scheduler.max_await_tasks
-活动非空 Key数量 <= KeyExecutor Pending
-实际MongoDB/Redis I/O数量 <= max_concurrent_requests
+KeyExecutor Inflight <= max_inflight_requests <= scheduler.max_await_tasks
+活动非空 Key数量 <= KeyExecutor Inflight
+实际MongoDB/Redis I/O数量 <= max_io_concurrency <= KeyExecutor Inflight
 ```
 
-因此不增加`max_pending_requests`、`max_active_keys`、`max_unordered_pending_requests`或单独的信号量容量配置：它们都能由已有Await上限和`max_concurrent_requests`推导。空Key和非空Key共用全局I/O容量，当前没有真实需求证明需要再划分隔离配额。单个非空Key的运行加排队请求固定最多128个，作为代码安全常量，不开放配置；达到上限立即返回稳定的热点Key过载错误。
+不增加`max_active_keys`、`max_unordered_pending_requests`或单独的信号量容量配置。空Key和非空Key共用Inflight及I/O容量，当前没有真实需求证明需要再划分隔离配额。单个非空Key的运行加排队请求固定最多128个且不能超过`max_inflight_requests`，作为代码安全常量不开放配置；达到上限立即返回稳定的热点Key过载错误。
 
-`scheduler.max_tasks`、`scheduler.max_await_tasks`和`scheduler.default_await_timeout`属于DBService所在Node的Origin框架配置，不属于DBService配置，也不在DBService基础配置中重复展示。首期使用Origin默认值；以后只有全Node任务容量确需调优时，才在对应`<node>-node.yaml`调整。达到Origin Await上限或单Key上限时立即返回对应过载错误；已经成功准入Await的请求可以在自身Deadline内等待Key或I/O槽位，不临时增加并发容量，也不创建补偿goroutine。
+`scheduler.max_tasks`、`scheduler.max_await_tasks`和`scheduler.default_await_timeout`属于DBService所在Node的Origin框架配置，不属于DBService配置，也不在DBService基础配置中重复展示。正常过载先由DBService的Inflight准入快速拒绝；Origin容量只是更外层的硬保护。已经成功准入的请求可以在自身Deadline内等待Key或I/O槽位，不临时增加并发容量，也不创建补偿goroutine。
 
 ## 8. 请求执行、取消与返回
 
@@ -220,7 +225,9 @@ KeyExecutor Pending <= scheduler.max_await_tasks
 RPC Runtime
     -> Origin ServiceScheduler 准入根任务
     -> DBService 校验并完整拥有请求数据
-    -> Handler 成功进入 Origin Await并释放Service执行槽
+    -> Handler非阻塞预留Inflight名额；已满立即返回过载
+    -> 预留成功后登记Inflight释放
+    -> Handler进入Origin Await并释放Service执行槽
         -> Await函数内调用KeyExecutor.Execute
         -> 非空Key请求等待取得Key FIFO队首执行权
         -> 当前Await goroutine申请全局I/O并发槽
@@ -231,11 +238,11 @@ RPC Runtime
     -> 返回响应
 ```
 
-必须先成功进入 Await，再调用 `KeyExecutor.Execute`，禁止先进入 Key FIFO 后尝试 Await。Origin 在调用 Await 函数前已经原子检查并占用 `max_await_tasks` 名额；因此不会出现请求已占用 KeyExecutor 状态，但 Handler 随后因 Await 满而无法等待、必须撤销请求的窗口。
+Inflight预留必须发生在Await之前，但它只是一个可立即回滚的计数名额，不创建Ticket、不进入Key FIFO，也不申请I/O槽位。预留失败时Handler直接返回稳定过载错误；预留成功后立即登记释放，再尝试Await。Await因Origin容量、Context或生命周期失败时照常释放Inflight名额，不留下Key状态。只有成功进入Await后才能调用`KeyExecutor.Execute`并进入Key FIFO，禁止在Await前排队实际数据库工作。
 
-`KeyExecutor.Execute`必须区分三个阶段：在Key FIFO中排队、取得Key后等待全局槽位、实际I/O运行。前两个阶段收到取消或超时时，由当前Await goroutine同步从Key FIFO O(1)删除或释放已取得的Key，不创建取消回调goroutine；已经申请到槽位并进入Driver时，只把取消传给Driver Context，仍须等实际I/O返回后才能释放槽位和Key。运行请求不能因调用方已经超时就提前释放Await名额、槽位或Key，否则会突破实际I/O并发上限、重新形成同Key并发，并破坏`KeyExecutor Pending <= scheduler.max_await_tasks`的容量关系。
+`KeyExecutor.Execute`必须区分三个阶段：在Key FIFO中排队、取得Key后等待全局槽位、实际I/O运行。前两个阶段收到取消或超时时，由当前Await goroutine同步从Key FIFO O(1)删除或释放已取得的Key，不创建取消回调goroutine；已经申请到槽位并进入Driver时，只把取消传给Driver Context，仍须等实际I/O返回后才能释放槽位和Key。运行请求不能因调用方已经超时就提前释放Await名额、槽位或Key，否则会突破实际I/O并发上限、重新形成同Key并发，并破坏Inflight与Await容量关系。
 
-资源取得成功后必须立即在同一个执行函数栈中登记`defer`，Key和并发槽分别释放。先登记Key释放，再成功申请槽位并登记槽位释放，利用`defer`后进先出保证退出时先释放槽位、再释放Key。正常返回、错误和panic都会展开这些`defer`；KeyExecutor不吞掉panic，由Origin根任务边界统一恢复、记录堆栈和统计。Service、Module和库代码禁止调用不会执行`defer`的`os.Exit`、`log.Fatal`等进程退出函数。
+资源取得成功后必须立即在同一个执行函数栈中登记`defer`。Handler先登记Inflight释放；Await函数中先登记Key释放，再成功申请槽位并登记槽位释放，利用`defer`后进先出保证退出时先释放槽位、再释放Key，Await恢复并完成Handler时释放Inflight。正常返回、错误和panic都会展开这些`defer`；KeyExecutor不吞掉panic，由Origin根任务边界统一恢复、记录堆栈和统计。Service、Module和库代码禁止调用不会执行`defer`的`os.Exit`、`log.Fatal`等进程退出函数。
 
 Context超时不能解决Driver永久不返回的问题。每次MongoDB/Redis调用必须携带有Deadline的Context，并由Module配置有限的连接、选择和网络读写超时；如果Driver尚未实际返回，DBService不得为了恢复容量而强行释放槽位或Key。否则旧I/O仍在运行时新请求会进入，实际并发和同Key顺序都会失效。长期不返回按依赖故障通过慢处理监控、健康检查、实例摘除或重启恢复；Go进程内不创建“杀死goroutine”的补偿机制。
 
@@ -268,13 +275,13 @@ DBService 进入 Ready 前必须完成：
 - 实际 Service 配置和固定 MongoDB 数据库名校验；
 - MongoDB Module 连接及必要可用性检查；
 - Redis Module 连接及必要可用性检查；
-- `max_concurrent_requests`校验以及Key Map和全局并发信号量初始化；
+- `max_io_concurrency`、`max_inflight_requests`关系校验以及Key Map、Inflight Gate和全局并发信号量初始化；
 - 对外 RPC 契约注册完成；
 - 必需数据库能力、可选MongoDB RawCommand登记以及Redis Function/Script登记和版本校验。
 
 任一步失败必须按成功创建资源的逆序回滚，DBService 不以缺少 MongoDB、Redis 或可用KeyExecutor的半初始化状态对外服务。
 
-停止时先由 Origin 关闭新 RPC 根任务准入。KeyExecutor 必须继续处理停止边界前已经进入 Service Ready FIFO 的根任务，不能让这些已接受请求因内部状态提前关闭而失败；这些任务在停止 Context 预算内共同排空。全部已接受根任务完成并进入`OnStop`后，KeyExecutor的Pending、活动Key和运行槽位应全部归零，再依次关闭Redis、MongoDB Module。停止预算耗尽时由生命周期Context取消排队和运行请求，已经进入Driver的请求仍须等实际调用返回后才能释放槽位和Key。KeyExecutor本身没有Worker需要停止或等待，`Stop`仍必须幂等。
+停止时先由 Origin 关闭新 RPC 根任务准入。KeyExecutor 必须继续处理停止边界前已经进入 Service Ready FIFO 的根任务，不能让这些已接受请求因内部状态提前关闭而失败；这些任务在停止 Context 预算内共同排空。全部已接受根任务完成并进入`OnStop`后，KeyExecutor的Inflight、活动Key和运行槽位应全部归零，再依次关闭Redis、MongoDB Module。停止预算耗尽时由生命周期Context取消排队和运行请求，已经进入Driver的请求仍须等实际调用返回后才能释放槽位和Key。KeyExecutor本身没有Worker需要停止或等待，`Stop`仍必须幂等。
 
 ## 11. RPC 契约总体形态
 
@@ -348,12 +355,11 @@ Transaction 不支持时必须返回明确错误，禁止静默降级为 Sequent
 | 删除 | `DeleteOne` | 精确条件安全删除 |
 | 删除 | `DeleteMany` | 有明确 Filter 的批量删除 |
 | 删除并返回 | `FindOneAndDelete` | 原子删除并返回原文档 |
-| 混合批量写 | `BulkWrite` | 同一集合混合 Insert、Update、Replace、Delete |
 | 原始扩展 | `RawCommand` | 结构化操作尚未覆盖且已登记的特殊数据库命令 |
 
 `UpdateByID` 不单独建立 OperationKind，它只是 `UpdateOne` 使用 `{_id: ...}` Filter 的便利外观。普通业务数据 RPC 不开放 Change Stream、IndexView、SearchIndexView、Drop Collection/Database、用户权限、复制集或分片管理；这些属于长生命周期或管理能力。
 
-MongoDB v2 Driver 还提供跨 Namespace 的 Client BulkWrite。首期不把它列为常用标准操作：每个实际 DBService 已固定数据库，常见游戏写入集中在单集合 BulkWrite 或多 Operation Transaction，跨集合批量写可以先由这两种能力表达。出现明确的跨集合高吞吐、非事务写需求后，再基于真实压测决定是否增加 `MultiCollectionBulkWrite`；不能为了追齐 Driver API 预先扩大协议。
+MongoDB v2 Driver提供Collection和跨Namespace两类BulkWrite。它们不是普通Operations的语法缩写：普通Operations只合并业务Service到DBService的一次RPC，DBService仍分别调用Collection API；BulkWrite可把同一集合或多Namespace的大量异构写交给Driver组织批次，减少MongoDB命令和网络往返。但首期没有已确认的大量异构批量写场景，保留它需要增加第二套WriteModel判别、Ordered/Unordered部分成功、模型下标错误和汇总结果语义，因此首期不提供`BulkWrite`、`MongoBulkWrite`或`MultiCollectionBulkWrite`入口，也不允许通过RawCommand绕过。出现明确的高吞吐批量写需求且普通Operations经Benchmark确认MongoDB往返成为瓶颈后，再单独设计并加入结构化BulkWrite契约。
 
 `MongoOperation` 使用判别联合结构，每种标准操作拥有专属参数类型：
 
@@ -377,7 +383,6 @@ type MongoOperation struct {
     FindOneAndDelete *MongoFindOneAndDelete
     DeleteOne        *MongoDeleteOne
     DeleteMany       *MongoDeleteMany
-    BulkWrite        *MongoBulkWrite
     RawCommand       *MongoRawCommand
 }
 ```
@@ -408,19 +413,7 @@ Transaction 模式具有独立的操作允许表。DBService 在开始事务前�
 
 `Distinct`、`Aggregate` 和 Raw Cursor 必须声明结果数量上限；`Aggregate` 的 `$out`、`$merge` 等写入 Stage 需要通过操作配置单独允许，不能把写聚合伪装成只读查询。所有列表结果超过数量或字节上限时整体返回结果超限错误，不静默截断。
 
-## 15. MongoDB BulkWrite 与原始 Command
-
-`BulkWrite` 固定作用于一个集合，并包含有界 WriteModel 列表：
-
-```go
-type MongoBulkWrite struct {
-    Collection string
-    Ordered    bool
-    Models     []MongoWriteModel
-}
-```
-
-WriteModel 支持 `InsertOne`、`UpdateOne`、`UpdateMany`、`ReplaceOne`、`DeleteOne` 和 `DeleteMany`。`InsertMany` 与 `BulkWrite` 同时保留：前者表达单一批量插入并提供简单结果；后者用于减少混合写网络往返。BulkWrite 的各模型遵循 MongoDB 自身原子性，整个批次默认不是事务；需要整体原子时使用 Transaction 模式组织标准操作。
+## 15. MongoDB 原始 Command
 
 结构化操作尚未覆盖的特殊能力使用原始 BSON Command：
 
@@ -455,7 +448,7 @@ type MongoResult struct {
 
 结果与请求 Operation 下标一一对应。单项结果统一承载适用字段：`Documents`、`Values`、`Count`、`InsertedCount`、`MatchedCount`、`ModifiedCount`、`DeletedCount`、`UpsertedCount`、`InsertedIDs`、`UpsertedIDs`、`WriteFailures` 和 `CommandResponse`；不适用字段保持零值。ID 和 Distinct 值使用 BSON Type 加原始 Value 表示，不假设主键一定是 ObjectID。
 
-`InsertMany` 和 `BulkWrite` 必须保留 MongoDB 的部分结果语义。`WriteFailures` 记录 Document/WriteModel 下标、稳定错误分类和 Server Code；Driver 能可靠返回的 InsertedID、UpsertedID 和影响数量同时保留。Ordered 操作在首项错误停止，Unordered 操作允许多个逐项错误。该 Operation 被视为失败并使 Sequential 停止后续 Operation，但调用方仍能看到其可信的部分结果；Transaction 失败时这些中间结果全部丢弃。
+`InsertMany`必须保留MongoDB的部分结果语义。`WriteFailures`记录Document下标、稳定错误分类和Server Code；Driver能可靠返回的InsertedID同时保留。Ordered操作在首项错误停止，Unordered操作允许多个逐项错误。该Operation被视为失败并使Sequential停止后续Operation，但调用方仍能看到其可信的部分结果；Transaction失败时这些中间结果全部丢弃。
 
 `FindOne` 和 `FindOneAndXxx` 没找到文档时返回空 `Documents` 且不形成 Failure。需要“必须找到”“必须修改一行”等语义时，由 Operation 携带通用 `MongoExpectation`，可约束 Document、Matched、Modified、Deleted 等数量范围。断言失败在 Sequential 中停止后续操作，在 Transaction 中使事务回滚；这只是数据库结果约束，不包含玩家或账号业务判断。
 
@@ -597,7 +590,7 @@ DBService不增加请求大小、结果大小、操作数量和事务时间的�
 | --- | ---: | --- |
 | 单Key运行加排队请求 | 128 | 防止热点Key占满全局Await容量 |
 | 单请求MongoDB Operation | 128 | 包含Sequential和Transaction |
-| `InsertMany`或`BulkWrite`模型 | 100000 | 理论条目上限，实际通常先触及4MiB请求上限 |
+| `InsertMany`文档 | 100000 | 理论条目上限，实际通常先触及4MiB请求上限 |
 | 单请求Redis命令 | 1024 | 包含Pipeline和Transaction中的命令 |
 | MongoDB结果文档 | 100000 | 理论行数上限，实际通常先触及4MiB响应上限 |
 | Redis结果节点 | 100000 | 包含扁平结果节点表全部节点 |
@@ -626,28 +619,28 @@ handler_total_duration
 至少记录以下指标：
 
 - Origin ServiceScheduler的Accepted、Ready、Awaiting、高水位和拒绝数；
-- KeyExecutor全局Pending、活动Key、等待Key请求、等待并发槽请求、实际运行I/O、信号量利用率和拒绝数；
+- KeyExecutor当前Inflight、Inflight高水位、Inflight准入拒绝、活动Key、等待Key请求、等待并发槽请求、实际运行I/O和信号量利用率；
 - 单KeyPending高水位，但日志和指标不得暴露敏感原始Key；
 - 请求总耗时、等待Key、等待并发槽、KeyExecutor总排队、MongoDB/Redis I/O和响应构造耗时直方图，用于观察P50、P95、P99和最大值；
 - 慢排队、慢MongoDB、慢Redis和慢总请求计数，按实际Service、资源类型、执行模式和稳定操作类别聚合；
 - MongoDB/Redis操作成功、错误、取消、超时、状态未知、操作/命令数量、结果文档/节点数量和结果字节数；
 - 停止排空耗时和被取消请求数。
 
-首期不增加慢处理阈值配置。代码固定参考线为：KeyExecutor排队100ms、Redis I/O 100ms、MongoDB I/O 500ms、请求总耗时1s；达到任一参考线时增加对应慢处理计数，并输出限频结构化警告。警告只包含实际Service、资源类型、执行模式、稳定操作类别、最慢项下标、各阶段耗时、Pending和结果大小，不包含原始Key或数据。生产告警阈值使用监控系统按P95/P99、持续时间和错误率配置，无需重启DBService。
+首期不增加慢处理阈值配置。代码固定参考线为：KeyExecutor排队100ms、Redis I/O 100ms、MongoDB I/O 500ms、请求总耗时1s；达到任一参考线时增加对应慢处理计数，并输出限频结构化警告。警告只包含实际Service、资源类型、执行模式、稳定操作类别、最慢项下标、各阶段耗时、Inflight和结果大小，不包含原始Key或数据。生产告警阈值使用监控系统按P95/P99、持续时间和错误率配置，无需重启DBService。
 
 测试必须覆盖：
 
 - 相同 Key 的 MongoDB/Redis 模拟操作严格按准入顺序执行；
 - 不同 Key 在全局信号量上限内并发；
-- MongoDB和Redis共用同一个信号量，10000个不同Key排队时实际数据库I/O并发始终不超过`max_concurrent_requests`；
+- MongoDB和Redis共用同一个信号量，10000个不同Key并发尝试时Inflight不超过`max_inflight_requests`、实际数据库I/O不超过`max_io_concurrency`，超额请求在进入Await前立即拒绝；
 - KeyExecutor不创建固定Worker、每Key goroutine或补偿goroutine；
-- 仍有空闲并发槽时，慢 Key 不阻塞无关 Key；
+- 仍有Inflight容量和空闲I/O槽时，慢 Key 不阻塞无关 Key；
 - 空 Key 请求跳过Key FIFO但仍受同一个全局信号量限制；
-- `scheduler.max_await_tasks` 全局容量和单Key容量超限时立即拒绝；
+- `max_inflight_requests`、Origin `scheduler.max_await_tasks`和单Key容量分别超限时均返回对应稳定错误；
 - Key排队取消、信号量等待取消、运行取消和超时不会泄漏或提前释放槽位与Key；
 - 执行函数正常返回、返回错误和panic后都释放信号量槽位与Key，后续同Key和不同Key请求仍能执行；
 - 模拟Driver忽略取消且尚未返回时不提前释放槽位或Key，Driver真正返回后才释放；
-- Await成功但KeyExecutor准入失败时不残留Ticket、Key状态或Pending计数；
+- Inflight预留失败不进入Await；预留成功后Await失败或panic均归还名额，且不残留Ticket或Key状态；
 - Key 队列清空后删除；
 - 重复停止、部分启动失败和逆序回滚；
 - 停止期间拒绝新请求并在预算内排空；
