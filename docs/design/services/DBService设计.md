@@ -203,6 +203,7 @@ dbservice:
 | 根任务、Await框架硬上限和默认Await超时 | Origin ServiceScheduler | 否，DBService自身准入上限必须不超过它 |
 | RPC请求和响应Payload | Origin RPC | 否，当前默认4MiB |
 | 单Key积压、操作/命令数量和结果数量 | DBService代码常量 | 否 |
+| 慢请求诊断阈值和日志限频 | DBService代码常量 | 否，日志输出与轮转沿用全局日志配置 |
 | RawCommand和Script登记 | DBService可选扩展 | 基础配置不出现，真实使用时才增加登记项 |
 
 DBService使用`max_inflight_requests`作为自身主要请求准入边界，Origin `scheduler.max_await_tasks`继续作为整个Service的框架硬上限。Handler只进行一次非阻塞Inflight预留，不在Service执行槽内等待；只有预留成功后才进入Await并调用私有`KeyExecutor.Execute`：
@@ -598,7 +599,7 @@ MongoDB查询允许调用方提供更小的Limit；未提供或超过100000时�
 
 ## 21. 监控、慢处理与测试
 
-本节是DBService观测输出的唯一字段字典。其他章节只描述触发场景，不再重复枚举字段。指标用于聚合、趋势和告警，慢日志用于定位单次请求；两者不得输出`dispatch_key`原值、MongoDB BSON、Redis Key/Value、Script参数、Token、连接串、凭证或原始Driver错误文本。
+本节是DBService观测输出的唯一字段字典。其他章节只描述触发场景，不再重复枚举字段。指标用于聚合、趋势和告警，慢请求日志用于定位单次请求；两者不得输出`dispatch_key`原值、MongoDB BSON、Redis Key/Value、Script参数、Token、连接串、凭证或原始Driver错误文本。
 
 每个请求从Handler取得执行权开始，按以下不重叠阶段计时：
 
@@ -655,15 +656,15 @@ handler_total_duration
 | `dbservice_result_items` | Histogram | `service`,`resource`,`mode` | MongoDB返回文档数或Redis返回节点数 |
 | `dbservice_result_bytes` | Histogram | `service`,`resource`,`mode` | 编码前可观察结果的估算字节数，用于提前发现大结果趋势 |
 | `dbservice_slow_requests_total` | Counter | `service`,`resource`,`mode`,`slow_stage` | 达到固定慢处理参考线的次数；同一请求命中多个阶段时分别增加 |
-| `dbservice_slow_log_suppressed_total` | Counter | `service`,`resource`,`mode` | 因限频而未输出慢日志的请求数，避免限频掩盖问题规模 |
+| `dbservice_slow_log_suppressed_total` | Counter | `service`,`resource`,`mode` | 因限频而未输出慢请求日志的请求数，避免限频掩盖问题规模 |
 | `dbservice_stop_drain_duration_seconds` | Histogram | `service` | 停止阶段从关闭新请求准入到已接受请求排空完成或预算耗尽的时间 |
 | `dbservice_stop_canceled_requests_total` | Counter | `service` | 停止预算耗尽后由生命周期Context取消的请求数 |
 
-不单独输出Inflight高水位、I/O槽利用率和各类当前值的高水位：监控系统分别通过`max_over_time(dbservice_inflight_requests)`、`dbservice_running_io_requests / dbservice_io_concurrency_limit`以及对应Gauge的时间窗口最大值计算，避免为同一事实维护重复状态。单Key积压通过固定到128的Histogram Bucket观察，无需维护会增加KeyExecutor复杂度的动态最大值。逐项Operation/Command耗时只在请求内计算最慢项并用于慢日志，避免一次批量请求产生大量指标采样；`validation_duration`和`response_build_duration`首期也只进入慢日志。出现持续性能问题后再基于真实需求增加对应直方图。
+不单独输出Inflight高水位、I/O槽利用率和各类当前值的高水位：监控系统分别通过`max_over_time(dbservice_inflight_requests)`、`dbservice_running_io_requests / dbservice_io_concurrency_limit`以及对应Gauge的时间窗口最大值计算，避免为同一事实维护重复状态。单Key积压通过固定到128的Histogram Bucket观察，无需维护会增加KeyExecutor复杂度的动态最大值。逐项Operation/Command耗时只在请求内计算最慢项并用于慢请求日志，避免一次批量请求产生大量指标采样；`validation_duration`和`response_build_duration`首期也只进入慢请求日志。出现持续性能问题后再基于真实需求增加对应直方图。
 
-### 21.3 慢处理参考线与日志字段
+### 21.3 慢请求参考线与日志字段
 
-首期不增加慢处理阈值配置，代码固定使用以下诊断参考线。生产告警阈值在监控系统中按P95/P99、持续时间和错误率配置，无需重启DBService。
+首期不增加`slow_log`配置段，也不增加日志开关、阈值、采样率、限频周期或字段选择配置。慢请求日志的级别、输出位置、文件轮转和保留策略沿用全局日志配置；DBService只负责判定慢请求、累计指标和提交结构化`WARN`日志。代码固定使用以下诊断参考线，生产告警阈值在监控系统中按P95/P99、持续时间和错误率配置，无需重启DBService。
 
 | 检查项 | 固定参考线 | 命中的`slow_stage` |
 | --- | ---: | --- |
@@ -672,7 +673,11 @@ handler_total_duration
 | MongoDB `database_io_duration` | 500ms | `io` |
 | `handler_total_duration` | 1s | `total` |
 
-一个请求即使命中多个参考线也只输出一条`WARN`结构化日志，`slow_reasons`同时列出全部原因。日志按`service + resource + mode + operation_kind`限频；被抑制的数量进入`dbservice_slow_log_suppressed_total`。以下是慢日志的完整字段集合，未满足适用条件的可选字段直接省略，不输出空字符串占位：
+一个请求即使命中多个参考线，也只产生一个慢请求日志事件并输出一条`WARN`结构化日志，`slow_reasons`同时列出全部原因；`dbservice_slow_requests_total`仍按命中的每个`slow_stage`分别增加，便于区分排队、I/O和总耗时问题。
+
+慢请求日志使用代码固定限频规则：按`service + resource + mode + operation_kind`分组，每组10秒最多输出一条，窗口内第一条立即输出，后续请求只增加`dbservice_slow_log_suppressed_total`，不延迟补发。限频窗口使用真实系统时间，不受Node游戏逻辑时间调整影响。限频只影响日志输出，所有请求的耗时Histogram、结果指标和慢请求Counter都必须正常记录。该规则首期不开放配置；只有真实运行证明固定参考线或限频周期持续造成误报、漏失诊断信息时，才重新确认是否增加最小覆盖项。
+
+以下是慢请求日志的完整字段集合，未满足适用条件的可选字段直接省略，不输出空字符串占位：
 
 | 字段 | 类型/单位 | 含义 |
 | --- | --- | --- |
@@ -706,7 +711,7 @@ handler_total_duration
 | `waiting_io_slot_requests` | integer | 输出日志瞬间等待I/O槽的请求总数 |
 | `running_io_requests` | integer | 输出日志瞬间实际运行的Driver调用数 |
 
-普通成功请求不输出逐请求日志，只更新指标。普通失败继续使用统一错误日志；如果同一失败请求同时达到慢处理参考线，错误信息合并到上述单条慢日志，避免重复刷屏。
+普通成功请求不输出逐请求日志，只更新指标。普通失败继续使用统一错误日志；如果同一失败请求同时达到慢请求参考线，错误信息合并到上述单条慢请求日志，避免重复刷屏。
 
 测试必须覆盖：
 
@@ -730,7 +735,8 @@ handler_total_duration
 - Redis Command、Pipeline、MULTI/EXEC、Script的结果映射、`NOSCRIPT`回退和逐项错误；
 - Redis Cluster 同 Slot 校验、Standalone/Sentinel 扫描续页、Null，以及扁平节点表的索引、无环和嵌套容量；
 - 指标名称、类型、标签和计数时机符合本节字段字典，Gauge在正常、错误、取消和panic后回到真实值；
-- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，同一请求只输出一条慢日志，限频抑制计数准确且日志不泄漏原始Key或数据；
+- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，同一请求只输出一条慢请求日志；每个限频分组首条立即输出、10秒内后续日志被抑制、窗口结束后可以再次输出，且日志限频不影响其他指标计数；
+- 限频抑制计数准确，慢请求日志不泄漏原始Key或数据；
 - Notify 只验证提交语义，不把它误测成远端执行确认；
 - `go test -race` 和针对热点 Key、随机 Key、慢 I/O 的 Benchmark。
 
