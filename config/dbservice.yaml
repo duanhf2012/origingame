@@ -1,0 +1,47 @@
+node_services:
+  db-pub-1:
+    AccDBService:
+      max_io_concurrency: 64 # MongoDB 与 Redis 正在执行的 Driver I/O 总并发上限。
+      max_inflight_requests: 128 # 已准入但未完成的请求总量，包含全部等待与运行阶段。
+      mongodb:
+        uri: "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true&appName=acc-db-pub-1&maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000" # 本地账号 MongoDB 副本集；生产由 Secret 注入。
+        database: origingame_account # AccDBService 固定账号数据库。
+      redis:
+        addresses: ["127.0.0.1:6379"] # 公共 Redis 数据节点地址。
+        client_name: origingame-acc-db-pub-1 # 公共账号数据域连接标识。
+        database: 0 # AccDBService 固定 Redis 逻辑数据库 0。
+        pool_size: 64 # 每节点基础连接数，与 I/O 上限对齐。
+        max_active_connections: 64 # 每节点活动连接硬上限。
+        max_concurrent_dials: 4 # 每节点并发建连上限。
+        max_retries: 0 # 禁止业务命令透明重试。
+
+  db-area-1-1:
+    AccDBService:
+      max_io_concurrency: 64 # 区服内 AccDBService 的 Driver I/O 总并发上限。
+      max_inflight_requests: 128 # 区服内 AccDBService 已准入未完成请求上限。
+      mongodb:
+        uri: "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true&appName=acc-db-area-1-1&maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000" # 与公共 AccDBService 连接同一账号库。
+        database: origingame_account # AccDBService 固定账号数据库。
+      redis:
+        addresses: ["127.0.0.1:6379"] # 与公共 AccDBService 连接同一公共 Redis。
+        client_name: origingame-acc-db-area-1-1 # 区服内账号数据域连接标识。
+        database: 0 # AccDBService 固定 Redis 逻辑数据库 0。
+        pool_size: 64 # 每节点基础连接数，与 I/O 上限对齐。
+        max_active_connections: 64 # 每节点活动连接硬上限。
+        max_concurrent_dials: 4 # 每节点并发建连上限。
+        max_retries: 0 # 禁止业务命令透明重试。
+
+    RoleDBService:
+      max_io_concurrency: 64 # 本区服角色 MongoDB 与 Redis 的 Driver I/O 总并发上限。
+      max_inflight_requests: 128 # 本区服角色数据域已准入未完成请求上限。
+      mongodb:
+        uri: "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true&appName=role-db-area-1-1&maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000" # 本地区服角色 MongoDB 副本集。
+        database: origingame_role # RoleDBService 固定角色数据库。
+      redis:
+        addresses: ["127.0.0.1:6379"] # 本地区服 Redis 数据节点地址。
+        client_name: origingame-role-db-area-1-1 # 角色数据域连接标识，禁止与 Acc 共用名称。
+        database: 1 # RoleDBService 固定 Redis 逻辑数据库 1。
+        pool_size: 64 # 每节点基础连接数，与 I/O 上限对齐。
+        max_active_connections: 64 # 每节点活动连接硬上限。
+        max_concurrent_dials: 4 # 每节点并发建连上限。
+        max_retries: 0 # 禁止业务命令透明重试。

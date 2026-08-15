@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package origingame.protocol;
+
+import "errorcode.proto";
+
+option go_package = "origingame/protocol/common;commonpb";
+
+// LoginPlayerRequest 携带进入显示区服所需的客户端凭证。
+message LoginPlayerRequest {
+  string token = 1;       // LoginService 签发的 JWT。
+  int64 show_area_id = 2; // 客户端选择的显示区服 ID。
+}
+
+// PlayerHeartbeatRequest 是玩家在线后的逻辑心跳，Body 没有业务字段。
+message PlayerHeartbeatRequest {}
+
+// LoginPlayerResult 是玩家进入 GameService 成功后的客户端登录数据。
+message LoginPlayerResult {
+  RoleInfo role_info = 1; // 玩家常用公共基础数据。
+}
+
+// RoleInfo 保存客户端经常使用的角色公共数据。
+message RoleInfo {
+  string account_id = 1;   // 账号 ID。
+  int64 show_area_id = 2;  // 显示区服 ID。
+  string nickname = 3;     // 玩家昵称。
+  int32 level = 4;         // 玩家等级。
+  int64 created_at_ms = 5; // 角色创建 Unix 毫秒时间。
+}
+
+// PlayerKickedNotify 通知客户端当前连接被其他登录替换。
+message PlayerKickedNotify {
+  ErrorCode reason = 1; // 顶号时为 ERROR_CODE_GATEWAY_LOGGED_IN_ELSEWHERE。
+}

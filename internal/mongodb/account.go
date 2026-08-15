@@ -16,7 +16,6 @@ type Account struct {
 	ID         bson.ObjectID `bson:"_id"`
 	PlatType   int32         `bson:"PlatType"`
 	PlatID     string        `bson:"PlatId"`
-	GM         bool          `bson:"Gm"`
 	IP         string        `bson:"Ip,omitempty"`
 	CreateTime time.Time     `bson:"CreateTime"`
 	UpdateTime time.Time     `bson:"UpdateTime"`

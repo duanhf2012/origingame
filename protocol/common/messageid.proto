@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package origingame.protocol;
+
+option go_package = "origingame/protocol/common;commonpb";
+
+// MessageID 是客户端与 Gateway 共同遵守的应用层消息编号。
+enum MessageID {
+  Ok = 0;                 // 成功且没有响应 Body 时使用。
+  LoginPlayerReq = 1;     // 客户端请求进入显示区服。
+  LoginPlayerRes = 2;     // 玩家登录成功数据或登录错误响应。
+  PlayerHeartbeatReq = 3; // 客户端玩家逻辑心跳。
+  PlayerKicked = 4;       // 玩家被其他连接顶号的主动推送。
+}

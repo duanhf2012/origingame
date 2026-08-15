@@ -1,4 +1,0 @@
-nodes:
-  - id: login-1 # 本地 Login 节点的唯一标识。
-    services:
-      - LoginService # 在该节点启动的 Service 模板。

@@ -5,6 +5,7 @@ package main
 import (
 	"time"
 
+	"origingame/service/dbservice"
 	"origingame/service/loginservice"
 
 	"github.com/duanhf2012/origin/v3/application"
@@ -17,6 +18,11 @@ var app = application.New(application.Options{
 })
 
 // 此处只登记配置可以引用的 Service 类型；实际实例由所选 Node 的 services 配置创建。
-func init() { app.Setup(&loginservice.LoginService{}) }
+func init() {
+	app.Setup(
+		&dbservice.DBService{},
+		&loginservice.LoginService{},
+	)
+}
 
 func main() { app.Start() }

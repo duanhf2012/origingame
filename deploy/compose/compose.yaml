@@ -98,10 +98,13 @@ services:
     image: mongo:8.0.4
     container_name: origingame-mongodb
     restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin_123456
-      MONGO_INITDB_DATABASE: origingame
+      MONGO_INITDB_DATABASE: origingame_account
     ports:
       - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_MONGODB_PORT:-27017}:27017"
     volumes:
@@ -112,9 +115,7 @@ services:
         - CMD-SHELL
         - >-
           mongosh --quiet --host 127.0.0.1 --port 27017
-          --username admin --password admin_123456
-          --authenticationDatabase admin
-          --eval "quit(db.adminCommand('ping').ok ? 0 : 2)"
+          --eval "try { rs.status(); } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}); } quit(db.hello().isWritablePrimary ? 0 : 2)"
       interval: 5s
       timeout: 5s
       retries: 30
