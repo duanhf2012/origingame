@@ -1,7 +1,7 @@
 # DBService 设计
 
 > 状态：首期DBService设计已确认，尚未实施
-> 更新日期：2026-08-14
+> 更新日期：2026-08-15
 > 上位文档：[OriginGame v3 总体架构设计](../总体架构设计.md)
 
 ## 1. 服务定位
@@ -50,7 +50,9 @@ DBService 对外只声明 `ExecuteMongo` 和 `ExecuteRedis` 两个业务无关 R
 ```text
 DBService 模板
 ├── AccDBService
-└── RoleDBService
+├── RoleDBService（区服1）
+├── RoleDBService（区服2）
+└── RoleDBService（其他区服）
 ```
 
 每个实际 DBService 配置固定的 MongoDB 数据库名，并同时装配一个 MongoDB Module 和一个 Redis Module。RPC 请求不得携带或覆盖数据库名，只能在该实际服务已经绑定的数据库内指定后续确认允许的集合与操作：
@@ -67,20 +69,24 @@ RoleDBService
 └── KeyExecutor
 ```
 
-不同实际 DBService 可以配置不同 Redis 地址。当前 OriginGame 只有一套 Redis，因此 AccDBService、RoleDBService 等实例可以指向同一 Redis 部署；仍由各实际 DBService 分别持有自己的 Redis Client 和受控连接池，不额外建立专用 `RedisDBService`。
+不同实际 DBService 可以配置不同 Redis 地址。所有 AccDBService 实例连接同一公共 Redis；每个区服的 RoleDBService 可以连接本区服独立 Redis。仍由各实际 DBService 分别持有自己的 Redis Client 和受控连接池，不额外建立专用 `RedisDBService`。
 
-同一个实际服务可以在不同 Node 上运行多个同名副本。业务层明确选择 AccDBService、RoleDBService 等数据域，再使用 Origin RPC 的实例选择策略挑选其中一个副本。DBService 不根据集合名或 Key 自动切换数据域。
+同一个实际服务可以在不同 Node 上运行多个同名副本。业务层必须先明确选择公共 Acc 数据域或当前区服 Role 数据域，再使用 Origin RPC 的实例选择策略挑选其中一个副本。DBService 不根据集合名、Key、AccountID、ShowAreaID 或 RealAreaID 自动切换数据域。
 
 ### 首期部署基线
 
-首期固定数据域如下：AccDBService绑定`origingame_account`数据库，RoleDBService绑定`origingame_role`数据库；两者可以连接同一套Redis部署，但必须使用不同的Redis Client名称和独立连接池。业务请求不能在运行时改变数据域、数据库名或Redis部署。
+首期固定数据域如下：AccDBService绑定`origingame_account`数据库和公共Redis逻辑数据库0；每个区服的RoleDBService绑定`origingame_role`数据库和该区服配置的Redis逻辑数据库1。全部区服角色文档当前可以混合存放在同一个MongoDB数据库中，并由`ShowAreaID`显式隔离；RoleDBService仍按区服分别部署，以隔离DBService队列、并发额度、MongoDB连接池、Redis连接、过载和发布故障。不同数据域必须使用不同Redis Client名称和独立连接池，`client_name`只用于连接识别和诊断，不能形成Key隔离。业务请求不能在运行时改变数据域、数据库名、Redis逻辑数据库或Redis部署。
 
-| 环境 | Origin Node与DBService副本 | MongoDB | Redis |
+首期Standalone和Sentinel使用Redis Module已有的`database`字段隔离账号与角色Key空间。未来如果改用只支持逻辑数据库0的Redis Cluster，必须先设计并迁移为固定Key命名空间；不能在没有Key迁移方案时直接把两个数据域合并到Cluster的同一Key空间。
+
+| 环境 | Origin Node与DBService实例 | MongoDB | Redis |
 | --- | --- | --- | --- |
-| 本地开发 | 一个`db-1`，同时运行AccDBService、RoleDBService，各1副本 | 单成员Replica Set；必须支持Transaction测试 | Standalone |
-| 生产首期 | `db-1`、`db-2`均运行AccDBService、RoleDBService，各2副本 | 三成员Replica Set或等价托管副本集 | 一主多从加至少3个Sentinel，不首期使用Cluster |
+| 本地开发 | 当前区服DBServer同时运行一个AccDBService和本区服RoleDBService；公共Node按当前启动范围运行AccDBService | 单成员Replica Set；必须支持Transaction测试 | 公共Acc Redis与区服Role Redis均可使用Standalone |
+| 生产首期 | 公共数据Node运行AccDBService；每个区服DBServer运行一个AccDBService和一个本区服RoleDBService | 三成员Replica Set或等价托管副本集 | 公共Acc Redis和各区服Role Redis分别按需要使用一主多从加至少3个Sentinel；首期不使用Cluster |
 
-生产首期将两个数据域共同部署在两台数据Node上，以较少的进程数取得基本可用性。只有监控证明两个域的负载、连接预算或扩容节奏明显不同，才拆为独立AccDBService Node和RoleDBService Node；扩缩容仍遵循受控停止、排空和候选集合稳定性约束。
+公共数据Node和各区服DBServer上的AccDBService实例连接同一账号数据库与公共Redis，组成公共账号和登录协调数据域。LoginService、GatewayService和公共业务Service使用公共DB Node上的AccDBService；每个区服GameService使用本区服DBServer上的AccDBService访问GameService注册、负载、玩家在线路由和登录协调，并通过本区服RoleDBService访问角色MongoDB及区服Redis。公共账号数据库或公共Redis故障时全部范围暂停新的登录协调；只有某一部署范围的AccDBService实例故障时只暂停依赖该范围的新登录协调。已经在线的区服业务不应因此失去本区服RoleDBService的数据能力。
+
+各DBServer的NodeID、实际ServiceName、Node Labels和调用范围已经在[部署标识与服务发现配置设计](../部署标识与服务发现配置设计.md)中统一确认：公共DB Node使用`db-pub-N`并只装配`AccDBService:DBService`；区服DB Node使用`db-area-R-N`并同时装配`AccDBService:DBService`和`RoleDBService:DBService`。公共调用方只使用`scope=pub`的AccDBService，GameService只使用本区服两个DBService实例，首期不自动跨范围回退。
 
 ## 4. 调用方路由与 Key 契约
 
@@ -95,6 +101,8 @@ RoleDBService
 ```
 
 调用方必须对 `Route` 和请求字段使用完全相同的 Key。只做其中一层都不能形成完整的顺序边界：只使用 `Route` 时，同一实例内的 I/O 仍可能并发；只携带 `dispatch_key` 时，请求可能先被投递到不同 DBService 副本。
+
+`dispatch_key`按原始字节语义比较，长度固定不超过128字节。调用方和DBService均不得对它执行Trim、大小写转换、Unicode归一化或其他隐式改写；超长Key在进入Inflight和Key FIFO前直接按非法请求拒绝。
 
 空 Key 用于相互独立、不需要有序处理的请求：
 
@@ -190,38 +198,44 @@ MongoDB运行请求数 + Redis运行请求数 <= max_io_concurrency
 
 DBService 不再暴露 `key_executor` 和 `rpc_limits` 两组配置。单个实际 DBService 只保留两个含义不同且不能互相替代的请求容量字段：
 
+以下是`node_services.<NodeID>.<实际ServiceName>`选中后的有效Service配置块；模板实例不读取`services.DBService`，完整配置归属见[部署标识与服务发现配置设计](../部署标识与服务发现配置设计.md#9-配置文件与配置归属)：
+
 ```yaml
-dbservice:
-  max_io_concurrency: 64            # MongoDB和Redis正在执行的Driver I/O总并发上限；省略时默认64
-  max_inflight_requests: 512        # 已准入但未完成的请求总量，包含等待Key、等待I/O槽位和实际I/O；省略时默认512
-  mongodb:
-    uri: mongodb://127.0.0.1:27017/?maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000 # 连接、连接池和基础设施超时由URI控制
-    database: origingame_account    # 当前实际DBService固定绑定的数据库名；RoleDBService使用origingame_role
-  redis:
-    addresses: [127.0.0.1:6379]     # 当前实际DBService使用的Redis数据节点地址
-    client_name: origingame-acc-db  # AccDBService与RoleDBService必须使用不同名称
-    pool_size: 64                   # 每个Redis节点的基础连接数，与I/O上限对齐
-    max_active_connections: 64      # 每个Redis节点活动连接硬上限，与I/O上限对齐
-    max_concurrent_dials: 4         # 每个Redis节点并发建连上限
+node_services:
+  db-pub-1:
+    AccDBService:
+      max_io_concurrency: 64            # MongoDB和Redis正在执行的Driver I/O总并发上限；省略时默认64
+      max_inflight_requests: 128        # 已准入但未完成的请求总量，包含等待Key、等待I/O槽位和实际I/O；省略时默认128
+      mongodb:
+        uri: mongodb://127.0.0.1:27017/?maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000 # 连接、连接池和基础设施超时由URI控制
+        database: origingame_account    # AccDBService固定绑定账号数据库
+      redis:
+        addresses: [127.0.0.1:6379]     # 当前实际DBService使用的Redis数据节点地址
+        client_name: origingame-acc-db-pub-1 # AccDBService与RoleDBService必须使用不同名称
+        database: 0                     # AccDBService固定为0；RoleDBService固定为1
+        pool_size: 64                   # 每个Redis节点的基础连接数，与I/O上限对齐
+        max_active_connections: 64      # 每个Redis节点活动连接硬上限，与I/O上限对齐
+        max_concurrent_dials: 4         # 每个Redis节点并发建连上限
+        max_retries: 0                  # 禁止非幂等Redis命令因丢失响应而被Driver透明重试
 ```
 
 示例只列当前职责必需字段；生产MongoDB URI由Secret注入，且AccDBService、RoleDBService分别使用对应固定数据库名和不同`appName`。Redis拓扑、认证和连接池等真实需要的字段继续使用Redis Module配置，MongoDB连接池继续使用URI参数，不在DBService层复制一套同义字段。Redis Module已有有限的网络超时默认值，首期不重复配置。两个容量值必须满足`0 < max_io_concurrency <= max_inflight_requests <= scheduler.max_await_tasks`，启动后冻结；调整任一字段都需要重启并排空旧实例。
 
-每个实际DBService的MongoDB连接池最大64、Redis每节点活动连接最大64，且两类实际I/O共用`max_io_concurrency=64`。生产首期两个Node、两个数据域合计最多创建4个MongoDB Client和4个Redis Client，理论活动连接上限分别为256和256；数据库连接预算不足时，必须同时按比例下调`max_io_concurrency`、MongoDB `maxPoolSize`和Redis `max_active_connections`，不得只修改其中一项。Origin默认`max_await_tasks=10000`已高于512，首期不为DBService重复配置Scheduler字段。
+每个实际DBService的MongoDB连接池最大64、Redis每数据节点活动连接最大64，且两类实际I/O共用`max_io_concurrency=64`。总连接预算必须按“全部AccDBService实例数（公共DB Node与各区服DB Node）+ 全部区服RoleDBService实例数”计算，不能继续套用固定两Node、四Client的旧假设；该预算不包含MongoDB拓扑监控、Redis Sentinel和Driver内部维护连接。数据库连接预算不足时，必须优先核对实际实例数量，并同时按比例下调`max_io_concurrency`、MongoDB `maxPoolSize`和Redis `max_active_connections`，不得只修改其中一项。Origin默认`max_await_tasks=10000`已高于128，首期不为DBService重复配置Scheduler字段。
 
 配置所有权统一如下：
 
 | 内容 | 所有者 | DBService是否重复配置 |
 | --- | --- | --- |
 | MongoDB地址、固定数据库、连接池和Driver超时 | MongoDB Module | 否，DBService只聚合Module原配置 |
-| Redis拓扑、地址、认证、连接池和网络超时 | Redis Module | 否，DBService只聚合Module原配置 |
+| Redis拓扑、地址、逻辑数据库、认证、连接池、重试和网络超时 | Redis Module | 否，DBService只聚合Module原配置；DBService额外校验数据域和禁止命令重试 |
 | MongoDB/Redis实际Driver I/O并发 | DBService | 是，`max_io_concurrency` |
 | DBService已准入未完成请求总量 | DBService | 是，`max_inflight_requests` |
 | 根任务、Await框架硬上限和默认Await超时 | Origin ServiceScheduler | 否，DBService自身准入上限必须不超过它 |
 | RPC请求和响应Payload | Origin RPC | 否，当前默认4MiB |
 | 单Key积压、操作/命令数量和结果数量 | DBService代码常量 | 否 |
 | 慢请求诊断阈值和日志限频 | DBService代码常量 | 否，日志输出与轮转沿用全局日志配置 |
-| RawCommand和Script登记 | DBService可选扩展 | 基础配置不出现，真实使用时才增加登记项 |
+| RawCommand和Script登记 | DBService受控扩展 | 在线玩家路由和登录限流已形成首批AccDBService Script登记项；不允许请求携带源码，也不开放任意运行配置脚本 |
 
 DBService使用`max_inflight_requests`作为自身主要请求准入边界，Origin `scheduler.max_await_tasks`继续作为整个Service的框架硬上限。Handler只进行一次非阻塞Inflight预留，不在Service执行槽内等待；只有预留成功后才进入Await并调用私有`KeyExecutor.Execute`：
 
@@ -231,7 +245,7 @@ KeyExecutor Inflight <= max_inflight_requests <= scheduler.max_await_tasks
 实际MongoDB/Redis I/O数量 <= max_io_concurrency <= KeyExecutor Inflight
 ```
 
-不增加`max_active_keys`、`max_unordered_pending_requests`或单独的信号量容量配置。空Key和非空Key共用Inflight及I/O容量，当前没有真实需求证明需要再划分隔离配额。单个非空Key的运行加排队请求固定最多128个且不能超过`max_inflight_requests`，作为代码安全常量不开放配置；达到上限立即返回稳定的热点Key过载错误。
+不增加`max_active_keys`、`max_unordered_pending_requests`或单独的信号量容量配置。空Key和非空Key共用Inflight及I/O容量，当前没有真实需求证明需要再划分隔离配额。单个非空Key的运行加排队请求固定最多32个且不能超过`max_inflight_requests`，作为代码安全常量不开放配置；达到上限立即返回稳定的热点Key过载错误。默认值下一个热点Key最多占用四分之一Inflight，避免单Key独占全部等待容量。
 
 `scheduler.max_tasks`、`scheduler.max_await_tasks`和`scheduler.default_await_timeout`属于DBService所在Node的Origin框架配置，不属于DBService配置，也不在DBService基础配置中重复展示。正常过载先由DBService的Inflight准入快速拒绝；Origin容量只是更外层的硬保护。已经成功准入的请求可以在自身Deadline内等待Key或I/O槽位，不临时增加并发容量，也不创建补偿goroutine。
 
@@ -293,6 +307,8 @@ DBService 进入 Ready 前必须完成：
 - 实际 Service 配置和固定 MongoDB 数据库名校验；
 - MongoDB Module 连接及必要可用性检查；
 - Redis Module 连接及必要可用性检查；
+- Redis逻辑数据库与实际数据域一致，并且`max_retries`固定为0；
+- 读取MongoDB当前已有业务集合并形成实例生命周期内不可变的允许集合，标准Operation不得访问未知集合；
 - `max_io_concurrency`、`max_inflight_requests`关系校验以及Key Map、Inflight Gate和全局并发信号量初始化；
 - 对外 RPC 契约注册完成；
 - 必需数据库能力、可选MongoDB RawCommand登记以及Redis Script登记、内容摘要和约束校验。
@@ -300,6 +316,20 @@ DBService 进入 Ready 前必须完成：
 任一步失败必须按成功创建资源的逆序回滚，DBService 不以缺少 MongoDB、Redis 或可用KeyExecutor的半初始化状态对外服务。
 
 停止时先由 Origin 关闭新 RPC 根任务准入。KeyExecutor 必须继续处理停止边界前已经进入 Service Ready FIFO 的根任务，不能让这些已接受请求因内部状态提前关闭而失败；这些任务在停止 Context 预算内共同排空。全部已接受根任务完成并进入`OnStop`后，KeyExecutor的Inflight、活动Key和运行槽位应全部归零，再依次关闭Redis、MongoDB Module。停止预算耗尽时由生命周期Context取消排队和运行请求，已经进入Driver的请求仍须等实际调用返回后才能释放槽位和Key。KeyExecutor本身没有Worker需要停止或等待，`Stop`仍必须幂等。
+
+### 10.1 数据库结构与迁移边界
+
+DBService只使用运行时数据账号执行已经存在集合上的数据操作，不通过RPC创建或删除集合、索引、Validator、用户和数据库，也不执行生产数据迁移。MongoDB集合、唯一索引、TTL索引、普通查询索引、Validator和数据迁移由独立部署或迁移脚本使用单独的受控管理账号完成。
+
+数据库结构变更顺序固定为：先更新并确认对应Service设计和`internal/mongodb`契约，再执行可回滚或可验证的迁移，最后启动或滚动重启对应DBService。DBService在Ready阶段取得已有业务集合快照；集合名拼写错误或尚未完成创建的集合在执行前拒绝，不能依赖MongoDB Insert隐式创建集合。新增集合不需要修改DBService代码或RPC契约，但必须先完成迁移并重启对应实例。
+
+索引和迁移脚本不复用DBService运行账号。运行账号继续使用固定数据库和最小权限；即使RawCommand发生误登记，也不能通过运行账号取得拓扑、权限或数据库结构管理能力。
+
+### 10.2 时间语义
+
+DBService不解释BSON字段中的业务时间，只透明执行调用方提供的数据操作。Context Deadline、MongoDB/Redis网络超时、Redis TTL、MongoDB TTL Index、连接租约、慢处理统计和日志时间均使用真实系统时间，不受Node游戏逻辑时间调整影响。
+
+活动、体力、任务、生产等需要响应GM调时的过期或完成逻辑，由业务Service使用Node游戏时间计算并保存明确的业务时间字段；不得使用Redis TTL或MongoDB TTL Index直接代替游戏业务Timer。DBService既不把真实TTL换算为游戏时间，也不在返回时重新解释时间戳。
 
 ## 11. RPC 契约总体形态
 
@@ -329,6 +359,8 @@ RPC 契约方法按数据动作命名，不增加 `Rpc` 或 `RPC` 前缀。`orig
 `BroadcastExecuteMongo/Redis` 必须禁止使用；它会把同一数据操作发送到多个 DBService 副本。关键数据写入、扣费、发奖、角色保存、账号创建和在线归属修改也禁止使用 Notify。Notify 只适用于允许丢失、可由其他事实源重新生成或者已有独立可靠投递机制的数据。
 
 请求的 `DispatchKey` 必须与生成客户端的 `Route(request.DispatchKey)` 完全一致。结构化请求和结果类型统一放在 `protocol/rpc/dbservice.go`；当前数据以普通 Go 类型和 `[]byte` 表示 BSON/二进制值，不额外引入 Protobuf。
+
+所有RPC协议枚举都必须显式保留`Unspecified=0`，包括MongoDB/Redis ExecuteMode、OperationKind、结果Status、FailureKind、RedisValueKind和ReturnDocument。请求出现`Unspecified`时在执行前拒绝；结果出现`Unspecified`表示实现没有完整赋值，不能按成功解释。除明确作为普通数值使用的字段外，不依赖Go零值表达业务成功或默认执行模式。
 
 ## 12. MongoDB 请求与执行模式
 
@@ -363,7 +395,6 @@ Transaction 不支持时必须返回明确错误，禁止静默降级为 Sequent
 | 查询 | `FindMany` | 有界列表、分页、排行榜快照；返回文档集 |
 | 查询 | `CountDocuments` | 按 Filter 精确计数 |
 | 查询 | `EstimatedDocumentCount` | 无 Filter 的集合近似总量统计 |
-| 查询 | `Distinct` | 有界的字段去重值 |
 | 聚合 | `Aggregate` | 有界 Pipeline 聚合结果 |
 | 修改 | `UpdateOne` | 条件扣减、乐观锁、普通 Upsert |
 | 修改 | `UpdateMany` | 同条件批量修改 |
@@ -375,7 +406,7 @@ Transaction 不支持时必须返回明确错误，禁止静默降级为 Sequent
 | 删除并返回 | `FindOneAndDelete` | 原子删除并返回原文档 |
 | 原始扩展 | `RawCommand` | 结构化操作尚未覆盖且已登记的特殊数据库命令 |
 
-`UpdateByID` 不单独建立 OperationKind，它只是 `UpdateOne` 使用 `{_id: ...}` Filter 的便利外观。普通业务数据 RPC 不开放 Change Stream、IndexView、SearchIndexView、Drop Collection/Database、用户权限、复制集或分片管理；这些属于长生命周期或管理能力。
+`UpdateByID` 不单独建立 OperationKind，它只是 `UpdateOne` 使用 `{_id: ...}` Filter 的便利外观。`Distinct`首期不单独建立OperationKind：MongoDB Distinct命令会一次返回完整值数组，`MaxValues`只能在结果已经进入Driver内存后校验，不能形成真正的有界读取；需要字段去重时使用包含`$group`和`$limit`的Aggregate表达。普通业务数据 RPC 不开放 Change Stream、IndexView、SearchIndexView、Drop Collection/Database、用户权限、复制集或分片管理；这些属于长生命周期或管理能力。
 
 MongoDB v2 Driver提供Collection和跨Namespace两类BulkWrite。它们不是普通Operations的语法缩写：普通Operations只合并业务Service到DBService的一次RPC，DBService仍分别调用Collection API；BulkWrite可把同一集合或多Namespace的大量异构写交给Driver组织批次，减少MongoDB命令和网络往返。但首期没有已确认的大量异构批量写场景，保留它需要增加第二套WriteModel判别、Ordered/Unordered部分成功、模型下标错误和汇总结果语义，因此首期不提供`BulkWrite`、`MongoBulkWrite`或`MultiCollectionBulkWrite`入口，也不允许通过RawCommand绕过。出现明确的高吞吐批量写需求且普通Operations经Benchmark确认MongoDB往返成为瓶颈后，再单独设计并加入结构化BulkWrite契约。
 
@@ -393,7 +424,6 @@ type MongoOperation struct {
     FindMany         *MongoFindMany
     CountDocuments   *MongoCountDocuments
     EstimatedDocumentCount *MongoEstimatedDocumentCount
-    Distinct         *MongoDistinct
     Aggregate        *MongoAggregate
     UpdateOne        *MongoUpdateOne
     UpdateMany       *MongoUpdateMany
@@ -430,10 +460,9 @@ type MongoUpdate struct {
 | `InsertOne` | `Document` |
 | `InsertMany` | `Documents`、`Unordered` |
 | `FindOne` | `Filter`、`Projection`、`Sort` |
-| `FindMany` | `Filter`、`Projection`、`Sort`、`Skip`、`Limit` |
+| `FindMany` | `Filter`、`Projection`、`Sort`、`Limit` |
 | `CountDocuments` | `Filter` |
 | `EstimatedDocumentCount` | 无 |
-| `Distinct` | `Field`、`Filter`、`MaxValues` |
 | `Aggregate` | `Pipeline`、`MaxDocuments`、`AllowDiskUse` |
 | `UpdateOne` | `Filter`、`Update`、`Upsert`、`ArrayFilters` |
 | `UpdateMany` | `Filter`、`Update`、`ArrayFilters` |
@@ -444,7 +473,7 @@ type MongoUpdate struct {
 | `DeleteOne`、`DeleteMany` | `Filter` |
 | `RawCommand` | `ID`、`Command`、`MaxDocuments` |
 
-`Unordered=false`表示MongoDB默认有序插入；`ReturnDocument`零值表示修改前文档，非零值表示修改后文档。`FindMany.Limit`、`Distinct.MaxValues`、`Aggregate.MaxDocuments`和Raw Cursor的`MaxDocuments`必须为正数。ReadConcern、WriteConcern、ReadPreference和事务选项由实际DBService配置控制，首期不允许请求任意覆盖；所有写操作使用acknowledged write concern。
+`Unordered=false`表示MongoDB默认有序插入。`ReturnDocument`使用显式枚举`Before`或`After`，`Unspecified`非法，不能用零值暗示修改前文档。`FindMany.Limit`、`Aggregate.MaxDocuments`和Raw Cursor的`MaxDocuments`必须为正数。ReadConcern、WriteConcern、ReadPreference和事务选项由实际DBService配置控制，首期不允许请求任意覆盖；所有写操作使用acknowledged write concern。
 
 首期不开放`Hint`、`Collation`、`Comment`等低频Options。索引选择由MongoDB查询规划器和集合索引设计负责；真实Profile证明某项特定Option不可缺少时，只向对应专属参数结构体兼容新增字段并重新确认，不通过RawCommand绕过结构化校验。
 
@@ -468,13 +497,13 @@ type MongoCountRange struct {
 
 非空范围必须满足`0 <= Min <= Max`或`Max == -1`。例如“必须找到一条文档”为`Documents={Min: 1, Max: 1}`，“乐观锁必须修改一行”为`Matched={Min: 1, Max: 1}`。断言只检查数据库可观察计数，不携带账号、角色等业务判断。
 
-写操作默认执行安全校验：`UpdateMany`、`DeleteMany` 必须具有非空 Filter；`UpdateOne`、`ReplaceOne`、`DeleteOne` 的空 Filter 默认拒绝，只有配置明确允许的受控集合和场景才可例外。禁止请求绕过文档校验和任意设置 WriteConcern。DBService 只能检查结构安全，唯一索引、业务条件、版本号和幂等键仍由业务 Repository 负责。
+所有`UpdateOne`、`UpdateMany`、`ReplaceOne`、`DeleteOne`和`DeleteMany`都必须具有非空Filter，首期没有配置例外。需要全量维护时使用受控迁移工具，不通过业务RPC执行。禁止请求绕过文档校验和任意设置WriteConcern。DBService只能检查结构安全，唯一索引、业务条件、版本号和幂等键仍由业务Repository负责。
 
 Transaction 模式具有独立的操作允许表。DBService 在开始事务前拒绝 MongoDB 服务端明确不支持或本配置未允许进入事务的操作；例如 `EstimatedDocumentCount`、带 `$out/$merge` 的 Aggregate 和未声明 `allow_in_transaction` 的 RawCommand 不能进入事务。禁止先执行一部分后才因可预检的兼容问题失败。
 
-`FindMany` 必须带正数 `Limit`。需要分页或依赖顺序的查询由调用方提供稳定 Sort，并使用业务游标值构造 Keyset Filter；一次性读取有界快照且不依赖顺序时可以省略 Sort。DBService 不持有服务端 Cursor；`Skip` 只允许在有硬上限的低页码场景使用。大列表由调用方多次 RPC 分页，每页仍经过容量检查。DBService 不返回 Cursor ID，也不跨 RPC 保存 Cursor。
+`FindMany`必须带正数`Limit`。需要分页或依赖顺序的查询由调用方提供稳定Sort，并使用上一页末尾业务值构造Keyset Filter；一次性读取有界快照且不依赖顺序时可以省略Sort。首期不开放`Skip`，避免低价值的页码接口演变为大偏移扫描。DBService不持有服务端Cursor；大列表由调用方多次RPC分页，每页仍经过容量检查。DBService不返回Cursor ID，也不跨RPC保存Cursor。
 
-`Distinct`、`Aggregate` 和 Raw Cursor 必须声明结果数量上限；`Aggregate` 的 `$out`、`$merge` 等写入 Stage 需要通过操作配置单独允许，不能把写聚合伪装成只读查询。所有列表结果超过数量或字节上限时整体返回结果超限错误，不静默截断。
+`Aggregate`和Raw Cursor必须声明结果数量上限。首期所有Aggregate都拒绝`$out`、`$merge`等写入Stage，不增加操作配置例外，也不能把写聚合伪装成只读查询。所有列表结果超过数量或字节上限时整体返回结果超限错误，不静默截断。
 
 ## 15. MongoDB 原始 Command
 
@@ -488,7 +517,7 @@ type MongoRawCommand struct {
 }
 ```
 
-RawCommand首期默认关闭；实际业务出现结构化操作无法表达的命令时，才按稳定`ID`增加登记项并重启对应DBService，不要求修改RPC契约或重新编译DBService。登记项固定MongoDB命令名、`Document`或`Cursor`结果模式、是否允许进入Transaction、最大结果文档数和其他安全限制；请求不能自行覆盖这些约束。
+RawCommand首期默认关闭；在没有第一个真实登记项前，只实现协议校验并返回未登记，不预先实现配置加载和空注册框架。实际业务出现结构化操作无法表达的命令时，才按稳定`ID`实现最小登记机制并重启对应DBService，不要求修改RPC契约。登记项固定MongoDB命令名、`Document`或`Cursor`结果模式、是否允许进入Transaction、最大结果文档数和其他安全限制；请求不能自行覆盖这些约束。
 
 请求只通过`ID`选择登记项并携带实际Command BSON。`Document`模式使用`Database.RunCommand`返回单BSON响应，此时`MaxDocuments`必须为0；`Cursor`模式使用`Database.RunCommandCursor`，请求必须提供正数`MaxDocuments`且不能超过登记上限，DBService只在当前RPC内有界读取并关闭Cursor。`ID`未知、Command首字段命令名与登记项不一致或请求约束超过登记上限时，在执行前拒绝。
 
@@ -513,7 +542,6 @@ type MongoResult struct {
 type MongoOperationResult struct {
     Status          MongoOperationStatus
     Documents       [][]byte
-    Values          []MongoBSONValue
     Count           int64
     InsertedCount   int64
     MatchedCount    int64
@@ -545,7 +573,7 @@ type MongoWriteFailure struct {
 }
 ```
 
-`Results`长度始终等于请求Operation数量，且数组下标一一对应。`MongoOperationStatus`固定为`Succeeded`、`Failed`、`NotExecuted`、`RolledBack`和`StateUnknown`。单项结果统一承载适用字段；不适用字段保持零值。ID和Distinct值使用`MongoBSONValue`保存BSON Type与原始Value，不假设主键一定是ObjectID。
+`Results`长度始终等于请求Operation数量，且数组下标一一对应。`MongoOperationStatus`固定为`Unspecified`、`Succeeded`、`Failed`、`NotExecuted`、`RolledBack`和`StateUnknown`，其中`Unspecified=0`且不能出现在合法返回中。单项结果统一承载适用字段；不适用字段保持零值。ID使用`MongoBSONValue`保存BSON Type与原始Value，不假设主键一定是ObjectID。
 
 `InsertMany`必须保留MongoDB的部分结果语义。`WriteFailures`记录Document下标、稳定错误分类和Server Code；Driver能可靠返回的InsertedID同时保留。默认有序操作在首项错误停止，`Unordered=true`允许多个逐项错误。该Operation状态为`Failed`并使Sequential停止后续Operation，但调用方仍能看到该项可信的部分结果。
 
@@ -555,7 +583,7 @@ Sequential失败时，前序项保持`Succeeded`，失败项为`Failed`，后续
 
 RPC `error`只表达未取得执行报告的框架、准入和校验失败，直接复用Origin稳定错误码：请求、BSON或登记项非法使用`CodeInvalidArgument`；全局Inflight或热点Key满使用`CodeServiceQueueFull`；未Ready或停止使用`CodeServiceNotReady`、`CodeServiceStopping`；取消和Deadline使用`CodeCanceled`、`CodeDeadlineExceeded`；路由、编解码和传输继续使用Origin RPC自身错误码。首期不新增DBService专属RPC错误码。
 
-请求已经进入数据库执行后的失败放入`MongoResult.Failure`。`MongoFailureKind`固定为`DuplicateKey`、`WriteConflict`、`DocumentValidation`、`Unauthorized`、`Command`、`TransactionAborted`、`ResultLimitExceeded`、`Timeout`、`Canceled`、`Network`和`Unknown`。不跨RPC返回Driver Error Labels或错误文本；MongoDB Server Code仅以整数保留。`StateUnknown`用于超时、断线或`UnknownTransactionCommitResult`等无法断定写入最终状态的情况。业务层不得把超时解释为一定未写入，应使用幂等键、唯一约束、条件更新或查询确认。
+请求已经进入数据库执行后的失败放入`MongoResult.Failure`。`MongoFailureKind`固定为`Unspecified`、`DuplicateKey`、`WriteConflict`、`DocumentValidation`、`ExpectationFailed`、`Unsupported`、`Unauthorized`、`Command`、`TransactionAborted`、`ResultLimitExceeded`、`Timeout`、`Canceled`、`Network`和`Unknown`。结果断言不满足使用`ExpectationFailed`；当前MongoDB拓扑或服务端能力不支持请求模式时使用`Unsupported`。不跨RPC返回Driver Error Labels或错误文本；MongoDB Server Code仅以整数保留。`StateUnknown`用于超时、断线或`UnknownTransactionCommitResult`等无法断定写入最终状态的情况。业务层不得把超时解释为一定未写入，应使用幂等键、唯一约束、条件更新或查询确认。
 
 ## 17. Redis 请求与执行模式
 
@@ -588,7 +616,9 @@ type RedisCommand struct {
 }
 ```
 
-`Name`只保存命令名，`Args`按Redis命令语法依次保存Key、Value和选项，不重复保存命令名。参数使用二进制安全字节；整数、浮点数、时间戳和枚举选项由调用方按对应命令要求编码为十进制或约定文本。DBService通过`redismodule.Do`或Pipeline的`Do`执行命令。普通、有限时长的数据命令默认允许，不维护随业务增长的普通命令白名单；危险、管理、阻塞和长连接命令由代码固定拒绝，最终权限边界由Redis ACL控制。
+`Name`只保存命令名，`Args`按Redis命令语法依次保存Key、Value和选项，不重复保存命令名。参数使用二进制安全字节；整数、浮点数、时间戳和枚举选项由调用方按对应命令要求编码为十进制或约定文本。DBService通过`redismodule.Do`或Pipeline的`Do`执行命令。
+
+Redis命令使用代码固定允许表，不增加运行配置白名单。首期只允许下表明确列出的普通、有界、可在当前RPC内完成的数据命令，并按命令校验参数、Key位置、Range、结果和执行模式；未知命令、未来新增命令和部署特有模块命令默认拒绝。后续在已有命令族内增加普通命令只修改集中允许表和测试，不改变RPC契约；特殊模块命令只有出现真实需求时才增加受登记扩展。Redis ACL继续作为独立的第二道权限边界，不能代替代码校验。
 
 首期支持的常见有界数据命令族如下；该表用于说明能力和硬限制，不是运行配置：
 
@@ -596,7 +626,7 @@ type RedisCommand struct {
 | --- | --- | --- |
 | Key/TTL | `DEL`、`UNLINK`、`EXISTS`、`TYPE`、`TOUCH`、`COPY`、`EXPIRE/PEXPIRE`、`EXPIREAT/PEXPIREAT`、`EXPIRETIME/PEXPIRETIME`、`PERSIST`、`TTL/PTTL`、`RENAME`、`SCAN` | Scan 一次一页；全局 `SCAN` 仅支持 Standalone/Sentinel，Cluster 首期不提供跨节点全局扫描；多 Key 命令检查 Key Slot |
 | String | `GET`、`SET` 及 NX/XX/TTL、`GETDEL`、`GETEX`、`MGET`、`MSET/MSETNX`、`INCR/DECR`、`INCRBYFLOAT`、`APPEND`、`STRLEN`、有界 `GETRANGE/SETRANGE` | 批量 Key/Value 数量、Range 和总字节有上限 |
-| Hash | `HGET`、`HSET/HSETNX`、`HMGET`、`HDEL`、`HEXISTS`、`HLEN`、`HSTRLEN`、`HINCRBY/HINCRBYFLOAT`、`HRANDFIELD`、`HSCAN` | `HGETALL/HKEYS/HVALS` 默认关闭或要求小集合上限 |
+| Hash | `HGET`、`HSET/HSETNX`、`HMGET`、`HDEL`、`HEXISTS`、`HLEN`、`HSTRLEN`、`HINCRBY/HINCRBYFLOAT`、`HRANDFIELD`、`HSCAN` | `HGETALL/HKEYS/HVALS` 首期关闭，完整遍历使用HSCAN分页 |
 | List | `LPUSH/RPUSH`、`LPUSHX/RPUSHX`、`LPOP/RPOP`、`LINDEX`、`LSET`、`LINSERT`、`LPOS`、有界 `LRANGE`、`LLEN`、`LTRIM`、`LREM`、`LMOVE` | 首期不允许阻塞 Pop/Move；位置、计数和 Range 有上限 |
 | Set | `SADD`、`SREM`、`SISMEMBER/SMISMEMBER`、`SCARD`、`SPOP`、`SRANDMEMBER`、`SMOVE`、`SDIFF/SINTER/SUNION` 及对应 Store、`SSCAN` | 完整成员返回必须受结果上限约束；多 Key 运算检查 Slot |
 | Sorted Set | `ZADD`、`ZINCRBY`、`ZREM`、`ZREMRANGEBY*`、`ZSCORE/ZMSCORE`、`ZRANK`、有界 Range/ByScore/ByLex、`ZCOUNT/ZLEXCOUNT/ZCARD`、Pop、Scan、`ZDIFF/ZINTER/ZUNION` 及 Store | Score 按命令文本编码；范围、集合数量和返回数量有上限；多 Key 运算检查 Slot |
@@ -605,7 +635,7 @@ type RedisCommand struct {
 | HyperLogLog | `PFADD`、`PFCOUNT`、`PFMERGE` | 多 Key 命令检查 Slot |
 | Stream | `XADD`、`XDEL`、`XLEN`、`XTRIM`、有界 `XRANGE/XREVRANGE` 等非阻塞操作 | 不把 Stream 包装成通用可靠队列；Consumer Group、阻塞消费和长期 Pending 管理另行设计 |
 
-Redis Module未封装但Redis已提供的模块化数据命令，例如特定部署的RedisJSON，也可以通过普通Command执行，不改变RPC契约。是否能够执行取决于实际部署能力、Redis ACL、go-redis路由能力和代码硬拒绝规则。
+Redis Module未封装但Redis已提供的模块化数据命令，例如特定部署的RedisJSON，首期不能通过普通Command直接执行。出现真实需求后按稳定ID登记命令名、参数边界、Key提取规则、允许模式和结果限制；登记扩展仍不改变RPC契约，并继续受实际部署能力、Redis ACL和go-redis路由能力约束。
 
 Pipeline 返回每条命令对应的结果或命令错误，并保持数组下标一致。Pipeline 不是事务；中间命令失败不回滚其他命令。Transaction 使用 MULTI/EXEC，但 Redis 命令运行时错误仍可能和其他成功结果同时出现，因此结果必须逐项检查，不能只返回一个整体成功标志。
 
@@ -613,7 +643,9 @@ Standalone/Sentinel 中，同一 Pipeline 发往同一服务端连接时按提�
 
 首期不在 DBService 内实现 WATCH 回调，因为后续写入通常依赖 WATCH 后读取的值，会要求请求内表达结果引用、条件分支和可重入回调。需要乐观并发时优先使用 Script、版本字段加条件命令或业务幂等；出现无法表达的真实需求后再单独设计受限 WATCH Plan。
 
-Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整体原子性；Transaction、Script和要求原子的多Key命令必须由调用方使用Hash Tag保证全部Key位于同一Slot。Script的Keys与Args在协议上分离；普通命令优先复用go-redis及Redis服务端的Command Metadata完成Key提取和路由。Key布局动态且Driver无法可靠识别的命令不允许进入原子模式，不为此增加普通命令白名单配置。
+Redis Module的命令自动重试必须固定关闭。网络断开或响应丢失后，DBService不能透明重试`INCR`、扣减、Pop、追加等可能已经在服务端生效的命令；这类结果返回`StateUnknown`，由业务通过幂等Token、条件命令、登记Script或查询确认处理。连接建立和拓扑发现可以继续由Driver在有限Deadline内恢复，但不能转换成业务命令重放。
+
+Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整体原子性；Transaction、Script和要求原子的多Key命令必须由调用方使用Hash Tag保证全部Key位于同一Slot。Script的Keys与Args在协议上分离；普通命令优先复用go-redis及Redis服务端的Command Metadata完成Key提取和路由。Key布局动态且Driver无法可靠识别的命令不允许进入原子模式，不为此增加可由使用者修改的命令配置。
 
 以下命令硬拒绝：
 
@@ -624,11 +656,11 @@ Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整
 - `MULTI`、`EXEC`、`DISCARD`和`WATCH`只能由Transaction模式生成或由首期不支持的能力使用；`EVAL/EVALSHA`只能由Script模式内部生成；首期没有Function执行模式，因此`FCALL/FCALL_RO`始终拒绝；
 - `SCRIPT`、`FUNCTION`等脚本或函数管理命令；Script登记和本地缓存由DBService管理，业务请求不得装载、删除或刷新服务器脚本与函数。
 
-扫描类命令允许在命令结果中返回下一页Cursor，但一次RPC只执行一页；调用方使用新请求继续扫描。`HGETALL`、`SMEMBERS`、`LRANGE 0 -1`等可能产生大结果的命令仍受统一结果节点数、RPC Payload和Deadline限制，不为单个命令增加独立配置。
+扫描类命令允许在命令结果中返回下一页Cursor，但一次RPC只执行一页；调用方使用新请求继续扫描。`HGETALL`、`HKEYS`、`HVALS`、`SMEMBERS`、`LRANGE 0 -1`等没有调用方结果上限的完整读取形式首期不进入固定允许表，分别使用HSCAN、SSCAN或有界Range；不为单个命令增加独立配置例外。
 
 ## 19. Redis Script 和结果
 
-Script 不允许请求携带任意代码。只有出现真实脚本需求时，才增加登记项，将稳定Script ID映射到经过审核的源码、内容摘要、只读属性、Key数量、参数上限和返回上限；DBService在Ready前校验登记冲突、内容摘要和约束，并构造进程内Script对象。请求只携带登记ID、Keys和Args：
+Script 不允许请求携带任意代码。在线玩家路由原子分配、条件释放和登录限流已经形成首批真实Script需求，因此首期实现最小登记机制，将稳定Script ID映射到经过审核的源码、内容摘要、只读属性、Key数量、参数上限和返回上限。脚本的业务语义、Key构造、参数和结果解释属于`PlayerRouteStore`、登录限流等调用方能力；DBService只接收装配层提供的登记描述并执行通用校验与调用，不增加领域RPC。所有AccDBService实例必须在Ready前校验所需登记ID、内容摘要和约束一致，并构造进程内Script对象；请求只携带登记ID、Keys和Args：
 
 ```go
 type RedisScriptCall struct {
@@ -686,9 +718,9 @@ type RedisExecutionFailure struct {
 
 Value Kind 至少支持 Null、Bytes、Integer、BigNumber、Double、Boolean、Array 和 Map；BigNumber 使用十进制字节表示，避免溢出 Go `int64`。Array 的 `Children` 按元素顺序保存子节点索引；Map 按 Key、Value 交替保存索引，因此数量必须为偶数；标量节点的 `Children` 必须为空。`RootIndex` 和所有子索引必须指向同一 `Nodes`，节点图必须从 Root 可达、无环且每个节点只出现一次。该形态没有 Go 类型递归，可由 `origingen` 生成静态 Codec。
 
-Null 表达 Redis Miss，不作为基础设施失败。Command和Script的`Results`长度固定为1；Pipeline和Transaction的`Results`长度始终等于命令数，且数组下标一一对应。`RedisCommandStatus`固定为`Succeeded`、`Failed`、`NotExecuted`和`StateUnknown`。协议拒绝无法安全表达或超过节点数量、逻辑嵌套深度、单值字节数、子索引数量和总结果字节数的返回。Pub/Sub Push消息不属于普通请求响应，首期硬拒绝对应命令。
+Null 表达 Redis Miss，不作为基础设施失败。Command和Script的`Results`长度固定为1；Pipeline和Transaction的`Results`长度始终等于命令数，且数组下标一一对应。`RedisCommandStatus`固定为`Unspecified`、`Succeeded`、`Failed`、`NotExecuted`和`StateUnknown`，其中`Unspecified=0`且不能出现在合法返回中。协议拒绝无法安全表达或超过节点数量、逻辑嵌套深度、单值字节数、子索引数量和总结果字节数的返回。Pub/Sub Push消息不属于普通请求响应，首期硬拒绝对应命令。
 
-Pipeline和EXEC已取得完整服务端回复时，每项分别标记`Succeeded`或`Failed`并保留逐命令Failure；Transaction在EXEC前被拒绝时，已确定失败命令标记`Failed`，其他命令标记`NotExecuted`。连接中断、超时或无法取得完整回复时，无法确认执行状态的命令标记`StateUnknown`；`RedisResult.Failure`只表达无法归属于某一命令的整体失败。`RedisFailureKind`固定为`WrongType`、`NoScript`、`TransactionAborted`、`CrossSlot`、`Unauthorized`、`ResultLimitExceeded`、`Timeout`、`Canceled`、`Network`和`Unknown`。Null是正常Redis Miss，不是Failure。原始Redis错误文本和命令参数不得直接回传或记录。
+Pipeline和EXEC已取得完整服务端回复时，每项分别标记`Succeeded`或`Failed`并保留逐命令Failure；Transaction在EXEC前被拒绝时，已确定失败命令标记`Failed`，其他命令标记`NotExecuted`。连接中断、超时或无法取得完整回复时，无法确认执行状态的命令标记`StateUnknown`；`RedisResult.Failure`只表达无法归属于某一命令的整体失败。`RedisFailureKind`固定为`Unspecified`、`WrongType`、`Command`、`NoScript`、`TransactionAborted`、`CrossSlot`、`Unauthorized`、`ResultLimitExceeded`、`Timeout`、`Canceled`、`Network`和`Unknown`。通过本地校验但被Redis以普通`ERR`、语法或选项错误拒绝的命令使用`Command`。Null是正常Redis Miss，不是Failure。原始Redis错误文本和命令参数不得直接回传或记录。
 
 ## 20. 固定安全边界
 
@@ -698,15 +730,21 @@ DBService不增加请求大小、结果大小、操作数量和事务时间的�
 
 | 边界 | 首期固定值 | 说明 |
 | --- | ---: | --- |
-| 单Key运行加排队请求 | 128 | 防止热点Key占满全局Await容量 |
+| `dispatch_key`长度 | 128字节 | 防止超长Key扩大RPC复制和Key Map内存 |
+| 单Key运行加排队请求 | 32 | 默认最多占用四分之一Inflight容量 |
 | 单请求MongoDB Operation | 128 | 包含Sequential和Transaction |
 | `InsertMany`文档 | 100000 | 理论条目上限，实际通常先触及4MiB请求上限 |
+| 单个MongoDB操作的Pipeline Stage数 | 128 | Aggregate和Update Pipeline分别校验 |
+| 单个MongoDB操作的ArrayFilter | 128 | 防止大量极小Filter扩大解码和校验成本 |
 | 单请求Redis命令 | 1024 | 包含Pipeline和Transaction中的命令 |
+| 单请求Redis参数总数 | 10000 | 累计所有Command Args；Script使用登记项自己的更小上限 |
 | MongoDB结果文档 | 100000 | 理论行数上限，实际通常先触及4MiB响应上限 |
 | Redis结果节点 | 100000 | 包含扁平结果节点表全部节点 |
 | Redis结果逻辑深度 | 16 | 防止异常嵌套结果消耗解码栈和CPU |
 
-MongoDB查询允许调用方提供更小的Limit；未提供或超过100000时，DBService仍以100000作为读取硬上限。为区分“恰好100000行”和“还有更多数据”，Cursor类结果最多探测第100001项：发现超限时返回明确的`ResultLimitExceeded`，不静默截断。任何结果在达到文档/节点数量上限前先超过Origin RPC Payload时，按Payload超限失败；10万行不是一次RPC必然能够承载的大小承诺。
+MongoDB查询允许调用方提供更小的Limit；未提供或超过100000时，DBService仍以100000作为读取硬上限。为区分“恰好100000行”和“还有更多数据”，Cursor类结果最多探测第100001项：发现超限时返回明确的`ResultLimitExceeded`，不静默截断。
+
+MongoDB Cursor读取和Redis结果节点转换必须边生成边累计文档原始字节、节点数据和必要的编码开销，在完整结果驻留内存前执行响应预算检查；不能先读取全部结果，再依赖RPC编码阶段发现超过4MiB。任何结果在达到文档或节点数量上限前先超过Origin RPC Payload预算时，按Payload超限失败并停止继续物化结果。10万行只是理论条目上限，不是一次RPC必然能够承载的大小承诺。
 
 固定常量只解决协议和内存安全，不替代MongoDB/Redis账号最小权限。日志和指标只记录实际服务名、操作/命令类别、排队/执行耗时、错误类别、操作数量和结果大小，不记录DispatchKey原值、BSON、Redis Key、Value、Token或连接凭证。
 
@@ -773,7 +811,7 @@ handler_total_duration
 | `dbservice_stop_drain_duration_seconds` | Histogram | `service` | 停止阶段从关闭新请求准入到已接受请求排空完成或预算耗尽的时间 |
 | `dbservice_stop_canceled_requests_total` | Counter | `service` | 停止预算耗尽后由生命周期Context取消的请求数 |
 
-不单独输出Inflight高水位、I/O槽利用率和各类当前值的高水位：监控系统分别通过`max_over_time(dbservice_inflight_requests)`、`dbservice_running_io_requests / dbservice_io_concurrency_limit`以及对应Gauge的时间窗口最大值计算，避免为同一事实维护重复状态。单Key积压通过固定到128的Histogram Bucket观察，无需维护会增加KeyExecutor复杂度的动态最大值。逐项Operation/Command耗时只在请求内计算最慢项并用于慢请求日志，避免一次批量请求产生大量指标采样；`validation_duration`和`response_build_duration`首期也只进入慢请求日志。出现持续性能问题后再基于真实需求增加对应直方图。
+不单独输出Inflight高水位、I/O槽利用率和各类当前值的高水位：监控系统分别通过`max_over_time(dbservice_inflight_requests)`、`dbservice_running_io_requests / dbservice_io_concurrency_limit`以及对应Gauge的时间窗口最大值计算，避免为同一事实维护重复状态。单Key积压通过固定到32的Histogram Bucket观察，无需维护会增加KeyExecutor复杂度的动态最大值。逐项Operation/Command耗时只在请求内计算最慢项并用于慢请求日志，避免一次批量请求产生大量指标采样；`validation_duration`和`response_build_duration`首期也只进入慢请求日志。出现持续性能问题后再基于真实需求增加对应直方图。
 
 ### 21.3 慢请求参考线与日志字段
 
@@ -800,6 +838,8 @@ handler_total_duration
 | `mode` | enum | 与统一维度中的执行模式一致 |
 | `operation_kind` | enum | 稳定操作类别；多项请求为`multi` |
 | `registered_operation` | string，可选 | 仅用于登记式RawCommand或Script，记录受控登记ID；不记录源码或参数 |
+| `collection` | string，可选 | 单个标准MongoDB Operation通过允许集合校验后的集合名；多项请求省略 |
+| `command_name` | string，可选 | 单个Redis Command通过固定允许表校验后的规范大写命令名；其他模式省略 |
 | `outcome` | enum | 与统一维度中的最终结果一致 |
 | `error_category` | enum，可选 | 失败时记录稳定错误分类，不记录Driver原始错误文本 |
 | `state_unknown` | bool | 数据库操作最终状态是否无法确认 |
@@ -815,6 +855,7 @@ handler_total_duration
 | `operation_count` | integer | MongoDB Operation或Redis Command数量；Script为1 |
 | `slowest_item_index` | integer，可选 | 多Operation/Command请求中最慢项的零基下标 |
 | `slowest_item_kind` | string，可选 | MongoDB记录稳定OperationKind；Redis记录通过校验后的规范大写命令名，Script固定为`script`；不记录命令参数 |
+| `slowest_item_collection` | string，可选 | 多MongoDB Operation请求中最慢标准操作通过允许集合校验后的集合名；RawCommand省略 |
 | `slowest_item_duration_ms` | number，可选 | 最慢项耗时，毫秒 |
 | `result_item_count` | integer | MongoDB文档数或Redis结果节点数 |
 | `result_bytes` | integer/byte | 编码前可观察结果的估算字节数 |
@@ -842,24 +883,31 @@ handler_total_duration
 - Key 队列清空后删除；
 - 重复停止、部分启动失败和逆序回滚；
 - 停止期间拒绝新请求并在预算内排空；
+- `dispatch_key`长度和原始字节语义校验，超长Key不创建Inflight或Key状态；
+- MongoDB已有集合快照、未知集合拒绝、迁移后重启加载新集合，以及运行账号不能执行结构管理；
 - MongoDB 全部标准 Operation 的参数判别、结果映射和 BSON 边界；
 - 各标准MongoDB Operation只接受本设计明确字段，拒绝低频Option和任意Driver Options；
+- FindMany只支持Keyset分页并拒绝Skip，Aggregate拒绝`$out/$merge`，所有写操作拒绝空Filter；
+- Pipeline Stage、ArrayFilter、Redis Args、文档、节点和结果字节在物化过程中正确执行固定边界；
 - Sequential 部分成功、Transaction 回滚、Driver 事务重试和结果断言失败；
-- MongoDB和Redis结果数组下标对齐；MongoDB Sequential/Transaction及Redis Pipeline/Transaction的`Succeeded`、`Failed`、`NotExecuted`、`RolledBack`、`StateUnknown`状态转换正确；
+- 所有协议枚举零值为`Unspecified`且非法请求被拒绝；MongoDB和Redis结果数组下标对齐，MongoDB Sequential/Transaction及Redis Pipeline/Transaction的`Succeeded`、`Failed`、`NotExecuted`、`RolledBack`、`StateUnknown`状态转换正确；
 - RawCommand按稳定ID可选登记、命令名复核、固定数据库、Cursor有界读取和硬拒绝命令；
-- Redis Command、Pipeline、MULTI/EXEC、Script的结果映射、`NOSCRIPT`回退和逐项错误；
+- Redis固定命令允许表拒绝未知、危险和模块命令，Redis Command、Pipeline、MULTI/EXEC、Script的结果映射、`NOSCRIPT`回退和逐项错误正确；
+- AccDBService与RoleDBService使用不同Redis逻辑数据库，`max_retries`非零时Ready失败，丢失响应不透明重放业务命令；
 - Redis Cluster 同 Slot 校验、Standalone/Sentinel 扫描续页、Null，以及扁平节点表的索引、无环和嵌套容量；
 - 指标名称、类型、标签和计数时机符合本节字段字典，Gauge在正常、错误、取消和panic后回到真实值；
-- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，同一请求只输出一条慢请求日志；每个限频分组首条立即输出、10秒内后续日志被抑制、窗口结束后可以再次输出，且日志限频不影响其他指标计数；
+- 慢排队、慢I/O、慢总请求和多命令最慢项分类正确，单项集合或命令名以及多项最慢集合记录准确，同一请求只输出一条慢请求日志；每个限频分组首条立即输出、10秒内后续日志被抑制、窗口结束后可以再次输出，且日志限频不影响其他指标计数；
 - 限频抑制计数准确，慢请求日志不泄漏原始Key或数据；
 - Notify 只验证提交语义，不把它误测成远端执行确认；
-- 本地单成员MongoDB Replica Set可以执行Transaction集成测试；生产配置满足两副本DBService、MongoDB副本集和Redis Sentinel基线；
+- 本地单成员MongoDB Replica Set可以执行Transaction集成测试；生产配置满足公共Node部署AccDBService、每个区服DBServer部署AccDBService和本区服RoleDBService，以及MongoDB副本集和Redis Sentinel基线；
 - `go test -race` 和针对热点 Key、随机 Key、慢 I/O 的 Benchmark。
 
 ## 22. 设计确认结论
 
-MongoDB标准操作字段、登记式RawCommand、Sequential/Transaction、通用数量断言、两层错误模型、部分结果状态和结果Go类型已经确认。Redis Command、Pipeline、MULTI/EXEC、登记式Script、扁平结果节点表、逐命令状态和错误分类已经确认。首期不提供BulkWrite、Redis Function、WATCH回调、阻塞命令、Pub/Sub或跨请求Cursor。
+MongoDB标准操作字段、可选登记式RawCommand、Sequential/Transaction、通用数量断言、两层错误模型、部分结果状态和结果Go类型已经确认。Redis固定允许表Command、Pipeline、MULTI/EXEC、登记式Script、扁平结果节点表、逐命令状态和错误分类已经确认。在线玩家路由和登录限流作为首批AccDBService Script需求，首期实现最小Script登记机制；RoleDBService只有出现本区服真实脚本时才增加登记项。首期不提供Distinct、Skip、写聚合、空Filter写操作、BulkWrite、Redis Function、WATCH回调、阻塞命令、Pub/Sub或跨请求Cursor；RawCommand仍只在出现第一个真实登记项时实现。
 
-首期部署基线为：本地一个`db-1`运行AccDBService和RoleDBService各一个副本、MongoDB使用单成员Replica Set、Redis使用Standalone；生产`db-1`和`db-2`各运行两个实际Service，MongoDB使用副本集，Redis使用Sentinel。每个实际DBService采用`max_io_concurrency=64`、`max_inflight_requests=512`，MongoDB单Client连接上限为64，Redis每节点活动连接上限为64。
+首期部署基线为：公共数据Node运行AccDBService；每个区服DBServer同时运行一个AccDBService和一个本区服RoleDBService。全部AccDBService实例连接同一账号数据库和公共Redis，负责账号与登录协调数据；各区服RoleDBService分别提供角色数据和区服Redis能力。AccDBService固定使用公共Redis逻辑数据库0，RoleDBService固定使用其配置Redis的逻辑数据库1，并禁止Redis命令自动重试。每个实际DBService采用`max_io_concurrency=64`、`max_inflight_requests=128`，单Key上限32，MongoDB单Client连接上限为64，Redis每数据节点活动连接上限为64；总连接预算按实际部署实例数核算。
 
-后续只有在真实业务需要新的MongoDB Option、BulkWrite、Redis Function、Redis Cluster、独立数据域Node或不同容量基线时，才重新进入设计确认流程；不得以实现方便为由绕过本文已确认的边界。
+集合、索引、Validator和数据迁移由独立部署或迁移工具使用管理账号负责，DBService运行账号只执行已有集合上的数据操作。本地Compose在DBService事务集成测试前必须改为单成员Replica Set并完成初始化；当前Standalone MongoDB部署不能作为事务测试完成条件。
+
+后续只有在真实业务需要新的MongoDB Option、BulkWrite、Redis Function、Redis Cluster、改变已确认的数据域部署关系或不同容量基线时，才重新进入设计确认流程；不得以实现方便为由绕过本文已确认的边界。

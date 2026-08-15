@@ -1,0 +1,6 @@
+log:
+  mode: async # 异步写日志，队列拥堵时不阻塞游戏请求。
+  console:
+    enabled: true # 本地开发输出到控制台。
+    level: info # 输出 info 及以上级别。
+    format: text # 使用便于本地阅读的文本格式。

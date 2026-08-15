@@ -26,19 +26,39 @@
 
 HTTP 登录对外固定使用 JSON，不使用 Protobuf。服务端使用普通 Go 请求结构接收 JSON；该内部结构不属于客户端长连接 Protobuf 协议。
 
-请求字段参照老版本 `origingame` 的 `LoginInfo`，当前不扩展新的客户端字段：
+首期请求只保留完成平台身份认证需要的字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `PlatType` | `LoginType` | 登录平台类型 |
 | `PlatId` | `string` | 玩家在登录平台的身份标识 |
 | `AccessToken` | `string` | 平台 SDK 或第三方登录凭证 |
-| `GameId` | `string` | 游戏或平台侧游戏标识 |
-| `UserName` | `string` | 登录用户名，按具体登录类型使用 |
 
 老版本 `LoginInfo.LoginCheckTime` 由服务端收到请求后赋值，用于内部验证流程，不作为客户端提交字段。
 
-平台 SDK 鉴权当前只保留可替换接口和 `TODO`。第一版参照老版本的开发方式，只校验平台类型、`PlatId` 等基础参数，不向第三方平台验证 `AccessToken`。使用者按实际发行平台实现或替换 SDK 鉴权逻辑。
+平台SDK鉴权使用以下最小接口：
+
+```go
+// LoginCredential是客户端提交、尚未被信任的平台登录凭证。
+type LoginCredential struct {
+	PlatType   LoginType
+	PlatID     string
+	AccessToken string
+}
+
+// PlatformIdentity是鉴权实现确认后的可信平台身份。
+type PlatformIdentity struct {
+	PlatType LoginType
+	PlatID   string
+}
+
+// PlatformAuthenticator验证平台凭证并返回可信身份。
+type PlatformAuthenticator interface {
+	Authenticate(context.Context, LoginCredential) (PlatformIdentity, error)
+}
+```
+
+第一版开发实现只校验平台类型、`PlatId`等基础参数，不向第三方平台验证`AccessToken`；具体发行平台替换该接口实现，并负责验证AccessToken后返回可信身份。
 
 该实现只用于学习、开发和最小示例，必须在代码和配置中明确标注未执行真实 SDK 鉴权，不能把它描述为生产安全登录。
 
@@ -179,15 +199,11 @@ JWT Header 和 Claims 只是服务端生成及验证 Token 时使用的内部结
 
 | 字段 | 含义 |
 | --- | --- |
-| `ver` | Token 契约版本 |
 | `iss` | 签发者，固定为 OriginGame LoginService |
 | `aud` | 使用范围，固定为 OriginGame GatewayService |
 | `sub` | 游戏账号唯一标识 AccountID |
-| `pt` | 登录平台类型 |
 | `iat` | 签发时间 |
-| `nbf` | Token 开始生效时间 |
 | `exp` | Token 过期时间 |
-| `jti` | Token 唯一标识，使用安全随机值 |
 
 Token 不包含平台 `AccessToken`、密码、SDK 凭证、区服 ID、Gateway 地址和 GameService 地址。JWT 用于签名校验而不是数据加密，Claims 中不得写入敏感数据。
 
@@ -223,7 +239,7 @@ LoginService
 └── AccDBService RPC Client
 ```
 
-- `AccountStore` 负责账号查询、原子创建和历史区服更新；
+- `AccountStore` 负责账号查询和原子创建；
 - `AreaCatalogStore` 负责加载真实区服和显示区服；
 - 登录限流组件负责构造 Redis 原子操作并通过 AccDBService 执行；
 - Repository 和限流组件选择 AccDBService，并对同一业务身份使用一致的非空 `dispatch_key` 和 `Route(key)`；DBService 只执行操作，不理解登录业务。
@@ -241,9 +257,22 @@ internal/mongodb/
 
 当前固定使用以下三张基础表：
 
+三张由老版本延续的集合保留既有BSON字段名，避免为样板工程引入数据迁移：
+
+```text
+Account:
+  _id, PlatType, PlatId, Ip, CreateTime, UpdateTime
+RealAreaInfo:
+  _id, GateList[{Protocol, Address}]
+ShowAreaInfo:
+  _id, AreaName, RealAreaId, ServerMark, ServerStatus, OpenTime
+```
+
+除`Account(PlatType, PlatId)`复合唯一索引外，首期不增加其他索引。`Account`不再保留当前业务没有使用的`Gm`字段；MongoDB中已有的额外字段由BSON兼容读取忽略，不要求迁移或清理。
+
 ### 7.1 Account
 
-保存账号身份、平台类型、历史区服及账号阶段必要信息。
+保存账号身份、平台类型及账号阶段必要信息。
 
 `Account._id` 使用 MongoDB `ObjectID`，由 LoginService 在创建账号时生成；对外表示为 24 位十六进制字符串，并作为 JWT `sub`。不再使用 `PlatId` 或 `PlatId + PlatType` 作为账号主键。
 
@@ -259,7 +288,7 @@ JWT.sub                     -> Account._id.Hex()
 
 账号不存在时使用 `FindOneAndUpdate + upsert + $setOnInsert + ReturnDocument(After)` 原子创建。并发请求触发唯一键冲突时，重新按 `(PlatType, PlatId)` 查询现有账号，不使用“先查询、再插入”的竞态流程。
 
-当前不返回最近登录区服和默认区服，`AreaHis` 不进入第一版登录响应。只有玩家在 GameService 完成角色加载并成功进入真实区服后，才记录该真实区服的最近进入时间；HTTP 登录成功和 Gateway 验签成功均不得提前更新。具体写入者随 GameService 数据职责一并设计。JWT 本身不保存到 Account 表。
+当前不保存或返回最近登录区服和默认区服。出现真实入口选择需求后，再增加对应字段及更新时机。JWT本身不保存到Account表。
 
 ### 7.2 RealAreaInfo
 
@@ -282,15 +311,14 @@ JWT.sub                     -> Account._id.Hex()
 
 保存客户端显示区服及其到真实区服的映射。
 
-三张表继续使用老版本的数据关系：
+区服表使用以下关联关系：
 
 ```text
-Account.AreaHis
 ShowAreaInfo.RealAreaId
     -> RealAreaInfo.GateList
 ```
 
-三张表除上述已经确定的主键和平台身份唯一索引外，其余最终字段、BSON 命名、默认数据和索引仍待确定。
+上述字段、BSON命名、基础默认值和索引作为首期固定契约；新增或重命名字段必须先更新本设计。
 
 ## 8. 区服列表快照
 
@@ -300,12 +328,12 @@ LoginService 启动时从 MongoDB 查询 `RealAreaInfo` 和 `ShowAreaInfo`，完
 
 ```yaml
 area:
-  refresh_interval: 30s
+  refresh_interval: 1m
 ```
 
 `refresh_interval` 必须为正数。每次刷新都读取完整的 `RealAreaInfo` 和 `ShowAreaInfo`，在临时对象中完成关联和校验，全部成功后再原子替换当前快照。
 
-进入 Ready 后刷新失败时保留最后一次完整、有效的快照，不得用失败或不完整的数据覆盖当前快照。
+进入 Ready 后刷新失败时保留最后一次完整、有效的快照，不得用失败或不完整的数据覆盖当前快照。失败后不立即重试，等待下一个一分钟刷新周期。
 
 启动时查询不到任何有效区服，或者显示区服无法关联真实区服时，LoginService 启动失败并退出。运行期间刷新得到空列表或无效关联时视为刷新失败，继续使用上一份有效快照。
 
@@ -313,9 +341,7 @@ area:
 
 ## 9. 登录限流
 
-所有限流维度必须分别支持配置和关闭。按次数限制的规则统一采用滑动时间窗口，不使用固定整点窗口，避免相邻窗口边界允许瞬间通过接近两倍请求。
-
-第一版建议配置：
+首期只保留一个IP滑动窗口、一个鉴权成功后的账号身份滑动窗口和单实例并发上限：
 
 ```yaml
 login_rate_limit:
@@ -323,27 +349,13 @@ login_rate_limit:
 
   ip:
     enabled: true
-    windows:
-      - duration: 1s
-        max_requests: 10
-      - duration: 10s
-        max_requests: 30
-      - duration: 1m
-        max_requests: 120
+    window: 10s
+    max_requests: 30
 
   identity:
     enabled: true
-    windows:
-      - duration: 10s
-        max_requests: 5
-      - duration: 5m
-        max_requests: 20
-
-  auth_failure:
-    enabled: true
-    window: 5m
-    max_failures: 5
-    cooldown: 30s
+    window: 10s
+    max_requests: 5
 
   concurrency:
     enabled: true
@@ -352,17 +364,14 @@ login_rate_limit:
 
 规则说明：
 
-- `ip` 对单个来源 IP 的全部登录请求使用短、长两个滑动窗口；短窗口允许正常客户端短时重试，长窗口限制持续请求；
-- `identity` 在鉴权前使用 `IP + SHA256(PlatType, PlatId)` 作为键，避免攻击者只凭公开的 `PlatId` 锁定他人账号；鉴权成功并得到 AccountID 后可以改用 AccountID；
-- `auth_failure` 只统计实际鉴权失败，达到窗口次数后进入短暂冷却，不做永久账号锁定；
+- `ip` 在鉴权前限制单个来源IP的全部登录请求；
+- `identity` 在鉴权成功并取得AccountID后限制该账号的登录请求，避免攻击者仅凭公开PlatID锁定他人账号；
 - `concurrency` 限制单个 LoginService 实例正在处理的登录请求数量，使用本地信号量，不属于时间窗口限流；
 - 窗口超限和并发超限均立即返回 `TooManyRequests`，HTTP 状态使用 `429`，不在服务端排队等待；
 - 限流键不得保存原始 `AccessToken`、密码或其他 SDK 凭证；
 - 配置中任意 `enabled: false` 只关闭对应维度；顶层 `enabled: false` 关闭全部登录限流。
 
-多 LoginService 实例部署时，时间窗口计数优先使用 Redis 原子执行以获得全局限制。建议用一个带 TTL 的 Sorted Set 保存窗口内请求时间，通过 Redis Function 原子完成“删除最老窗口外记录、统计各窗口、判断、写入本次请求”；同一个限流键的多个窗口共用一份记录，按最长窗口清理。这样不会出现固定窗口边界的瞬间双倍流量。
-
-Redis 暂时不可用时降级为实例本地窗口，不能因为限流依赖故障而阻止开发环境登录。生产环境是否允许该降级必须通过安全配置明确指定。
+多LoginService实例共享的IP和身份窗口通过AccDBService登记的短Redis Script原子统计，首期不使用Redis Function。AccDBService或公共Redis不可用时，登录本身返回服务暂时不可用，不再增加本地窗口降级模式。以上两个窗口和单实例并发参数作为首期默认配置；只有压测或运行指标证明需要时才调整。
 
 ## 10. Ready 条件
 
@@ -380,29 +389,25 @@ LoginService 只有在完成以下准备后才能开放 HTTP 登录接口：
 
 任何必需步骤失败时，LoginService 不得以空区服列表或半初始化状态对外提供登录服务。
 
-## 11. 实现前待确定
-
-1. 三张基础表除已确定主键和唯一索引之外的最终字段、BSON 命名及基础数据。
-2. `Account.AreaHis` 的具体写入者；写入时机已确定为玩家成功进入 GameService 之后。
-3. SDK 鉴权扩展接口的最终 Go 类型；第一版只保留 TODO，不实现第三方平台验证。
-4. 登录限流默认参数是否需要根据压测结果调整；算法、维度和开关方式已经确定。
-
-## 12. 实现位置与运行
+## 11. 实现位置与运行
 
 当前 MVP 实现目录：
 
 ```text
 cmd/main.go                      OriginGame 统一程序入口
-config/application.yaml          本地开发配置
-config/gatewayserver-token-public-keys.yaml.example
-                                与开发私钥配对的 Gateway 公钥示例
+config/log.yaml                  全局日志配置
+config/login-node.yaml           本地 Login 节点及其 Service 拓扑
+config/loginservice.yaml         可直接启动的本地 LoginService 配置
+config/loginservice.yaml.example 生产 LoginService 配置模板（不参与加载）
+config/gatewayserver-token-public-keys.yaml
+                                GatewayService 使用的本地开发 Token 公钥
 protocol/common/                 客户端共享 Protobuf 错误码
 internal/security/               Ed25519 JWT 签发
 service/loginservice/            LoginService、数据访问、快照和限流
 bin/run.bat、bin/run.sh           Windows 与 Linux 统一启动脚本
 ```
 
-`config` 目录下的配置文件统一平铺，不再按 Server 创建子目录。Origin 会递归加载 `--config` 目录下所有 `.json`、`.yml` 和 `.yaml` 文件，因此仅供参考、不应参与当前进程加载的示例使用 `.yaml.example` 后缀。
+`config` 目录下的配置文件统一平铺，分别按全局功能、具体 Node 和具体 Service 命名。Origin 会递归加载 `--config` 目录下所有 `.json`、`.yml` 和 `.yaml` 文件；同一逻辑路径不得跨文件重复定义。`.yaml.example` 只用于生产参考模板，不参与运行时加载。LoginService 从框架 HTTP 安全默认值开始加载，仅在 YAML 中保留当前必须调整的监听地址；MongoDB、Redis 的连接和容量参数属于 AccDBService 配置，不得继续放入 LoginService 配置。
 
 先通过 `deploy/compose/compose.yaml` 启动 MongoDB 和 Redis，再执行：
 

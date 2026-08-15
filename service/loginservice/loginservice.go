@@ -245,6 +245,7 @@ func (target *LoginService) allowWindow(
 }
 
 func (target *LoginService) loadConfig() error {
+	target.config = defaultConfig()
 	sections := []struct {
 		path        string
 		destination any

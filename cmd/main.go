@@ -5,14 +5,15 @@ package main
 import (
 	"time"
 
-	"github.com/duanhf2012/origin/v3/application"
 	"origingame/service/loginservice"
+
+	"github.com/duanhf2012/origin/v3/application"
 )
 
 // app 是最终可执行程序唯一的 Application 实例。
 var app = application.New(application.Options{
-	StartTimeout: 30 * time.Second,
-	StopTimeout:  30 * time.Second,
+	StartTimeout: 120 * time.Second,
+	StopTimeout:  120 * time.Second,
 })
 
 // 此处只登记配置可以引用的 Service 类型；实际实例由所选 Node 的 services 配置创建。

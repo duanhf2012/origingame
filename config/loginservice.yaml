@@ -1,0 +1,54 @@
+services:
+  LoginService:
+    http:
+      server:
+        address: "0.0.0.0:8080" # Login HTTP 监听地址；不信任任何反向代理客户端地址。
+
+    mongodb:
+      uri: "mongodb://admin:admin_123456@127.0.0.1:27017/origingame?authSource=admin&appName=origingame-login" # 本地开发 MongoDB URI；生产由 Secret 注入。
+      database: "origingame" # LoginService 使用的默认数据库。
+
+    redis:
+      addresses: ["127.0.0.1:6379"] # 本地 Redis 地址；其他连接参数使用框架有界默认值。
+      client_name: "origingame-login" # 便于 Redis 侧定位 LoginService 连接。
+
+    token:
+      issuer: "origingame-login" # JWT 签发者，需与 Gateway 校验配置一致。
+      audience: "origingame-gateway" # JWT 接收方。
+      expire: 24h # 登录 Token 的真实系统时间有效期。
+      active_kid: "dev-key-1" # 当前私钥标识，Gateway 使用它选择公钥。
+      private_key: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=" # 固定本地开发 Seed；生产禁止提交真实私钥。
+
+    area:
+      refresh_interval: 30s # 区服展示快照的后台刷新周期。
+
+    authentication:
+      development_passthrough: true # 当前未接入平台 SDK；生产接入前必须保持 true，避免错误上线。
+
+    login_rate_limit:
+      enabled: true # 启用登录请求限流。
+      redis_failure_mode: local # 本地 Redis 不可用时使用有界实例本地窗口；生产可改为 deny。
+      ip:
+        enabled: true # 按客户端 IP 限制请求。
+        windows:
+          - duration: 1s # 短时突发窗口。
+            max_requests: 10 # 此窗口内最大请求数。
+          - duration: 10s # 短周期窗口。
+            max_requests: 30 # 此窗口内最大请求数。
+          - duration: 1m # 分钟级窗口。
+            max_requests: 120 # 此窗口内最大请求数。
+      identity:
+        enabled: true # 按平台身份摘要限制请求。
+        windows:
+          - duration: 10s # 单身份短周期窗口。
+            max_requests: 5 # 此窗口内最大请求数。
+          - duration: 5m # 单身份中周期窗口。
+            max_requests: 20 # 此窗口内最大请求数。
+      auth_failure:
+        enabled: true # 记录真实平台鉴权失败。
+        window: 5m # 失败计数窗口。
+        max_failures: 5 # 触发冷却前允许的失败次数。
+        cooldown: 30s # 达到阈值后的拒绝时长。
+      concurrency:
+        enabled: true # 限制单实例并发登录数。
+        max_in_flight: 256 # 在途登录请求硬上限。

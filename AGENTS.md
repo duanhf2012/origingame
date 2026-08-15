@@ -4,6 +4,13 @@
 
 本文件适用于 OriginGame v3 仓库中的架构设计、Service 设计、实现、重构、测试、文档和评审工作。已经由开发者确认的规则和设计结论是后续工作的共同约束；需要改变结论时，应先说明原因和影响并重新确认。
 
+## 协作沟通规则
+
+- 与开发者讨论、汇报和确认时默认使用简洁输出，先给结论、接口或需要确认的选项，再补充最少量的必要理由；不得重复已经确认的背景和结论；
+- 接口和配置应优先直接展示，并为名称仍不足以表达语义的函数、字段和阶段添加简短中文注释，使开发者不阅读大段说明也能理解职责、调用时机和关键约束；
+- 除非开发者明确要求详细分析，避免一次展开大量实现细节、边缘场景和未来扩展。确有复杂内容需要展开时，先提供摘要，再询问是否继续；
+- 需要开发者决定时集中列出少量明确问题，每个问题给出推荐项和一句主要理由，不输出冗长的重复论证。
+
 ## 设计原则
 
 ### 1. 先复核已经确认的设计
@@ -106,6 +113,18 @@ Application、Node、Service、连接、缓存和其他运行时状态必须由�
 
 设计或实现中存在多个需要开发者决定的问题时，应按同一层级和依赖关系集中整理。每个问题给出推荐方案、主要理由、复杂度和重要影响；已经确认且无新冲突的问题不重复询问。
 
+### 17.1 DBService 数据域与部署关系
+
+后续设计、配置、实现和部署必须遵守以下已确认关系，不得因调用方便把公共登录协调数据写入区服 RoleDBService，也不得让业务 Service 直接创建 MongoDB 或 Redis Client：
+
+- 仓库只实现一个业务无关的 `DBService` 模板，实际运行时按数据域实例化为 `AccDBService` 和各区服自己的 `RoleDBService`；DBService 仍只提供通用 MongoDB/Redis 执行契约，不增加账号、玩家、登录路由等领域 RPC；
+- `AccDBService` 属于公共账号与登录协调数据域。账号数据、登录限流、GameService 实例注册、负载、玩家在线路由和登录分配使用其固定账号数据库与公共 Redis；LoginService、GatewayService、公共 Service 以及各区服 GameService 均通过 `AccDBService` RPC 使用这些能力；
+- 公共数据 Node 部署 `AccDBService`，每个区服的 DBServer 也必须部署一个 `AccDBService` 实例；这些实例连接同一套账号数据库和公共 Redis，组成同一公共数据域。NodeID、实际 ServiceName、Node Labels、发现范围和配置归属必须遵循 `docs/design/部署标识与服务发现配置设计.md`，不得通过解析 NodeID 或临时改写 ServiceName 代替明确的 Label 路由；
+- 每个区服的 DBServer 还必须部署本区服独立的 `RoleDBService`。GameService 只通过本区服 `RoleDBService` 读写角色 MongoDB 和区服 Redis，以隔离不同区服的 DBService 队列、并发额度、连接池、Redis 连接、过载和发布故障；即使当前全部区服角色文档混合存放在同一个 MongoDB 数据库中，也不得因此合并各区服的 RoleDBService；
+- GameService 同时依赖本区服 DBServer 上的 `AccDBService` 实例和 `RoleDBService` 实例：前者仍属于公共账号数据域，只用于登录协调和在线路由；后者只用于角色数据及区服业务。本区服 AccDBService 不可用时暂停该区服新的登录协调，但已经在线的区服业务应尽量继续依赖本区服 RoleDBService 运行；
+- Gateway 的 `PlayerRouteStore` 只通过 `AccDBService` 访问公共 Redis，不通过任何区服 RoleDBService。`PlayerRouteStore` 是不持有连接、Timer 和权威内存状态的普通进程内组件，不是 Origin Module 或独立 Service；GameService 注册与租约续期若需要 Timer，由 GameService 自身或其专属生命周期 Module 持有；
+- 所有区服隔离字段必须显式携带。当前玩家稳定身份固定为 `PlayerKey = AccountID + ShowAreaID`；`RealAreaID` 只表示当前运行归属和 Redis 分组，不参与玩家稳定身份。
+
 ## 工程目录和命名规则
 
 ### 18. 目录职责必须清晰
@@ -153,7 +172,10 @@ origingame/
 
 #### 18.3 配置、脚本与部署边界
 
-- `config` 下的配置文件统一平铺，不按 Server 或 Service 创建子目录；文件名冲突时使用 Server 或 Service 名称作为前缀；示例配置必须使用不会被运行时加载的后缀；
+- `config` 下的配置文件统一平铺，不按 Server 或 Service 创建子目录；按稳定职责命名：全局日志使用 `log.yaml`，Node 拓扑使用 `<node>-node.yaml`，Service 配置使用 `<service>.yaml`，独立服务能力使用 `<service>-<capability>.yaml`。禁止新增笼统的 `application.yaml`、`config.yaml` 或 `common.yaml`；
+- Origin 会递归合并 `config` 下全部 `.json`、`.yml`、`.yaml` 文件，同一逻辑配置路径不得在多个可加载文件重复定义。一个 Service 的相关配置默认集中在其 `<service>.yaml`，只有独立分发、密钥轮换或权限边界确有需要时才拆为 `<service>-<capability>.yaml`；
+- 仓库可提交仅含本地开发测试数据、可直接启动的 `.yaml`；生产实际配置由部署目录、Secret 或环境变量注入，参考模板使用不参与加载的 `.yaml.example` 后缀。公钥等非敏感、已确认会被当前或后续 Service 读取的配置可直接提交为 `.yaml`；
+- 可加载 YAML 的叶子字段应在行末写简短中文注释，说明用途、单位、默认策略或安全边界；只列出改变框架默认值、决定外部连接/监听、容量/超时、安全和业务行为的字段。不得为了展示而复制低价值默认字段；
 - `scripts` 只保存生成、检查、构建和维护脚本，不保存业务运行逻辑或生成工具二进制；Windows 与 Linux/macOS 对应脚本必须行为一致并自行定位仓库根目录；
 - `bin` 只保存开发者直接执行的启动、停止或调试入口脚本，不提交编译产生的可执行文件；
 - `deploy` 保存 Compose、容器、基础设施和实际采用的部署资源，不保存业务源码、协议源或仅供生产数据迁移使用的临时脚本；
