@@ -281,3 +281,23 @@ func waitKeyQueueLength(t *testing.T, executor *keyExecutor, key string, want in
 	}
 	t.Fatalf("key=%q queue length=%d, want %d", key, executor.keyQueueLength(key), want)
 }
+
+func BenchmarkKeyExecutorSameKey(b *testing.B) {
+	executor, err := newKeyExecutor(1, 1)
+	if err != nil {
+		b.Fatal(err)
+	}
+	ctx := context.Background()
+	operation := func(context.Context) error { return nil }
+	b.ReportAllocs()
+	for b.Loop() {
+		reservation, ok := executor.tryReserve()
+		if !ok {
+			b.Fatal("预留 inflight 失败")
+		}
+		if err = executor.execute(ctx, "benchmark-player", operation); err != nil {
+			b.Fatal(err)
+		}
+		reservation.release()
+	}
+}

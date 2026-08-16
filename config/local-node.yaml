@@ -26,6 +26,8 @@ nodes:
     allow_discovery:
       - services: [AccDBService, RoleDBService] # 只发现本区服 DB 节点上的两个数据域。
         node_labels: {scope: area, real_area_id: "1"}
+      - services: [GatewayService] # 玩家回复和主动断开定向发送到公共Gateway。
+        node_labels: {scope: pub}
     services: [GameService]
 
   - id: db-area-1-1 # 真实区服 1 的数据库节点。

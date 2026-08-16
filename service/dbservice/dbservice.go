@@ -12,6 +12,7 @@ import (
 	"github.com/duanhf2012/origin/v3/service"
 	originmongo "github.com/duanhf2012/origin/v3/sysmodule/mongodbmodule"
 	originredis "github.com/duanhf2012/origin/v3/sysmodule/redismodule"
+	"origingame/internal/redisscripts"
 	rpcapi "origingame/protocol/rpc"
 	"origingame/service/dbservice/mongodbmodule"
 	"origingame/service/dbservice/redismodule"
@@ -67,11 +68,48 @@ func (target *DBService) OnInit() error {
 	if err = target.AddModule(target.mongo); err != nil {
 		return err
 	}
-	target.redis, err = redismodule.New(target.config.Redis, nil)
+	target.redis, err = redismodule.New(target.config.Redis, scriptDefinitions(target.Name()))
 	if err != nil {
 		return err
 	}
 	return target.AddModule(target.redis)
+}
+
+func scriptDefinitions(serviceName string) []redismodule.ScriptDefinition {
+	if serviceName != "AccDBService" {
+		return nil
+	}
+	return []redismodule.ScriptDefinition{{
+		ID: redisscripts.LoginRateLimitID, Source: redisscripts.LoginRateLimitSource,
+		MinKeys: 1, MaxKeys: 1, MaxArgs: 3, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.RegisterGameServiceID, Source: redisscripts.RegisterGameServiceSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 5, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.SetGameServiceDrainingID, Source: redisscripts.SetGameServiceDrainingSource,
+		MinKeys: 2, MaxKeys: 2, MaxArgs: 2, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.AssignOrGetPlayerID, Source: redisscripts.AssignOrGetPlayerSource,
+		MinKeys: 2, MaxKeys: 2, MaxArgs: 11, MaxResultNodes: 6,
+	}, {
+		ID: redisscripts.BeginPlayerLoadID, Source: redisscripts.BeginPlayerLoadSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 4, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.CompletePlayerLoginID, Source: redisscripts.CompletePlayerLoginSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 4, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.ReleasePlayerLoadID, Source: redisscripts.ReleasePlayerLoadSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 3, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.MarkPlayerResidentID, Source: redisscripts.MarkPlayerResidentSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 3, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.BeginPlayerReleaseID, Source: redisscripts.BeginPlayerReleaseSource,
+		MinKeys: 3, MaxKeys: 3, MaxArgs: 3, MaxResultNodes: 1,
+	}, {
+		ID: redisscripts.RenewPlayerRoutesID, Source: redisscripts.RenewPlayerRoutesSource,
+		MinKeys: 1, MaxKeys: 256, MaxArgs: 3, MaxResultNodes: 1,
+	}}
 }
 
 // OnStart 不创建额外资源；两个数据库 Module 均已完成探活后 Service 才会 Ready。

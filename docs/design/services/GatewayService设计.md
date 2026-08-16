@@ -154,7 +154,7 @@ Gateway收到顶号请求后必须同时匹配自身`NodeID`和全局`GatewayCon
 
 ### 6.3 登录成功响应
 
-客户端使用`LoginPlayerReq`发送`LoginPlayerRequest{token, show_area_id}`。Gateway不得相信客户端提供的账号或内部路由字段：`AccountID`从JWT取得，`RealAreaID`从当前区服快照取得，`GatewayNodeID`使用当前Node，`GatewayConnectionID`由网络层生成。Gateway再构造内部`rpcapi.LoginPlayerRequest`调用精确GameService。
+客户端使用`LoginPlayerReq`发送`LoginPlayerRequest{token, show_area_id}`。Gateway不得相信客户端提供的账号或内部路由字段：`AccountID`从JWT取得，`RealAreaID`从当前区服快照取得，`GatewayNodeID`使用当前Node，`GatewayConnectionID`由网络层生成，`ExpectedGameServiceNodeSessionID`使用Redis原子分配返回的目标启动实例。Gateway再构造内部`rpcapi.LoginPlayerRequest`调用精确GameService；目标实例不匹配时按明确未执行处理，释放本次新预占并进行有界重试。
 
 GameService的`LoginPlayer` RPC在全部玩家数据加载、生命周期回调和连接绑定成功后，返回客户端共享Protobuf `LoginPlayerResult`。该消息固定包含`RoleInfo role_info`，其他首屏确实需要的数据按业务增加独立结构字段；不要求每个Player Proxy都提供登录结果字段。
 

@@ -33,6 +33,12 @@ func TestLocalConfigFragmentsMergeWithServiceDefaults(t *testing.T) {
 	if err := server.DecodeStrict(&configured.HTTP.Server); err != nil {
 		t.Fatalf("HTTP Server 严格解码失败: %v", err)
 	}
+	if err := service.DecodeStrict(&configured); err != nil {
+		t.Fatalf("LoginService 完整配置严格解码失败: %v", err)
+	}
+	if err := configured.validate(); err != nil {
+		t.Fatalf("LoginService 配置校验失败: %v", err)
+	}
 	if configured.HTTP.Server.Address != "0.0.0.0:8080" {
 		t.Fatalf("HTTP address = %q, want 0.0.0.0:8080", configured.HTTP.Server.Address)
 	}

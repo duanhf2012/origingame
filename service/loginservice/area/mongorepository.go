@@ -7,33 +7,84 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/duanhf2012/origin/v3/sysmodule/mongodbmodule"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"origingame/internal/mongodb"
+	rpcapi "origingame/protocol/rpc"
 )
+
+const (
+	areaCatalogDispatchKey = "area-catalog"
+	maxAreaDocuments       = 100000
+)
+
+// MongoExecutor 通过指定路由 Key 调用公共 AccDBService。
+type MongoExecutor func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
 
 // MongoRepository 负责加载并严格关联两张区服基础表。
 type MongoRepository struct {
-	mongo *mongodbmodule.Module
+	execute MongoExecutor
 }
 
-// NewMongoRepository 创建区服 MongoDB 仓储。
-func NewMongoRepository(module *mongodbmodule.Module) *MongoRepository {
-	return &MongoRepository{mongo: module}
+// NewMongoRepository 创建不持有数据库连接的区服仓储。
+func NewMongoRepository(execute MongoExecutor) *MongoRepository {
+	return &MongoRepository{execute: execute}
 }
 
-// LoadSnapshot 返回完成校验和稳定排序的独立区服快照。
+// LoadSnapshot 一次读取两张基础表，返回完成校验和稳定排序的独立区服快照。
 func (repository *MongoRepository) LoadSnapshot(ctx context.Context) ([]Info, error) {
-	// 先完整读取真实区服，临时 Map 不会在失败时污染在线快照。
-	realCursor, err := repository.mongo.Collection(mongodb.RealAreaInfoName).Find(ctx, bson.D{})
-	if err != nil {
-		return nil, fmt.Errorf("查询 RealAreaInfo: %w", err)
+	if repository == nil || repository.execute == nil {
+		return nil, errors.New("区服仓储未初始化")
 	}
-	defer realCursor.Close(ctx)
-	var realAreas []mongodb.RealAreaInfo
-	if err = realCursor.All(ctx, &realAreas); err != nil {
+	emptyFilter, err := bson.Marshal(bson.D{})
+	if err != nil {
+		return nil, fmt.Errorf("编码区服查询条件: %w", err)
+	}
+	request := rpcapi.MongoRequest{
+		DispatchKey: areaCatalogDispatchKey,
+		ExecuteMode: rpcapi.MongoExecuteModeSequential,
+		Operations: []rpcapi.MongoOperation{
+			{
+				Kind: rpcapi.MongoOperationKindFindMany, Collection: mongodb.RealAreaInfoName,
+				FindMany: &rpcapi.MongoFindMany{Filter: emptyFilter, Limit: maxAreaDocuments},
+			},
+			{
+				Kind: rpcapi.MongoOperationKindFindMany, Collection: mongodb.ShowAreaInfoName,
+				FindMany: &rpcapi.MongoFindMany{Filter: emptyFilter, Limit: maxAreaDocuments},
+			},
+		},
+	}
+	result, err := repository.execute(ctx, areaCatalogDispatchKey, request)
+	if err != nil {
+		return nil, err
+	}
+	if result.Failure != nil || len(result.Results) != 2 {
+		return nil, errors.New("区服 MongoDB 返回结构无效")
+	}
+	realAreas, err := decodeDocuments[mongodb.RealAreaInfo](result.Results[0])
+	if err != nil {
 		return nil, fmt.Errorf("解析 RealAreaInfo: %w", err)
 	}
+	showAreas, err := decodeDocuments[mongodb.ShowAreaInfo](result.Results[1])
+	if err != nil {
+		return nil, fmt.Errorf("解析 ShowAreaInfo: %w", err)
+	}
+	return buildSnapshot(realAreas, showAreas)
+}
+
+func decodeDocuments[T any](result rpcapi.MongoOperationResult) ([]T, error) {
+	if result.Status != rpcapi.MongoOperationStatusSucceeded {
+		return nil, errors.New("MongoDB 操作未成功")
+	}
+	documents := make([]T, len(result.Documents))
+	for index := range result.Documents {
+		if err := bson.Unmarshal(result.Documents[index], &documents[index]); err != nil {
+			return nil, err
+		}
+	}
+	return documents, nil
+}
+
+func buildSnapshot(realAreas []mongodb.RealAreaInfo, showAreas []mongodb.ShowAreaInfo) ([]Info, error) {
 	realByID := make(map[int64][]GateInfo, len(realAreas))
 	for _, current := range realAreas {
 		if current.ID <= 0 || len(current.GateList) == 0 {
@@ -56,16 +107,6 @@ func (repository *MongoRepository) LoadSnapshot(ctx context.Context) ([]Info, er
 		realByID[current.ID] = gates
 	}
 
-	// 再读取显示区服；任何悬空关联都使整个新快照失败，而不是悄悄跳过错误数据。
-	showCursor, err := repository.mongo.Collection(mongodb.ShowAreaInfoName).Find(ctx, bson.D{})
-	if err != nil {
-		return nil, fmt.Errorf("查询 ShowAreaInfo: %w", err)
-	}
-	defer showCursor.Close(ctx)
-	var showAreas []mongodb.ShowAreaInfo
-	if err = showCursor.All(ctx, &showAreas); err != nil {
-		return nil, fmt.Errorf("解析 ShowAreaInfo: %w", err)
-	}
 	snapshot := make([]Info, 0, len(showAreas))
 	for _, current := range showAreas {
 		gates, exists := realByID[current.RealAreaID]

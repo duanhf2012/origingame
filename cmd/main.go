@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"origingame/service/dbservice"
+	"origingame/service/gameservice"
+	"origingame/service/gatewayservice"
 	"origingame/service/loginservice"
 
 	"github.com/duanhf2012/origin/v3/application"
@@ -21,6 +23,8 @@ var app = application.New(application.Options{
 func init() {
 	app.Setup(
 		&dbservice.DBService{},
+		&gatewayservice.GatewayService{},
+		&gameservice.GameService{},
 		&loginservice.LoginService{},
 	)
 }

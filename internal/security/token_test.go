@@ -25,7 +25,7 @@ func TestTokenIssuerIssue(t *testing.T) {
 	fixedNow := time.Date(2026, 8, 12, 20, 0, 0, 0, time.UTC)
 	issuer.now = func() time.Time { return fixedNow }
 
-	raw, err := issuer.Issue("0123456789abcdef01234567", 2)
+	raw, err := issuer.Issue("0123456789abcdef01234567")
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
 	}
@@ -39,7 +39,7 @@ func TestTokenIssuerIssue(t *testing.T) {
 		t.Fatalf("ParseWithClaims() valid=%v error=%v", parsed.Valid, err)
 	}
 	if parsed.Header["kid"] != "test-key" || claims.Subject != "0123456789abcdef01234567" ||
-		claims.PlatformType != 2 || claims.Version != tokenVersion || claims.ID == "" {
+		claims.NotBefore != nil || claims.ID != "" {
 		t.Fatalf("unexpected token: header=%v claims=%+v", parsed.Header, claims)
 	}
 }

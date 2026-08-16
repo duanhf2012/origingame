@@ -12,14 +12,16 @@ import (
 type ScriptDefinition struct {
 	ID             string
 	Source         string
-	KeyCount       int
+	MinKeys        int
+	MaxKeys        int
 	MaxArgs        int
 	MaxResultNodes int
 }
 
 type registeredScript struct {
 	id             string
-	keyCount       int
+	minKeys        int
+	maxKeys        int
 	maxArgs        int
 	maxResultNodes int
 	script         *redis.Script
@@ -32,7 +34,8 @@ func newScriptRegistry(definitions []ScriptDefinition) (scriptRegistry, error) {
 	for _, definition := range definitions {
 		definition.ID = strings.TrimSpace(definition.ID)
 		if definition.ID == "" || strings.TrimSpace(definition.Source) == "" ||
-			definition.KeyCount < 0 || definition.MaxArgs < 0 || definition.MaxResultNodes <= 0 {
+			definition.MinKeys < 0 || definition.MaxKeys < definition.MinKeys ||
+			definition.MaxArgs < 0 || definition.MaxResultNodes <= 0 {
 			return nil, errs.ErrInvalidArgument
 		}
 		if _, exists := registry[definition.ID]; exists {
@@ -40,7 +43,8 @@ func newScriptRegistry(definitions []ScriptDefinition) (scriptRegistry, error) {
 		}
 		registry[definition.ID] = registeredScript{
 			id:             definition.ID,
-			keyCount:       definition.KeyCount,
+			minKeys:        definition.MinKeys,
+			maxKeys:        definition.MaxKeys,
 			maxArgs:        definition.MaxArgs,
 			maxResultNodes: definition.MaxResultNodes,
 			script:         redis.NewScript(definition.Source),

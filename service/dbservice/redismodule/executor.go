@@ -56,7 +56,8 @@ func validateRequest(request rpcapi.RedisRequest, scripts scriptRegistry) error 
 			return errs.ErrInvalidArgument
 		}
 		registered, exists := scripts[request.Script.ID]
-		if !exists || len(request.Script.Keys) != registered.keyCount || len(request.Script.Args) > registered.maxArgs {
+		if !exists || len(request.Script.Keys) < registered.minKeys ||
+			len(request.Script.Keys) > registered.maxKeys || len(request.Script.Args) > registered.maxArgs {
 			return errs.ErrInvalidArgument
 		}
 		for _, key := range request.Script.Keys {

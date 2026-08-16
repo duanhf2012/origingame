@@ -11,7 +11,7 @@ import (
 
 func TestValidateRequestAllowsOnlyBoundedRegisteredRedisWork(t *testing.T) {
 	registry, err := newScriptRegistry([]ScriptDefinition{{
-		ID: "login_rate", Source: "return 1", KeyCount: 1, MaxArgs: 2, MaxResultNodes: 4,
+		ID: "login_rate", Source: "return 1", MinKeys: 1, MaxKeys: 1, MaxArgs: 2, MaxResultNodes: 4,
 	}})
 	if err != nil {
 		t.Fatal(err)

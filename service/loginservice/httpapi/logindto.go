@@ -11,15 +11,12 @@ type LoginRequest struct {
 	PlatType    account.LoginType `json:"PlatType"`
 	PlatID      string            `json:"PlatId" binding:"required"`
 	AccessToken string            `json:"AccessToken"`
-	GameID      string            `json:"GameId"`
-	UserName    string            `json:"UserName"`
 }
 
-// Identity 转换并规范化 HTTP DTO，使业务包不依赖 JSON 契约。
-func (request LoginRequest) Identity() account.LoginIdentity {
-	return (account.LoginIdentity{
+// Credential 转换并规范化 HTTP DTO，使业务包不依赖 JSON 契约。
+func (request LoginRequest) Credential() account.LoginCredential {
+	return (account.LoginCredential{
 		PlatType: request.PlatType, PlatID: request.PlatID, AccessToken: request.AccessToken,
-		GameID: request.GameID, UserName: request.UserName,
 	}).Normalize()
 }
 

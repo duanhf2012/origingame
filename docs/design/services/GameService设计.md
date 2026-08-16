@@ -299,6 +299,7 @@ type LoginPlayerRequest struct {
 	AccountID  string // 账号ID
 	ShowAreaID int64  // 显示区服ID，与AccountID组成PlayerKey
 
+	ExpectedGameServiceNodeSessionID string // Redis分配时记录的目标Node启动实例
 	GatewayNodeID       string // GameService定向调用Gateway所需的NodeID
 	GatewayConnectionID string // 全局唯一连接ID，同时作为本次登录标识
 }
@@ -306,7 +307,7 @@ type LoginPlayerRequest struct {
 
 每次首次登录、重连或顶号登录，Gateway都必须在`LoginPlayerRequest`中显式携带`GatewayNodeID + GatewayConnectionID`。GameService以该请求为新连接的权威来源；登录处理不从任何`Session`对象读取这两个字段，也不能用Player当前保存的旧连接字段代替。绑定完成后，PlayerModule同时登记`GatewayConnectionID -> *Player`索引并初始化最后心跳时间。
 
-请求不携带`RealAreaID`、GameService启动实例ID或玩家级路由版本：目标GameService已经由Redis确定，GameService使用自身配置校验实际区服，并使用Origin `NodeSessionID`与Redis路由记录校验本次进程身份。
+请求不携带`RealAreaID`或玩家级路由版本。Gateway把Redis分配结果中的`NodeSessionID`写入`ExpectedGameServiceNodeSessionID`；目标GameService必须与自身当前启动实例精确比较，不匹配时拒绝旧分配请求，避免同一NodeID重启后接收上一进程的迟到登录。
 
 首次加载顺序固定为：
 

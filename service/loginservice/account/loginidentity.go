@@ -15,13 +15,17 @@ const (
 	loginTypeMax      LoginType = 5
 )
 
-// LoginIdentity 保存完成 HTTP 解析后的平台登录身份。
-type LoginIdentity struct {
+// LoginCredential 是客户端提交、尚未被信任的平台登录凭证。
+type LoginCredential struct {
 	PlatType    LoginType
 	PlatID      string
 	AccessToken string
-	GameID      string
-	UserName    string
+}
+
+// PlatformIdentity 是鉴权实现确认后的可信平台身份。
+type PlatformIdentity struct {
+	PlatType LoginType
+	PlatID   string
 }
 
 // ValidLoginType 报告登录类型是否属于当前协议约定范围。
@@ -30,9 +34,7 @@ func ValidLoginType(value LoginType) bool {
 }
 
 // Normalize 清理来自外部请求的可见文本字段。
-func (identity LoginIdentity) Normalize() LoginIdentity {
-	identity.PlatID = strings.TrimSpace(identity.PlatID)
-	identity.GameID = strings.TrimSpace(identity.GameID)
-	identity.UserName = strings.TrimSpace(identity.UserName)
-	return identity
+func (credential LoginCredential) Normalize() LoginCredential {
+	credential.PlatID = strings.TrimSpace(credential.PlatID)
+	return credential
 }

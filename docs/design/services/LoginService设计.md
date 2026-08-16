@@ -396,13 +396,12 @@ LoginService 只有在完成以下准备后才能开放 HTTP 登录接口：
 ```text
 cmd/main.go                      OriginGame 统一程序入口
 config/log.yaml                  全局日志配置
-config/login-node.yaml           本地 Login 节点及其 Service 拓扑
+config/local-node.yaml           本地全部 Node 与 Service 拓扑
 config/loginservice.yaml         可直接启动的本地 LoginService 配置
 config/loginservice.yaml.example 生产 LoginService 配置模板（不参与加载）
-config/gatewayserver-token-public-keys.yaml
-                                GatewayService 使用的本地开发 Token 公钥
-protocol/common/                 客户端共享 Protobuf 错误码
-internal/security/               Ed25519 JWT 签发
+config/gatewayservice.yaml       GatewayService 与本地开发 Token 公钥
+protocol/common/                 客户端共享 Protobuf 消息、消息ID和错误码
+internal/security/               Ed25519 JWT 签发与校验基础能力
 service/loginservice/            LoginService、数据访问、快照和限流
 bin/run.bat、bin/run.sh           Windows 与 Linux 统一启动脚本
 ```
@@ -412,13 +411,13 @@ bin/run.bat、bin/run.sh           Windows 与 Linux 统一启动脚本
 先通过 `deploy/compose/compose.yaml` 启动 MongoDB 和 Redis，再执行：
 
 ```powershell
-./bin/run.bat login-1
+./bin/run.bat login-pub-1
 ```
 
 或在 Linux 下执行：
 
 ```bash
-./bin/run.sh login-1
+./bin/run.sh login-pub-1
 ```
 
 当前 `authentication.development_passthrough: true` 明确表示不执行真实平台 SDK 鉴权，仅供学习和本地开发。

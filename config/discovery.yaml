@@ -1,0 +1,7 @@
+discovery:
+  type: etcd # 本地多进程使用 etcd 共享服务目录。
+  etcd:
+    endpoints: [http://127.0.0.1:2379] # 本地 etcd 地址；生产需启用 TLS 和认证。
+    local_network: origingame-local # 当前开发集群发布和发现使用的逻辑网络。
+    ttl: 5s # Node 发现租约真实时间有效期。
+    request_timeout: 3s # 单次 etcd 请求真实时间上限。

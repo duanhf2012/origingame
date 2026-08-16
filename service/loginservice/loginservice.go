@@ -1,35 +1,31 @@
-// Package loginservice 只保留 LoginService 主类型、配置聚合、生命周期装配和登录协调流程。
+// Package loginservice 只保留 LoginService 配置、生命周期装配和跨包启动检查。
 package loginservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	originconfig "github.com/duanhf2012/origin/v3/config"
-	"github.com/duanhf2012/origin/v3/log"
 	"github.com/duanhf2012/origin/v3/service"
 	"github.com/duanhf2012/origin/v3/sysmodule/ginmodule"
-	"github.com/duanhf2012/origin/v3/sysmodule/mongodbmodule"
-	"github.com/duanhf2012/origin/v3/sysmodule/redismodule"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"origingame/internal/mongodb"
 	"origingame/internal/security"
-	commonpb "origingame/protocol/common"
+	rpcapi "origingame/protocol/rpc"
 	"origingame/service/loginservice/account"
 	"origingame/service/loginservice/area"
 	"origingame/service/loginservice/authentication"
-	"origingame/service/loginservice/database"
 	"origingame/service/loginservice/httpapi"
 	"origingame/service/loginservice/ratelimit"
-	loginredis "origingame/service/loginservice/redis"
 )
 
-// Config 是 LoginService 完整配置；严格解析会拒绝拼写错误和未知字段。
+const loginReadyDispatchKey = "login-ready"
+
+// Config 是 LoginService 完整配置；数据库连接配置只属于 AccDBService。
 type Config struct {
 	HTTP           HTTPConfig
-	MongoDB        mongodbmodule.Config
-	Redis          redismodule.Config
 	Token          TokenConfig
 	Area           AreaConfig
 	Authentication AuthenticationConfig
@@ -60,21 +56,17 @@ type AuthenticationConfig struct {
 	DevelopmentPassthrough bool
 }
 
-// LoginService 是 LoginServer 中唯一的业务 Service。
+// LoginService 装配公共 AccDBService 客户端和登录边界 Module。
 type LoginService struct {
 	service.Service
-	config        Config
-	mongo         *database.MongoModule
-	redis         *loginredis.Module
-	http          *httpapi.Module
-	refresh       *area.RefreshModule
-	catalog       area.Catalog
-	authenticator authentication.Authenticator
-	issuer        *security.TokenIssuer
-	limiter       *ratelimit.Limiter
+	config  Config
+	accDB   rpcapi.DBServiceClient
+	http    *httpapi.Module
+	refresh *area.RefreshModule
+	catalog area.Catalog
 }
 
-// OnInit 严格解析配置，并按数据库、Redis、HTTP 的启动依赖顺序登记 Module。
+// OnInit 严格解析配置，并按区服快照、HTTP 的依赖顺序登记 Module。
 func (target *LoginService) OnInit() error {
 	if err := target.loadConfig(); err != nil {
 		return err
@@ -86,7 +78,6 @@ func (target *LoginService) OnInit() error {
 		return err
 	}
 
-	// Token 私钥在 HTTP 监听前完成校验；错误不得包含私钥原文。
 	issuer, err := security.NewTokenIssuer(security.TokenConfig{
 		Issuer: target.config.Token.Issuer, Audience: target.config.Token.Audience,
 		Expire: target.config.Token.Expire.Duration(), ActiveKID: target.config.Token.ActiveKID,
@@ -95,153 +86,82 @@ func (target *LoginService) OnInit() error {
 	if err != nil {
 		return fmt.Errorf("初始化 TokenIssuer: %w", err)
 	}
-	target.issuer = issuer
-	target.authenticator = authentication.DevelopmentAuthenticator{}
+	authenticator := authentication.DevelopmentAuthenticator{}
+	target.accDB = rpcapi.BindDBServiceTo(target, "AccDBService").WhereLabels(map[string]string{"scope": "pub"})
 
-	// 数据库 Module 完成 Client、索引和初始区服数据准备，是 HTTP Ready 的硬前置。
-	target.mongo = database.NewMongoModule(target.config.MongoDB, &target.catalog)
-	if err = target.AddModule(target.mongo); err != nil {
-		return err
-	}
+	accounts := account.NewMongoRepository(func(
+		ctx context.Context,
+		key string,
+		request rpcapi.MongoRequest,
+	) (rpcapi.MongoResult, error) {
+		return target.accDB.Route(key).AwaitExecuteMongo(ctx, request)
+	})
+	areas := area.NewMongoRepository(func(
+		ctx context.Context,
+		key string,
+		request rpcapi.MongoRequest,
+	) (rpcapi.MongoResult, error) {
+		return target.accDB.Route(key).CallExecuteMongo(ctx, request)
+	})
+	limiter := ratelimit.New(target.config.LoginRateLimit, func(
+		ctx context.Context,
+		key string,
+		request rpcapi.RedisRequest,
+	) (rpcapi.RedisResult, error) {
+		return target.accDB.Route(key).AwaitExecuteRedis(ctx, request)
+	})
+
 	target.refresh = area.NewRefreshModule(
-		target.config.Area.RefreshInterval.Duration(), target.mongo.Areas(), &target.catalog,
+		target.config.Area.RefreshInterval.Duration(), areas, &target.catalog,
 	)
 	if err = target.AddModule(target.refresh); err != nil {
 		return err
 	}
-
-	// 启用总限流时 Redis 提供跨实例共享窗口；禁用时不建立无用连接。
-	if target.config.LoginRateLimit.Enabled {
-		target.redis = loginredis.NewModule(
-			target.config.Redis,
-			target.config.LoginRateLimit.RedisFailureMode,
-		)
-		if err = target.AddModule(target.redis); err != nil {
-			return err
-		}
-		target.limiter = ratelimit.New(target.config.LoginRateLimit, &target.redis.Module)
-	} else {
-		target.limiter = ratelimit.New(target.config.LoginRateLimit, nil)
-	}
-
-	// HTTP Module 最后登记，只有关键数据和依赖全部准备完成后才开始监听。
-	target.http = httpapi.NewModule(
-		target.config.HTTP.Server,
-		target.login,
-		target.limiter.AcquireConcurrency,
-	)
+	target.http = httpapi.NewModule(target.config.HTTP.Server, httpapi.Dependencies{
+		Authenticator: authenticator,
+		Accounts:      accounts,
+		Issuer:        issuer,
+		Catalog:       &target.catalog,
+		Limiter:       limiter,
+	})
 	return target.AddModule(target.http)
 }
 
-// OnStart 无额外资源；所有依赖按 Module 顺序启动，HTTP 始终最后监听。
-func (target *LoginService) OnStart(context.Context) error {
+// OnStart 在 HTTP Module 启动前确认账号集合和公共 Redis 均可访问。
+func (target *LoginService) OnStart(ctx context.Context) error {
+	filter, err := bson.Marshal(bson.D{})
+	if err != nil {
+		return err
+	}
+	mongoResult, err := target.accDB.Route(loginReadyDispatchKey).CallExecuteMongo(ctx, rpcapi.MongoRequest{
+		DispatchKey: loginReadyDispatchKey,
+		ExecuteMode: rpcapi.MongoExecuteModeSequential,
+		Operations: []rpcapi.MongoOperation{{
+			Kind: rpcapi.MongoOperationKindCountDocuments, Collection: mongodb.AccountName,
+			CountDocuments: &rpcapi.MongoCountDocuments{Filter: filter},
+		}},
+	})
+	if err != nil || mongoResult.Failure != nil || len(mongoResult.Results) != 1 ||
+		mongoResult.Results[0].Status != rpcapi.MongoOperationStatusSucceeded {
+		return dependencyNotReady("AccDBService 账号集合未就绪", err)
+	}
+	redisResult, err := target.accDB.Route(loginReadyDispatchKey).CallExecuteRedis(ctx, rpcapi.RedisRequest{
+		DispatchKey: loginReadyDispatchKey,
+		ExecuteMode: rpcapi.RedisExecuteModeCommand,
+		Commands:    []rpcapi.RedisCommand{{Name: "EXISTS", Args: [][]byte{[]byte("login-ready-probe")}}},
+	})
+	if err != nil || redisResult.Failure != nil || len(redisResult.Results) != 1 ||
+		redisResult.Results[0].Status != rpcapi.RedisCommandStatusSucceeded {
+		return dependencyNotReady("AccDBService Redis 未就绪", err)
+	}
 	return nil
 }
 
-func (target *LoginService) login(ctx *ginmodule.SafeContext) {
-	// 1. 严格绑定 JSON 并校验老版本请求字段，不把详细解析错误返回客户端。
-	var request httpapi.LoginRequest
-	if err := ctx.ShouldBindJSON(&request); err != nil {
-		target.respondError(ctx, http.StatusBadRequest, commonpb.ErrorCode_ERROR_CODE_INVALID_REQUEST)
-		return
-	}
-	identity := request.Identity()
-	if !account.ValidLoginType(identity.PlatType) {
-		target.respondError(ctx, http.StatusOK, commonpb.ErrorCode_ERROR_CODE_LOGIN_PLATFORM_TYPE_INVALID)
-		return
-	}
-	if identity.PlatID == "" {
-		target.respondError(ctx, http.StatusOK, commonpb.ErrorCode_ERROR_CODE_LOGIN_PLATFORM_ID_INVALID)
-		return
-	}
-
-	// 2. 对 IP 和不可逆平台身份摘要分别执行 Redis 全局滑动窗口。
-	requestCtx := ctx.Context()
-	ok, err := target.allowWindow(requestCtx, "ip", ctx.ClientIP(), target.config.LoginRateLimit.IP)
-	if err != nil || !ok {
-		target.respondError(ctx, http.StatusTooManyRequests, commonpb.ErrorCode_ERROR_CODE_TOO_MANY_REQUESTS)
-		return
-	}
-	limitIdentity := ratelimit.IdentityKey(ctx.ClientIP(), identity.PlatType, identity.PlatID)
-	ok, err = target.allowWindow(requestCtx, "identity", limitIdentity, target.config.LoginRateLimit.Identity)
-	if err != nil || !ok {
-		target.respondError(ctx, http.StatusTooManyRequests, commonpb.ErrorCode_ERROR_CODE_TOO_MANY_REQUESTS)
-		return
-	}
-	var cooling bool
-	err = target.Await(requestCtx, func(waitCtx context.Context) error {
-		var lookupErr error
-		cooling, lookupErr = target.limiter.AuthCoolingDown(waitCtx, limitIdentity)
-		return lookupErr
-	})
-	if err != nil && target.config.LoginRateLimit.RedisFailureMode == "local" {
-		cooling, err = false, nil
-	}
-	if err != nil || cooling {
-		target.respondError(ctx, http.StatusTooManyRequests, commonpb.ErrorCode_ERROR_CODE_TOO_MANY_REQUESTS)
-		return
-	}
-
-	// 3. 当前开发实现明确不访问第三方 SDK；正式接入失败时记录失败冷却。
-	if err = target.authenticator.Authenticate(requestCtx, identity); err != nil {
-		_ = target.Await(requestCtx, func(waitCtx context.Context) error {
-			return target.limiter.RecordAuthFailure(waitCtx, limitIdentity)
-		})
-		target.respondError(ctx, http.StatusOK, commonpb.ErrorCode_ERROR_CODE_LOGIN_AUTH_FAILED)
-		return
-	}
-
-	// 4. 原子获取账号并签发 JWT。数据库等待释放 Service 执行权，避免串行队列被 I/O 阻塞。
-	var document mongodb.Account
-	err = target.Await(requestCtx, func(waitCtx context.Context) error {
-		var repositoryErr error
-		document, repositoryErr = target.mongo.Accounts().FindOrCreate(waitCtx, identity, ctx.ClientIP())
-		return repositoryErr
-	})
+func dependencyNotReady(message string, err error) error {
 	if err != nil {
-		target.Logger().Error("登录账号查询或创建失败", log.Int32("platform_type", int32(identity.PlatType)), log.Err(err))
-		target.respondError(ctx, http.StatusOK, commonpb.ErrorCode_ERROR_CODE_LOGIN_ACCOUNT_FAILED)
-		return
+		return fmt.Errorf("%s: %w", message, err)
 	}
-	token, err := target.issuer.Issue(document.ID.Hex(), int32(identity.PlatType))
-	if err != nil {
-		target.Logger().Error("签发游戏 Token 失败", log.Err(err))
-		target.respondError(ctx, http.StatusInternalServerError, commonpb.ErrorCode_ERROR_CODE_INTERNAL)
-		return
-	}
-
-	// 5. 区服快照启动时已准备完成；运行期异常不能把它替换成空列表。
-	areas := target.catalog.Snapshot()
-	if len(areas) == 0 {
-		target.respondError(ctx, http.StatusServiceUnavailable, commonpb.ErrorCode_ERROR_CODE_LOGIN_NO_AVAILABLE_AREA)
-		return
-	}
-	ctx.JSON(http.StatusOK, httpapi.LoginResponse{
-		ECode: int32(commonpb.ErrorCode_ERROR_CODE_OK), Token: token, AreaList: areas,
-	})
-}
-
-func (target *LoginService) respondError(
-	ctx *ginmodule.SafeContext,
-	status int,
-	code commonpb.ErrorCode,
-) {
-	ctx.JSON(status, httpapi.LoginResponse{ECode: int32(code)})
-}
-
-func (target *LoginService) allowWindow(
-	ctx context.Context,
-	dimension string,
-	identity string,
-	config ratelimit.WindowLimitConfig,
-) (bool, error) {
-	allowed := false
-	err := target.Await(ctx, func(waitCtx context.Context) error {
-		var limitErr error
-		allowed, limitErr = target.limiter.AllowWindows(waitCtx, dimension, identity, config)
-		return limitErr
-	})
-	return allowed, err
+	return errors.New(message)
 }
 
 func (target *LoginService) loadConfig() error {
@@ -250,9 +170,11 @@ func (target *LoginService) loadConfig() error {
 		path        string
 		destination any
 	}{
-		{"http", &target.config.HTTP}, {"mongodb", &target.config.MongoDB},
-		{"redis", &target.config.Redis}, {"token", &target.config.Token}, {"area", &target.config.Area},
-		{"authentication", &target.config.Authentication}, {"login_rate_limit", &target.config.LoginRateLimit},
+		{"http", &target.config.HTTP},
+		{"token", &target.config.Token},
+		{"area", &target.config.Area},
+		{"authentication", &target.config.Authentication},
+		{"login_rate_limit", &target.config.LoginRateLimit},
 	}
 	for _, section := range sections {
 		if err := target.GetServiceConfigStrict(section.path, section.destination); err != nil {

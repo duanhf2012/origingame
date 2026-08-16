@@ -23,8 +23,10 @@ type LoginPlayerRequest struct {
 	AccountID  string
 	ShowAreaID int64
 
-	GatewayNodeID       string
-	GatewayConnectionID string
+	// ExpectedGameServiceNodeSessionID 用于拒绝 Redis 返回的已重启旧实例。
+	ExpectedGameServiceNodeSessionID string
+	GatewayNodeID                    string
+	GatewayConnectionID              string
 }
 
 // PlayerMessageRequest 是 Gateway 转发给 GameService 的客户端玩家消息。

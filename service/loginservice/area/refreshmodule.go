@@ -23,13 +23,20 @@ func NewRefreshModule(interval time.Duration, source *MongoRepository, catalog *
 	return &RefreshModule{interval: interval, source: source, catalog: catalog}
 }
 
-// OnStart 启动明确可取消和等待的真实时间刷新协程。
-func (module *RefreshModule) OnStart(context.Context) error {
+// OnStart 同步加载首份有效快照，再启动明确可取消和等待的真实时间刷新协程。
+func (module *RefreshModule) OnStart(ctx context.Context) error {
+	snapshot, err := module.source.LoadSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if err = module.catalog.Replace(snapshot); err != nil {
+		return err
+	}
 	// 区服刷新属于基础设施同步，不能被 Node 的 GM 游戏时间重排。
 	runCtx, cancel := context.WithCancel(context.Background())
 	module.cancel = cancel
 	module.done = make(chan struct{})
-	if err := module.GoSafe(func() { module.run(runCtx) }); err != nil {
+	if err = module.GoSafe(func() { module.run(runCtx) }); err != nil {
 		cancel()
 		return err
 	}

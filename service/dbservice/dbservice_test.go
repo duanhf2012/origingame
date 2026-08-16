@@ -9,6 +9,15 @@ import (
 	originredis "github.com/duanhf2012/origin/v3/sysmodule/redismodule"
 )
 
+func TestOnlyAccDBServiceRegistersLoginScripts(t *testing.T) {
+	if definitions := scriptDefinitions("AccDBService"); len(definitions) != 10 || definitions[0].ID == "" {
+		t.Fatalf("AccDBService scripts = %+v", definitions)
+	}
+	if definitions := scriptDefinitions("RoleDBService"); len(definitions) != 0 {
+		t.Fatalf("RoleDBService scripts = %+v", definitions)
+	}
+}
+
 func TestConfigDefaultsAndDataDomainValidation(t *testing.T) {
 	defaults := defaultConfig()
 	if defaults.MaxIOConcurrency != 64 || defaults.MaxInflightRequests != 128 {

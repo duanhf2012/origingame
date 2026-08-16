@@ -1,8 +1,0 @@
-# GatewayService 尚未部署到 nodes；其实现接入后从自身 token 配置读取这些公钥。
-services:
-  GatewayService:
-    token:
-      issuer: "origingame-login" # 必须与 LoginService 签发者一致。
-      audience: "origingame-gateway" # 必须与 LoginService 接收方一致。
-      public_keys:
-        dev-key-1: "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=" # 本地开发公钥；仅包含可公开分发的验证材料。

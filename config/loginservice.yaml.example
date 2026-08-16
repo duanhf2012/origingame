@@ -5,14 +5,6 @@ services:
       server:
         address: "0.0.0.0:8080" # 按实际暴露范围监听；反向代理场景需同时显式配置受信任代理。
 
-    mongodb:
-      uri: "${ORIGINGAME_LOGIN_MONGODB_URI}" # 由 Secret 注入，禁止提交生产凭证。
-      database: "origingame" # LoginService 使用的默认数据库。
-
-    redis:
-      addresses: ["redis.internal:6379"] # 生产 Redis 地址；认证、TLS 等按实际部署补充。
-      client_name: "origingame-login" # 便于 Redis 侧定位 LoginService 连接。
-
     token:
       issuer: "origingame-login" # JWT 签发者，需与 Gateway 校验配置一致。
       audience: "origingame-gateway" # JWT 接收方。
@@ -21,35 +13,21 @@ services:
       private_key: "${ORIGINGAME_LOGIN_TOKEN_PRIVATE_KEY}" # 由 Secret 注入的 Ed25519 私钥 Seed。
 
     area:
-      refresh_interval: 30s # 区服展示快照的后台刷新周期。
+      refresh_interval: 1m # 每分钟完整刷新区服快照；失败等待下个周期。
 
     authentication:
       development_passthrough: true # 接入真实平台 SDK 前必须保持 true；接入后替换为经确认的正式配置。
 
     login_rate_limit:
       enabled: true # 生产默认启用登录请求限流。
-      redis_failure_mode: deny # Redis 不可用时拒绝登录，避免多实例分别放宽限制。
       ip:
         enabled: true # 按客户端 IP 限制请求。
-        windows:
-          - duration: 1s # 短时突发窗口。
-            max_requests: 10 # 此窗口内最大请求数。
-          - duration: 10s # 短周期窗口。
-            max_requests: 30 # 此窗口内最大请求数。
-          - duration: 1m # 分钟级窗口。
-            max_requests: 120 # 此窗口内最大请求数。
+        window: 10s # 公共 Redis 滑动窗口时长。
+        max_requests: 30 # 单 IP 在窗口内最多登录次数。
       identity:
-        enabled: true # 按平台身份摘要限制请求。
-        windows:
-          - duration: 10s # 单身份短周期窗口。
-            max_requests: 5 # 此窗口内最大请求数。
-          - duration: 5m # 单身份中周期窗口。
-            max_requests: 20 # 此窗口内最大请求数。
-      auth_failure:
-        enabled: true # 记录真实平台鉴权失败。
-        window: 5m # 失败计数窗口。
-        max_failures: 5 # 触发冷却前允许的失败次数。
-        cooldown: 30s # 达到阈值后的拒绝时长。
+        enabled: true # 鉴权成功并取得 AccountID 后限制同一账号。
+        window: 10s # 公共 Redis 滑动窗口时长。
+        max_requests: 5 # 单账号在窗口内最多登录次数。
       concurrency:
         enabled: true # 限制单实例并发登录数。
         max_in_flight: 256 # 在途登录请求硬上限。

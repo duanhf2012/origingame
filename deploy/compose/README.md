@@ -5,7 +5,7 @@
 - 单节点 etcd；
 - 单节点 Core NATS；
 - 单节点 Redis，开启 AOF 持久化并使用 `noeviction`；
-- 单节点 MongoDB；
+- 单节点 MongoDB 副本集，支持事务测试；
 - MongoDB 三张基础表、校验器、索引和一组基础区服数据。
 
 该编排用于学习、开发和集成测试，不是生产部署模板。服务端口默认只绑定 `127.0.0.1`。
@@ -33,28 +33,19 @@ docker compose ps
 | Redis | `redis://127.0.0.1:6379` | `redis://redis:6379` |
 | MongoDB | `127.0.0.1:27017` | `mongodb:27017` |
 
-MongoDB 开发账号：
-
-```text
-用户名：admin
-密码：admin_123456
-认证库：admin
-业务库：origingame
-```
-
 宿主机连接 URI：
 
 ```text
-mongodb://admin:admin_123456@127.0.0.1:27017/origingame?authSource=admin&appName=origingame-dev
+mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
 ```
 
 其他 Compose 容器连接 URI：
 
 ```text
-mongodb://admin:admin_123456@mongodb:27017/origingame?authSource=admin&appName=origingame-dev
+mongodb://mongodb:27017/?replicaSet=rs0
 ```
 
-以上凭证是用户明确要求写入 Compose 的开发凭证，不得直接用于生产环境。
+MongoDB 当前没有配置认证，只能用于本地开发；账号域使用 `origingame_account`，角色域使用 `origingame_role`。
 
 Redis 当前没有配置认证，只能用于本地开发。其淘汰策略固定为 `noeviction`：内存不足时写入失败，不允许静默淘汰可能承载在线归属等关键状态的键。
 
@@ -67,6 +58,7 @@ Redis 当前没有配置认证，只能用于本地开发。其淘汰策略固�
 - `Account`：账号表；`_id` 为 ObjectID，`(PlatType, PlatId)` 建立唯一索引；
 - `RealAreaInfo`：真实区服及 TCP/KCP/WebSocket Gateway 公网地址；
 - `ShowAreaInfo`：显示区服及真实区服映射，`RealAreaId` 建立索引；
+- `UserInfo`：以 `AccountID + ShowAreaID` 组成的 PlayerKey 为主键；
 - 真实区服 `1`；
 - 显示区服 `1 / 体验1服`；
 - Gateway 开发地址 `9001/TCP`、`9002/KCP`、`9003/WebSocket`。
@@ -96,11 +88,7 @@ docker exec origingame-redis redis-cli ping
 查看 MongoDB 基础数据：
 
 ```bash
-docker exec origingame-mongodb mongosh \
-  --username admin \
-  --password admin_123456 \
-  --authenticationDatabase admin \
-  origingame \
+docker exec origingame-mongodb mongosh origingame_account \
   --eval "db.RealAreaInfo.find(); db.ShowAreaInfo.find(); db.Account.getIndexes()"
 ```
 

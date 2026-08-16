@@ -1,0 +1,5 @@
+rpc:
+  transport: nats # 本地多进程 RPC 统一使用 NATS。
+  nats:
+    namespace: origingame-v3-local # 隔离同一 NATS 上的其他 Origin 应用。
+    urls: [nats://127.0.0.1:4222] # 本地 NATS 地址；生产需启用 TLS 和最小权限凭据。

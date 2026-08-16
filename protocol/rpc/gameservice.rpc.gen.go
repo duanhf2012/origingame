@@ -17,7 +17,7 @@ const (
 
 const gameServiceContractID rpc.ContractID = 0x95218c789ce42604
 
-var gameServiceFingerprint = rpc.ContractFingerprint{0x61, 0xa9, 0x27, 0x0d, 0x8f, 0xd5, 0x4e, 0x3b, 0x77, 0x96, 0xf4, 0x61, 0x1f, 0x6a, 0xba, 0x70, 0x54, 0x9f, 0x2b, 0x68, 0xb8, 0xe8, 0x4b, 0xe7, 0xf6, 0xea, 0x3b, 0x9d, 0x1f, 0x62, 0xfd, 0x5b}
+var gameServiceFingerprint = rpc.ContractFingerprint{0x2a, 0xf3, 0x62, 0x4d, 0x48, 0x35, 0x0a, 0x95, 0x2c, 0x18, 0xca, 0x88, 0xf4, 0x3f, 0x5b, 0xad, 0xc1, 0xab, 0xb9, 0x02, 0x16, 0xeb, 0x9f, 0x1c, 0x21, 0x7a, 0xca, 0x87, 0x79, 0x8b, 0xd9, 0xe8}
 
 const gameServiceHandlePlayerMessageMethodID rpc.MethodID = 0x60277046a6f1f11e
 const gameServiceLoginPlayerMethodID rpc.MethodID = 0x0d079b9a2e5bf1d1
@@ -284,6 +284,9 @@ func encodeGameServiceLoginPlayerRequest(client rpc.Client, kind rpc.CallKind, a
 	if err := sizer.Add(8); err != nil {
 		return nil, err
 	}
+	if err := sizer.AddString(string(arg1.ExpectedGameServiceNodeSessionID)); err != nil {
+		return nil, err
+	}
 	if err := sizer.AddString(string(arg1.GatewayNodeID)); err != nil {
 		return nil, err
 	}
@@ -304,6 +307,10 @@ func encodeGameServiceLoginPlayerRequest(client rpc.Client, kind rpc.CallKind, a
 		return nil, err
 	}
 	if err := writer.WriteInt64(int64(arg1.ShowAreaID)); err != nil {
+		buffer.Release()
+		return nil, err
+	}
+	if err := writer.WriteString(string(arg1.ExpectedGameServiceNodeSessionID)); err != nil {
 		buffer.Release()
 		return nil, err
 	}
@@ -342,13 +349,19 @@ func decodeGameServiceLoginPlayerRequest(data []byte) (arg1 LoginPlayerRequest, 
 	if decodeErr != nil {
 		return
 	}
-	arg1.GatewayNodeID = string(decoded3)
+	arg1.ExpectedGameServiceNodeSessionID = string(decoded3)
 	var decoded4 string
 	decoded4, decodeErr = reader.ReadString()
 	if decodeErr != nil {
 		return
 	}
-	arg1.GatewayConnectionID = string(decoded4)
+	arg1.GatewayNodeID = string(decoded4)
+	var decoded5 string
+	decoded5, decodeErr = reader.ReadString()
+	if decodeErr != nil {
+		return
+	}
+	arg1.GatewayConnectionID = string(decoded5)
 	decodeErr = reader.Done()
 	return
 }

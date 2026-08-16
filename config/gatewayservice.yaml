@@ -1,0 +1,29 @@
+services:
+  GatewayService:
+    token:
+      issuer: "origingame-login" # 必须与 LoginService 签发者一致。
+      audience: "origingame-gateway" # 必须与 LoginService 接收方一致。
+      public_keys:
+        dev-key-1: "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=" # 本地开发公钥；生产替换为真实公钥。
+
+    area:
+      refresh_interval: 1m # 每分钟完整刷新显示区服到真实区服的映射。
+
+    tcp:
+      enabled: true # 启用 TCP 长连接入口。
+      server:
+        address: "0.0.0.0:9001" # TCP 本地监听地址。
+        max_message_size: 4KB # 入站和出站完整应用消息上限。
+
+    kcp:
+      enabled: true # 启用 KCP 长连接入口。
+      server:
+        address: "0.0.0.0:9002" # KCP 本地监听地址。
+        max_message_size: 4KB # 入站和出站完整应用消息上限。
+
+    websocket:
+      enabled: true # 启用 WebSocket 长连接入口。
+      server:
+        address: "0.0.0.0:9003" # WebSocket 本地监听地址。
+        path: "/ws" # WebSocket Upgrade 路径。
+        max_message_size: 4KB # 入站和出站完整应用消息上限。

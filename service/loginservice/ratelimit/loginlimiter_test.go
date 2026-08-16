@@ -1,35 +1,41 @@
 package ratelimit
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	originconfig "github.com/duanhf2012/origin/v3/config"
-	"origingame/service/loginservice/account"
+	rpcapi "origingame/protocol/rpc"
 )
 
-// TestLocalSlidingWindow 验证窗口内超限、时间推进后释放和不同键隔离。
-func TestLocalSlidingWindow(t *testing.T) {
-	current := time.Date(2026, 8, 12, 20, 0, 0, 0, time.UTC)
-	limiter := New(Config{Enabled: true}, nil)
-	limiter.now = func() time.Time { return current }
-	config := WindowLimitConfig{Enabled: true, Windows: []WindowConfig{{
-		Duration: originconfig.Duration(time.Second), MaxRequests: 2,
-	}}}
-	if !limiter.allowLocal("one", config) || !limiter.allowLocal("one", config) || limiter.allowLocal("one", config) {
-		t.Fatal("local sliding window did not enforce maximum")
+func TestLimiterBuildsRegisteredScriptRequest(t *testing.T) {
+	var routeKey string
+	var captured rpcapi.RedisRequest
+	limiter := New(Config{
+		Enabled: true,
+		IP:      WindowLimitConfig{Enabled: true, Window: originconfig.Duration(10 * time.Second), MaxRequests: 30},
+	}, func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+		routeKey, captured = key, request
+		return integerResult(1), nil
+	})
+	limiter.now = func() time.Time { return time.UnixMilli(123456) }
+
+	allowed, err := limiter.AllowIP(context.Background(), "192.0.2.10")
+	if err != nil || !allowed {
+		t.Fatalf("AllowIP() = %v, %v", allowed, err)
 	}
-	if !limiter.allowLocal("two", config) {
-		t.Fatal("different rate limit keys interfered")
+	if routeKey == "" || routeKey != captured.DispatchKey || strings.Contains(routeKey, "192.0.2.10") {
+		t.Fatalf("route/dispatch key = %q", routeKey)
 	}
-	current = current.Add(time.Second + time.Millisecond)
-	if !limiter.allowLocal("one", config) {
-		t.Fatal("expired records were not released")
+	if captured.ExecuteMode != rpcapi.RedisExecuteModeScript || captured.Script == nil ||
+		len(captured.Script.Keys) != 1 || len(captured.Script.Args) != 3 {
+		t.Fatalf("unexpected Redis request: %+v", captured)
 	}
 }
 
-// TestConcurrencyLimiter 验证槽位满时立即拒绝，释放后可以再次进入。
-func TestConcurrencyLimiter(t *testing.T) {
+func TestConcurrencyLimiterRejectsWithoutQueueing(t *testing.T) {
 	limiter := New(Config{
 		Enabled: true, Concurrency: ConcurrencyLimitConfig{Enabled: true, MaxInFlight: 1},
 	}, nil)
@@ -48,10 +54,18 @@ func TestConcurrencyLimiter(t *testing.T) {
 	secondRelease()
 }
 
-// TestIdentityKeyDoesNotContainPlatformID 保证 Redis Key 不泄露原始平台身份。
-func TestIdentityKeyDoesNotContainPlatformID(t *testing.T) {
-	key := IdentityKey("127.0.0.1", account.LoginTypeGuest, "secret-platform-id")
-	if key == "" || key == "127.0.0.1:secret-platform-id" {
-		t.Fatalf("IdentityKey() = %q", key)
+func TestAccountKeyDoesNotContainAccountID(t *testing.T) {
+	key := AccountKey("0123456789abcdef01234567")
+	if key == "" || strings.Contains(key, "0123456789abcdef01234567") {
+		t.Fatalf("AccountKey() = %q", key)
 	}
+}
+
+func integerResult(value int64) rpcapi.RedisResult {
+	return rpcapi.RedisResult{Results: []rpcapi.RedisCommandResult{{
+		Status: rpcapi.RedisCommandStatusSucceeded,
+		Value: rpcapi.RedisValue{RootIndex: 0, Nodes: []rpcapi.RedisValueNode{{
+			Kind: rpcapi.RedisValueKindInteger, Integer: value,
+		}}},
+	}}}
 }

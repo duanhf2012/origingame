@@ -1,0 +1,4 @@
+services:
+  GameService:
+    real_area_id: 1 # 当前 GameService 承载的真实区服ID，必须与Node Label一致。
+    player_capacity: 5000 # 当前实例可承载的Loading、Online和Resident玩家总量。
