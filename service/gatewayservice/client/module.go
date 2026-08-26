@@ -209,12 +209,29 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 		return module.replyLoginError(current, request.sequence, commonpb.ErrorCode_ERROR_CODE_INVALID_REQUEST)
 	}
 	if login.ShowAreaId <= 0 {
+		module.Logger().Debug(
+			"Gateway 登录请求区服无效",
+			log.String("connection_id", string(current.session.ID())),
+			log.Int64("show_area_id", login.ShowAreaId),
+		)
 		return module.replyLoginError(current, request.sequence, commonpb.ErrorCode_ERROR_CODE_INVALID_REQUEST)
 	}
 	accountID, err := module.dependencies.Verifier.Verify(login.Token)
 	if err != nil {
+		module.Logger().Debug(
+			"Gateway 登录凭证无效",
+			log.String("connection_id", string(current.session.ID())),
+			log.Int64("show_area_id", login.ShowAreaId),
+		)
 		return module.replyLoginError(current, request.sequence, commonpb.ErrorCode_ERROR_CODE_GATEWAY_TOKEN_INVALID)
 	}
+	// Token 仅在当前函数和下游 RPC 中使用，日志只保留连接与区服定位信息。
+	module.Logger().Debug(
+		"Gateway 收到客户端登录请求",
+		log.String("connection_id", string(current.session.ID())),
+		log.Uint32("sequence", request.sequence),
+		log.Int64("show_area_id", login.ShowAreaId),
+	)
 	if current.state == stateLoggingIn {
 		if current.loginSequence == request.sequence {
 			return nil
@@ -234,8 +251,19 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 	failureStage = "area"
 	realAreaID, exists := module.dependencies.Areas.Resolve(login.ShowAreaId)
 	if !exists {
+		module.Logger().Debug(
+			"Gateway 登录区服不存在",
+			log.String("connection_id", string(current.session.ID())),
+			log.Int64("show_area_id", login.ShowAreaId),
+		)
 		return module.replyLoginError(current, request.sequence, commonpb.ErrorCode_ERROR_CODE_GATEWAY_AREA_NOT_FOUND)
 	}
+	module.Logger().Debug(
+		"Gateway 登录区服已解析",
+		log.String("connection_id", string(current.session.ID())),
+		log.Int64("show_area_id", login.ShowAreaId),
+		log.Int64("real_area_id", realAreaID),
+	)
 
 	current.state = stateLoggingIn
 	current.loginSequence = request.sequence
@@ -259,6 +287,12 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 	if err != nil || result == nil {
 		current.state = stateConnected
 		current.loginSequence = 0
+		module.Logger().Debug(
+			"Gateway 登录路由或玩家加载失败",
+			log.String("connection_id", string(current.session.ID())),
+			log.Int64("show_area_id", login.ShowAreaId),
+			log.Int64("real_area_id", realAreaID),
+		)
 		return module.replyLoginError(current, request.sequence, commonpb.ErrorCode_ERROR_CODE_GATEWAY_ROUTE_UNAVAILABLE)
 	}
 	body, err := proto.Marshal(result)
@@ -273,6 +307,13 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 	current.loginResult = body
 	current.loginSequence = 0
 	outcome, failureStage = "success", "none"
+	module.Logger().Debug(
+		"Gateway 客户端登录完成",
+		log.String("connection_id", string(current.session.ID())),
+		log.Int64("show_area_id", login.ShowAreaId),
+		log.Int64("real_area_id", realAreaID),
+		log.String("game_service_node", current.instance.NodeID),
+	)
 	return module.send(current, rpcapi.ClientMessage{
 		MessageID: commonpb.MessageID_LoginPlayerRes, Sequence: request.sequence,
 		ErrorCode: commonpb.ErrorCode_ERROR_CODE_OK, Body: body,
@@ -387,6 +428,13 @@ func (module *Module) onClose(_ context.Context, session network.Session, _ erro
 	}
 	delete(module.connections, session.ID())
 	if current.state == stateOnline {
+		module.Logger().Debug(
+			"Gateway 已登录客户端断开",
+			log.String("connection_id", string(session.ID())),
+			log.Int64("show_area_id", current.showAreaID),
+			log.Int64("real_area_id", current.realAreaID),
+			log.String("game_service_node", current.instance.NodeID),
+		)
 		_ = module.dependencies.NotifyDisconnected(current.instance, string(session.ID()))
 	}
 }

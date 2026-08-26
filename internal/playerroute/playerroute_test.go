@@ -15,7 +15,7 @@ func TestAssignOrGetBuildsStableRoutedScriptRequest(t *testing.T) {
 	var captured rpcapi.RedisRequest
 	store := New(func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 		routeKey, captured = key, request
-		return assignmentRedisResult(AssignmentDecisionAssigned, "GameService", "game-area-1-1", "session-1", "ASSIGNING"), nil
+		return assignmentRedisResult(AssignmentDecisionAssigned, "GameService", "area1-game-1", "session-1", "ASSIGNING"), nil
 	})
 	result, err := store.AssignOrGet(context.Background(), AssignRequest{
 		Player:              Player{AccountID: "0123456789abcdef01234567", ShowAreaID: 10, RealAreaID: 1},
@@ -24,7 +24,7 @@ func TestAssignOrGetBuildsStableRoutedScriptRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignOrGet() error = %v", err)
 	}
-	if result.Decision != AssignmentDecisionAssigned || result.Instance.NodeID != "game-area-1-1" {
+	if result.Decision != AssignmentDecisionAssigned || result.Instance.NodeID != "area1-game-1" {
 		t.Fatalf("AssignOrGet() = %+v", result)
 	}
 	if routeKey != "0123456789abcdef01234567:10" || routeKey != captured.DispatchKey ||
@@ -47,7 +47,7 @@ func TestRegisterGameServiceUsesInstanceAsDispatchKey(t *testing.T) {
 	})
 	err := store.RegisterGameService(context.Background(), Registration{
 		RealAreaID: 1,
-		Instance:   Instance{ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1"},
+		Instance:   Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 		MaxPlayers: 5000,
 	})
 	if err != nil {
@@ -83,7 +83,7 @@ func TestBeginPlayerReleaseUsesFiveSecondIsolation(t *testing.T) {
 	accepted, err := store.BeginPlayerRelease(
 		context.Background(),
 		Player{AccountID: "0123456789abcdef01234567", ShowAreaID: 10, RealAreaID: 1},
-		Instance{ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1"},
+		Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 	)
 	if err != nil || !accepted || captured.Script == nil ||
 		captured.Script.ID != redisscripts.BeginPlayerReleaseID || len(captured.Script.Args) != 3 ||
@@ -101,7 +101,7 @@ func TestRenewPlayerRoutesRejectsOversizedBatch(t *testing.T) {
 		players[index] = Player{AccountID: "0123456789abcdef01234567", ShowAreaID: int64(index + 1), RealAreaID: 1}
 	}
 	_, err := store.RenewPlayerRoutes(context.Background(), 1, Instance{
-		ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1",
+		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, players)
 	if err == nil {
 		t.Fatal("RenewPlayerRoutes() accepted more than 256 routes")

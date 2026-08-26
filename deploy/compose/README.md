@@ -8,7 +8,9 @@
 - 单节点 MongoDB 副本集，支持事务测试；
 - MongoDB 三张基础表、校验器、索引和一组基础区服数据。
 
-该编排用于学习、开发和集成测试，不是生产部署模板。服务端口默认只绑定 `127.0.0.1`。
+该编排用于学习、开发和集成测试，不是生产部署模板。etcd、NATS、Redis 和 MongoDB 默认绑定宿主机 `192.168.8.3`。
+
+当前 OriginGame 使用 Origin 内置服务发现和 TCP RPC，etcd 与 NATS 不参与当前服务发现或服务间 RPC；它们仅作为可选基础设施保留。
 
 当前 Compose 固定使用 `mongo:8.0.4`，用于兼容项目开发机的 Linux `7.0.0` 内核。MongoDB 官方说明 Linux `6.19` 到 `7.0.13` 与当前 TCMalloc 存在兼容问题；正式环境应使用官方支持的内核（例如 `7.0.14+`），并将 MongoDB 更新到受维护的新版本。
 
@@ -21,22 +23,22 @@ docker compose up -d
 docker compose ps
 ```
 
-首次启动会自动创建 MongoDB 数据库和基础数据。等待四个容器状态变为 `healthy`，并确认 NATS `/healthz` 返回成功后，即可启动 OriginGame 服务。
+首次启动会自动创建 MongoDB 数据库和基础数据。等待 MongoDB、Redis 状态变为 `healthy` 后，即可启动 OriginGame 服务。
 
 ## 2. 连接信息
 
 | 服务 | 宿主机地址 | 容器网络地址 |
 | --- | --- | --- |
-| etcd | `http://127.0.0.1:2379` | `http://etcd:2379` |
-| NATS | `nats://127.0.0.1:4222` | `nats://nats:4222` |
-| NATS 监控 | `http://127.0.0.1:8222` | `http://nats:8222` |
-| Redis | `redis://127.0.0.1:6379` | `redis://redis:6379` |
-| MongoDB | `127.0.0.1:27017` | `mongodb:27017` |
+| etcd | `http://192.168.8.3:2379` | `http://etcd:2379` |
+| NATS（可选） | `nats://192.168.8.3:4222` | `nats://nats:4222` |
+| NATS 监控（可选） | `http://192.168.8.3:8222` | `http://nats:8222` |
+| Redis | `redis://192.168.8.3:6379` | `redis://redis:6379` |
+| MongoDB | `192.168.8.3:27017` | `mongodb:27017` |
 
 宿主机连接 URI：
 
 ```text
-mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
+mongodb://192.168.8.3:27017/?replicaSet=rs0&directConnection=true
 ```
 
 其他 Compose 容器连接 URI：
@@ -67,13 +69,13 @@ Redis 当前没有配置认证，只能用于本地开发。其淘汰策略固�
 
 ## 4. 验证
 
-查看 NATS 健康状态：
+查看可选 NATS 健康状态：
 
 ```text
-http://127.0.0.1:8222/healthz
+http://192.168.8.3:8222/healthz
 ```
 
-查看 etcd 健康状态：
+查看可选 etcd 健康状态：
 
 ```bash
 docker exec origingame-etcd etcdctl --endpoints=http://127.0.0.1:2379 endpoint health
@@ -111,7 +113,7 @@ docker compose up -d
 
 `down -v` 会删除本地 etcd、Redis 和 MongoDB 开发数据，只应在确认不再需要这些数据时执行。
 
-如需让其他主机访问，可在启动前设置 `ORIGINGAME_BIND_ADDRESS`。由于本编排没有为 etcd、NATS 和 Redis 配置认证，不能将其暴露到公网。
+如需调整绑定地址，可使用 `ORIGINGAME_ETCD_BIND_ADDRESS`、`ORIGINGAME_NATS_BIND_ADDRESS`、`ORIGINGAME_REDIS_BIND_ADDRESS` 和 `ORIGINGAME_MONGODB_BIND_ADDRESS`。由于本编排没有为 etcd、NATS 和 Redis 配置认证，不能将其暴露到公网。
 
 宿主机标准端口已被占用时，可以覆盖映射端口而不修改 Compose：
 

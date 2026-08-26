@@ -16,10 +16,7 @@ type Authenticator interface {
 type DevelopmentAuthenticator struct{}
 
 // Authenticate 明确执行空平台鉴权；公共参数校验由 LoginService 先完成。
-func (DevelopmentAuthenticator) Authenticate(
-	_ context.Context,
-	credential account.LoginCredential,
-) (account.PlatformIdentity, error) {
+func (DevelopmentAuthenticator) Authenticate(_ context.Context, credential account.LoginCredential) (account.PlatformIdentity, error) {
 	// TODO: 使用者在生产项目中按具体渠道接入 SDK，并删除 development_passthrough 配置。
 	return account.PlatformIdentity{PlatType: credential.PlatType, PlatID: credential.PlatID}, nil
 }

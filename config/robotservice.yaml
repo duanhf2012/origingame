@@ -1,0 +1,30 @@
+services:
+  RobotService:
+    blueprint:
+      node_dir: "tests/e2e/robot/nodes" # OriginBlueprint 自定义节点声明目录。
+      graph_dir: "tests/e2e/robot/blueprints" # 机器人行为蓝图目录。
+      graph_name: "login_heartbeat" # 首期允许启动的默认场景名。
+      entrance_id: 1001 # 默认场景入口编号，对应 Entrance_RobotStart_1001。
+
+    control:
+      startup_run: true # 本地启动后立即执行默认机器人登录场景。
+
+    target:
+      login_url: "http://127.0.0.1:8080/api/v1/login" # 真实客户端 HTTP 登录入口。
+      show_area_id: 1 # 机器人选择的展示区服编号。
+
+    identity:
+      platform_type: 1 # 隔离测试账号的平台类型。
+      platform_id_prefix: "robot-local-" # 机器人稳定身份前缀；生产环境必须单独隔离。
+
+    workload:
+      users: 10 # 本次运行的逻辑机器人总数。
+      ramp_up: 10s # 从零逐步启动全部机器人的真实时间。
+      duration: 5m # 运行持续的真实时间，不受游戏逻辑调时影响。
+      scenario_retry_count: 0 # E2E 默认不重试；最多可配置 2 次。
+      replace_failed: false # 当前阶段固定为 false，失败机器人不补位。
+      max_replacements: 0 # 当前阶段固定为 0；后续固定 CCU 补位时启用硬上限。
+
+    io:
+      workers: 16 # HTTP 登录和 TCP 拨号共用的固定阻塞 I/O Worker 数。
+      queue_messages: 1024 # 阻塞 I/O 待执行队列硬上限。

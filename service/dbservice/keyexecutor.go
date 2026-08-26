@@ -83,11 +83,7 @@ func (reservation *inflightReservation) release() {
 }
 
 // execute 先取得非空 Key 的 FIFO 执行权，再申请全局 I/O 槽并同步执行 operation。
-func (executor *keyExecutor) execute(
-	ctx context.Context,
-	dispatchKey string,
-	operation func(context.Context) error,
-) error {
+func (executor *keyExecutor) execute(ctx context.Context, dispatchKey string, operation func(context.Context) error) error {
 	if ctx == nil || operation == nil || len(dispatchKey) > maxDispatchKeyBytes {
 		return errs.ErrInvalidArgument
 	}

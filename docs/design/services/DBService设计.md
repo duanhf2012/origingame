@@ -202,16 +202,16 @@ DBService 不再暴露 `key_executor` 和 `rpc_limits` 两组配置。单个实�
 
 ```yaml
 node_services:
-  db-pub-1:
+  pub-db-1:
     AccDBService:
       max_io_concurrency: 64            # MongoDB和Redis正在执行的Driver I/O总并发上限；省略时默认64
       max_inflight_requests: 128        # 已准入但未完成的请求总量，包含等待Key、等待I/O槽位和实际I/O；省略时默认128
       mongodb:
-        uri: mongodb://127.0.0.1:27017/?maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000 # 连接、连接池和基础设施超时由URI控制
+        uri: mongodb://192.168.8.3:27017/?maxPoolSize=64&maxConnecting=4&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000&socketTimeoutMS=5000 # 连接、连接池和基础设施超时由URI控制
         database: origingame_account    # AccDBService固定绑定账号数据库
       redis:
-        addresses: [127.0.0.1:6379]     # 当前实际DBService使用的Redis数据节点地址
-        client_name: origingame-acc-db-pub-1 # AccDBService与RoleDBService必须使用不同名称
+        addresses: [192.168.8.3:6379]   # 当前实际DBService使用的远端Redis数据节点地址
+        client_name: origingame-acc-pub-db-1 # AccDBService与RoleDBService必须使用不同名称
         database: 0                     # AccDBService固定为0；RoleDBService固定为1
         pool_size: 64                   # 每个Redis节点的基础连接数，与I/O上限对齐
         max_active_connections: 64      # 每个Redis节点活动连接硬上限，与I/O上限对齐

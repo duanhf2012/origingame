@@ -1,5 +1,6 @@
 rpc:
-  transport: nats # 本地多进程 RPC 统一使用 NATS。
-  nats:
-    namespace: origingame-v3-local # 隔离同一 NATS 上的其他 Origin 应用。
-    urls: [nats://127.0.0.1:4222] # 本地 NATS 地址；生产需启用 TLS 和最小权限凭据。
+  transport: tcp # 服务间 RPC 统一使用 Origin TCP 长连接。
+  tcp:
+    send_queue_messages: 16384 # 每条 TCP 连接最多等待发送的完整 RPC 消息数。
+    read_idle_timeout: 15s # TCP 读空闲和应用层心跳周期；0s 表示关闭。
+    write_timeout: 15s # 写出一个完整 TCP RPC 帧的最长时间。

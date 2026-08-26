@@ -352,11 +352,7 @@ func (builder *redisValueBuilder) addReflect(index uint32, value reflect.Value, 
 	}
 }
 
-func (builder *redisValueBuilder) addBytes(
-	node *rpcapi.RedisValueNode,
-	kind rpcapi.RedisValueKind,
-	value []byte,
-) error {
+func (builder *redisValueBuilder) addBytes(node *rpcapi.RedisValueNode, kind rpcapi.RedisValueKind, value []byte) error {
 	builder.bytes += len(value) + 16
 	if builder.bytes > maxRedisResultPayloadSize {
 		return errs.ErrServiceQueueFull

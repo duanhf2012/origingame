@@ -411,17 +411,18 @@ bin/run.bat、bin/run.sh           Windows 与 Linux 统一启动脚本
 先通过 `deploy/compose/compose.yaml` 启动 MongoDB 和 Redis，再执行：
 
 ```powershell
-./bin/run.bat login-pub-1
+./bin/run.bat
 ```
 
 或在 Linux 下执行：
 
 ```bash
-./bin/run.sh login-pub-1
+./bin/run.sh
 ```
+
+启动脚本不接受参数，通过一个 Origin Application 的 `--node` 逗号参数启动本地登录链路的六个 Node：`pub-discovery-1`、`pub-db-1`、`area1-db-1`、`area1-game-1`、`pub-gateway-1` 与 `pub-login-1`。`pub-discovery-1` 必须位于启动顺序第一位，以便先启动 Origin 内置 `DiscoveryService`。停止时直接执行 `./bin/stop.bat` 或 `./bin/stop.sh`，使用同一个 Application 名称和 Origin 的进程控制命令完成优雅关闭。
 
 当前 `authentication.development_passthrough: true` 明确表示不执行真实平台 SDK 鉴权，仅供学习和本地开发。
 
-当前工程使用 Go 1.27，并通过 `go.mod replace` 直接对接同级正式开发目录 `../origin_v3`。
-截至 2026-08-13，Go 1.27 稳定版尚未发布，当前通过 `go 1.27rc2` 固定使用官方 RC2；稳定版
-发布后应把 `go` 指令升级到正式的 Go 1.27 补丁版本，并重新执行完整门禁。
+当前工程使用正式版 Go 1.27.0，并通过 `go.mod replace` 直接对接同级正式开发目录 `../origin_v3`。
+Go 1.27.0 已于 2026-08-19 发布，`go.mod` 通过 `go 1.27.0` 固定最低工具链版本。

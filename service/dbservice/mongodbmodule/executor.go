@@ -272,11 +272,7 @@ func validateReadPipeline(pipeline [][]byte) error {
 	return nil
 }
 
-func executeRequest(
-	ctx context.Context,
-	request rpcapi.MongoRequest,
-	runner operationRunner,
-) rpcapi.MongoResult {
+func executeRequest(ctx context.Context, request rpcapi.MongoRequest, runner operationRunner) rpcapi.MongoResult {
 	result := rpcapi.MongoResult{Results: makeNotExecutedResults(len(request.Operations))}
 	if request.ExecuteMode == rpcapi.MongoExecuteModeSequential {
 		for index, operation := range request.Operations {

@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "graphName": "login_heartbeat",
+  "nodes": [
+    {
+      "id": "entry",
+      "typeId": "origin.custom.entrance-robot-start-1001",
+      "position": {"x": 80, "y": 220},
+      "values": {},
+      "properties": {
+        "label": "机器人开始",
+        "legacyClass": "Entrance_RobotStart_1001",
+        "legacyModule": "Robot/流程",
+        "legacyInputs": [],
+        "legacyOutputs": [
+          {"key": "out0", "label": "执行", "type": "exec"},
+          {"key": "out1", "label": "robot_id", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "http_login",
+      "typeId": "origin.custom.robot-httplogin",
+      "position": {"x": 390, "y": 200},
+      "values": {},
+      "properties": {
+        "label": "HTTP 登录",
+        "legacyClass": "RobotHTTPLogin",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [
+          {"key": "out0", "label": "成功", "type": "exec"},
+          {"key": "out1", "label": "失败", "type": "exec"},
+          {"key": "out2", "label": "error_code", "type": "integer"},
+          {"key": "out3", "label": "duration_ms", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "connect_gateway",
+      "typeId": "origin.custom.robot-connect-gateway",
+      "position": {"x": 720, "y": 200},
+      "values": {},
+      "properties": {
+        "label": "连接 Gateway",
+        "legacyClass": "RobotConnectGateway",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [
+          {"key": "out0", "label": "成功", "type": "exec"},
+          {"key": "out1", "label": "失败", "type": "exec"},
+          {"key": "out2", "label": "error_code", "type": "integer"},
+          {"key": "out3", "label": "duration_ms", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "login_player",
+      "typeId": "origin.custom.robot-login-player",
+      "position": {"x": 1050, "y": 200},
+      "values": {"in2": 1},
+      "properties": {
+        "label": "登录玩家",
+        "legacyClass": "RobotLoginPlayer",
+        "legacyModule": "Robot/协议",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"},
+          {"key": "in2", "label": "show_area_id", "type": "integer"}
+        ],
+        "legacyOutputs": [
+          {"key": "out0", "label": "成功", "type": "exec"},
+          {"key": "out1", "label": "失败", "type": "exec"},
+          {"key": "out2", "label": "error_code", "type": "integer"},
+          {"key": "out3", "label": "duration_ms", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "start_heartbeat",
+      "typeId": "origin.custom.robot-start-heartbeat",
+      "position": {"x": 1390, "y": 200},
+      "values": {"in2": "5s"},
+      "properties": {
+        "label": "启动后台心跳",
+        "legacyClass": "RobotStartHeartbeat",
+        "legacyModule": "Robot/协议",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"},
+          {"key": "in2", "label": "interval", "type": "string"}
+        ],
+        "legacyOutputs": [
+          {"key": "out0", "label": "成功", "type": "exec"},
+          {"key": "out1", "label": "失败", "type": "exec"},
+          {"key": "out2", "label": "error_code", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "business_loop",
+      "typeId": "origin.flow.while",
+      "position": {"x": 1720, "y": 200},
+      "values": {"condition": true},
+      "properties": {
+        "label": "主业务循环",
+        "legacyClass": "WhileNode",
+        "legacyModule": "流程控制",
+        "legacyInputs": [
+          {"key": "exec", "label": "执行", "type": "exec"},
+          {"key": "condition", "label": "条件", "type": "boolean"}
+        ],
+        "legacyOutputs": [
+          {"key": "body", "label": "循环体", "type": "exec"},
+          {"key": "completed", "label": "完成", "type": "exec"}
+        ]
+      }
+    },
+    {
+      "id": "wait",
+      "typeId": "origin.custom.robot-wait",
+      "position": {"x": 2020, "y": 160},
+      "values": {"in1": "1s"},
+      "properties": {
+        "label": "模拟主业务等待",
+        "legacyClass": "RobotWait",
+        "legacyModule": "Robot/流程",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "duration", "type": "string"}
+        ],
+        "legacyOutputs": [
+          {"key": "out0", "label": "完成", "type": "exec"},
+          {"key": "out1", "label": "失败", "type": "exec"},
+          {"key": "out2", "label": "error_code", "type": "integer"}
+        ]
+      }
+    },
+    {
+      "id": "disconnect_http_failure",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 720, "y": 520},
+      "values": {},
+      "properties": {
+        "label": "HTTP 登录失败清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    },
+    {
+      "id": "disconnect_connect_failure",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 1050, "y": 520},
+      "values": {},
+      "properties": {
+        "label": "Gateway 连接失败清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    },
+    {
+      "id": "disconnect_login_failure",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 1390, "y": 520},
+      "values": {},
+      "properties": {
+        "label": "玩家登录失败清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    },
+    {
+      "id": "disconnect_wait_failure",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 2010, "y": 520},
+      "values": {},
+      "properties": {
+        "label": "等待失败清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    },
+    {
+      "id": "disconnect_start_heartbeat_failure",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 1720, "y": 520},
+      "values": {},
+      "properties": {
+        "label": "启动心跳失败清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    },
+    {
+      "id": "disconnect_completed",
+      "typeId": "origin.custom.robot-disconnect",
+      "position": {"x": 2020, "y": 700},
+      "values": {},
+      "properties": {
+        "label": "正常结束清理",
+        "legacyClass": "RobotDisconnect",
+        "legacyModule": "Robot/连接",
+        "legacyInputs": [
+          {"key": "in0", "label": "执行", "type": "exec"},
+          {"key": "in1", "label": "robot_id", "type": "integer"}
+        ],
+        "legacyOutputs": [{"key": "out0", "label": "完成", "type": "exec"}]
+      }
+    }
+  ],
+  "connections": [
+    {"source": "entry", "sourceOutput": "out0", "target": "http_login", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "http_login", "targetInput": "in1"},
+    {"source": "http_login", "sourceOutput": "out0", "target": "connect_gateway", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "connect_gateway", "targetInput": "in1"},
+    {"source": "connect_gateway", "sourceOutput": "out0", "target": "login_player", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "login_player", "targetInput": "in1"},
+    {"source": "login_player", "sourceOutput": "out0", "target": "start_heartbeat", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "start_heartbeat", "targetInput": "in1"},
+    {"source": "start_heartbeat", "sourceOutput": "out0", "target": "business_loop", "targetInput": "exec"},
+    {"source": "business_loop", "sourceOutput": "body", "target": "wait", "targetInput": "in0"},
+
+    {"source": "http_login", "sourceOutput": "out1", "target": "disconnect_http_failure", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_http_failure", "targetInput": "in1"},
+    {"source": "connect_gateway", "sourceOutput": "out1", "target": "disconnect_connect_failure", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_connect_failure", "targetInput": "in1"},
+    {"source": "login_player", "sourceOutput": "out1", "target": "disconnect_login_failure", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_login_failure", "targetInput": "in1"},
+    {"source": "wait", "sourceOutput": "out1", "target": "disconnect_wait_failure", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_wait_failure", "targetInput": "in1"},
+    {"source": "start_heartbeat", "sourceOutput": "out1", "target": "disconnect_start_heartbeat_failure", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_start_heartbeat_failure", "targetInput": "in1"},
+    {"source": "business_loop", "sourceOutput": "completed", "target": "disconnect_completed", "targetInput": "in0"},
+    {"source": "entry", "sourceOutput": "out1", "target": "disconnect_completed", "targetInput": "in1"}
+  ],
+  "groups": [],
+  "variables": [],
+  "variableGroups": [{"id": "default", "name": "默认"}],
+  "view": {"x": 0, "y": 0, "zoom": 0.75}
+}

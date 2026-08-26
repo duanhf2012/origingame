@@ -5,10 +5,12 @@ package main
 import (
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"origingame/service/dbservice"
 	"origingame/service/gameservice"
 	"origingame/service/gatewayservice"
 	"origingame/service/loginservice"
+	"origingame/service/robotservice"
 
 	"github.com/duanhf2012/origin/v3/application"
 )
@@ -26,7 +28,12 @@ func init() {
 		&gatewayservice.GatewayService{},
 		&gameservice.GameService{},
 		&loginservice.LoginService{},
+		&robotservice.RobotService{},
 	)
 }
 
-func main() { app.Start() }
+func main() {
+	// Gin 的调试路由输出不属于 OriginGame 的结构化日志，最终入口统一关闭它。
+	gin.SetMode(gin.ReleaseMode)
+	app.Start()
+}

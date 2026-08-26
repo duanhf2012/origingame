@@ -38,7 +38,7 @@ func TestModuleRegistersRenewsAndDrains(t *testing.T) {
 	store := &fakeRouteStore{registered: make(chan struct{}, 1)}
 	module := New(store, store, playerroute.Registration{
 		RealAreaID: 1,
-		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1"},
+		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 		MaxPlayers: 5000,
 	})
 	module.interval = 5 * time.Millisecond
@@ -72,7 +72,7 @@ func TestModuleStopUsesLifecycleStore(t *testing.T) {
 	stopStore := &fakeRouteStore{registered: make(chan struct{}, 1)}
 	module := New(runStore, stopStore, playerroute.Registration{
 		RealAreaID: 1,
-		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1"},
+		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 		MaxPlayers: 5000,
 	})
 

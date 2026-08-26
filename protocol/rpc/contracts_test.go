@@ -41,10 +41,29 @@ func (gatewayServiceContractStub) CloseClientConnection(context.Context, CloseCl
 	return nil
 }
 
+type robotServiceContractStub struct{}
+
+func (robotServiceContractStub) ListScenarios(context.Context, ListRobotScenariosRequest) (ListRobotScenariosResponse, error) {
+	return ListRobotScenariosResponse{}, nil
+}
+
+func (robotServiceContractStub) StartRun(context.Context, StartRobotRunRequest) (RobotRunSnapshot, error) {
+	return RobotRunSnapshot{}, nil
+}
+
+func (robotServiceContractStub) StopRun(context.Context, StopRobotRunRequest) (RobotRunSnapshot, error) {
+	return RobotRunSnapshot{}, nil
+}
+
+func (robotServiceContractStub) GetRun(context.Context, GetRobotRunRequest) (RobotRunSnapshot, error) {
+	return RobotRunSnapshot{}, nil
+}
+
 func TestServiceContractsHaveConfirmedMethodSets(t *testing.T) {
 	var _ DBService = dbServiceContractStub{}
 	var _ GameService = gameServiceContractStub{}
 	var _ GatewayService = gatewayServiceContractStub{}
+	var _ RobotService = robotServiceContractStub{}
 }
 
 func TestProtocolEnumsReserveZeroForUnspecified(t *testing.T) {

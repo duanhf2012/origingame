@@ -23,11 +23,7 @@ func New() *Router { return &Router{routes: make(map[commonpb.MessageID]routeHan
 
 // Register 使用具体 Protobuf 值类型登记无反射的解码与业务 Handler。
 // T 必须是生成消息的值类型，Handler 参数固定使用 *T。
-func Register[T any](
-	router *Router,
-	messageID commonpb.MessageID,
-	handler func(*Session, *player.Player, *T) error,
-) error {
+func Register[T any](router *Router, messageID commonpb.MessageID, handler func(*Session, *player.Player, *T) error) error {
 	if router == nil || router.frozen || messageID == commonpb.MessageID_Ok || handler == nil {
 		return errors.New("消息路由登记参数无效")
 	}

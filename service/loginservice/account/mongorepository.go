@@ -28,11 +28,7 @@ func NewMongoRepository(execute MongoExecutor) *MongoRepository {
 }
 
 // FindOrCreate 原子查询或创建平台账号，并处理并发 upsert 的唯一键竞争。
-func (repository *MongoRepository) FindOrCreate(
-	ctx context.Context,
-	identity PlatformIdentity,
-	clientIP string,
-) (mongodb.Account, error) {
+func (repository *MongoRepository) FindOrCreate(ctx context.Context, identity PlatformIdentity, clientIP string) (mongodb.Account, error) {
 	if repository == nil || repository.execute == nil {
 		return mongodb.Account{}, errors.New("账号仓储未初始化")
 	}

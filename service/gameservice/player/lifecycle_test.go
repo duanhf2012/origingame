@@ -44,7 +44,7 @@ func TestProxyLifecycleUsesForwardEntryAndReverseExitOrder(t *testing.T) {
 	if err := current.FinishLoad(false); err != nil {
 		t.Fatal(err)
 	}
-	if err := current.Online("gateway-pub-1", "connection-1", time.Now()); err != nil {
+	if err := current.Online("pub-gateway-1", "connection-1", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	current.Offline(time.Now(), 15*time.Minute)

@@ -164,36 +164,21 @@ func (store *Store) AssignOrGet(ctx context.Context, request AssignRequest) (Ass
 }
 
 // BeginPlayerLoad 将当前连接的 ASSIGNING 路由条件推进到 LOADING。
-func (store *Store) BeginPlayerLoad(
-	ctx context.Context,
-	player Player,
-	instance Instance,
-	connectionID string,
-) (bool, error) {
+func (store *Store) BeginPlayerLoad(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
 	return store.playerTransition(ctx, player, instance, redisscripts.BeginPlayerLoadID,
 		[]string{routeKey(player), instanceKey(player.RealAreaID, instance), instanceKey(player.RealAreaID, instance) + ":lease"},
 		instance.NodeID, instance.NodeSessionID, connectionID, milliseconds(playerRouteTTL))
 }
 
 // CompletePlayerLogin 将 LOADING 或 RESIDENT 路由推进到 ONLINE。
-func (store *Store) CompletePlayerLogin(
-	ctx context.Context,
-	player Player,
-	instance Instance,
-	connectionID string,
-) (bool, error) {
+func (store *Store) CompletePlayerLogin(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
 	return store.playerTransition(ctx, player, instance, redisscripts.CompletePlayerLoginID,
 		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, connectionID,
 		milliseconds(playerRouteTTL))
 }
 
 // ReleasePlayerLoad 条件回滚尚未完成的加载预占。
-func (store *Store) ReleasePlayerLoad(
-	ctx context.Context,
-	player Player,
-	instance Instance,
-	connectionID string,
-) (bool, error) {
+func (store *Store) ReleasePlayerLoad(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
 	return store.playerTransition(ctx, player, instance, redisscripts.ReleasePlayerLoadID,
 		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, connectionID)
 }
@@ -211,12 +196,7 @@ func (store *Store) BeginPlayerRelease(ctx context.Context, player Player, insta
 }
 
 // RenewPlayerRoutes 条件续租当前实例拥有的最多256条在线或驻留路由。
-func (store *Store) RenewPlayerRoutes(
-	ctx context.Context,
-	realAreaID int64,
-	instance Instance,
-	players []Player,
-) (int64, error) {
+func (store *Store) RenewPlayerRoutes(ctx context.Context, realAreaID int64, instance Instance, players []Player) (int64, error) {
 	if err := validateInstance(realAreaID, instance); err != nil || len(players) == 0 || len(players) > maxRenewRoutes {
 		return 0, errors.New("玩家路由续租参数无效")
 	}

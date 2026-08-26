@@ -20,7 +20,7 @@ services:
       - --initial-cluster-state=new
       - --initial-cluster-token=origingame-v3-etcd
     ports:
-      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_ETCD_PORT:-2379}:2379"
+      - "${ORIGINGAME_ETCD_BIND_ADDRESS:-192.168.8.3}:${ORIGINGAME_ETCD_PORT:-2379}:2379"
     volumes:
       - etcd-data:/etcd-data
     healthcheck:
@@ -44,8 +44,8 @@ services:
     command:
       - --config=/etc/nats/nats.conf
     ports:
-      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_NATS_PORT:-4222}:4222"
-      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_NATS_MONITOR_PORT:-8222}:8222"
+      - "${ORIGINGAME_NATS_BIND_ADDRESS:-192.168.8.3}:${ORIGINGAME_NATS_PORT:-4222}:4222"
+      - "${ORIGINGAME_NATS_BIND_ADDRESS:-192.168.8.3}:${ORIGINGAME_NATS_MONITOR_PORT:-8222}:8222"
     volumes:
       - ./nats.conf:/etc/nats/nats.conf:ro
     healthcheck:
@@ -76,7 +76,7 @@ services:
       - --maxmemory-policy
       - noeviction
     ports:
-      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_REDIS_PORT:-6379}:6379"
+      - "${ORIGINGAME_REDIS_BIND_ADDRESS:-192.168.8.3}:${ORIGINGAME_REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -106,7 +106,7 @@ services:
     environment:
       MONGO_INITDB_DATABASE: origingame_account
     ports:
-      - "${ORIGINGAME_BIND_ADDRESS:-127.0.0.1}:${ORIGINGAME_MONGODB_PORT:-27017}:27017"
+      - "${ORIGINGAME_MONGODB_BIND_ADDRESS:-192.168.8.3}:${ORIGINGAME_MONGODB_PORT:-27017}:27017"
     volumes:
       - mongodb-data:/data/db
       - ./mongodb/init:/docker-entrypoint-initdb.d:ro

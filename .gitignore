@@ -1,5 +1,9 @@
 /build/
 /run/
+/.idea/
+/scripts/tools/
+/tests/e2e/robot/OriginBlueprint.exe
+/tests/e2e/robot/originblueprint.project
 /*.exe
 /coverage
 *.cover

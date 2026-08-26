@@ -55,13 +55,13 @@ func TestModuleLoadsInitialPlayerAndBuildsConnectionIndex(t *testing.T) {
 		return rpcapi.MongoResult{Results: results}, nil
 	}
 	module := NewModule(execute, routes, 1, playerroute.Instance{
-		ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1",
+		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil, nil)
 	if err := module.OnInit(); err != nil {
 		t.Fatal(err)
 	}
 	current, err := module.LoadNew(
-		context.Background(), "0123456789abcdef01234567", 10, "gateway-pub-1", "connection-1",
+		context.Background(), "0123456789abcdef01234567", 10, "pub-gateway-1", "connection-1",
 	)
 	if err != nil {
 		t.Fatalf("LoadNew() error = %v", err)
@@ -92,7 +92,7 @@ func TestRenewRoutesIncludesOnlineAndResidentPlayers(t *testing.T) {
 		return rpcapi.MongoResult{}, nil
 	}
 	module := NewModule(execute, routes, 1, playerroute.Instance{
-		ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1",
+		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil, nil)
 	if err := module.OnInit(); err != nil {
 		t.Fatal(err)
@@ -121,13 +121,13 @@ func TestDisconnectKeepsPlayerResidentForFifteenMinutes(t *testing.T) {
 		return rpcapi.MongoResult{Results: results}, nil
 	}
 	module := NewModule(execute, routes, 1, playerroute.Instance{
-		ServiceName: "GameService", NodeID: "game-area-1-1", NodeSessionID: "session-1",
+		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil, nil)
 	if err := module.OnInit(); err != nil {
 		t.Fatal(err)
 	}
 	current, err := module.LoadNew(
-		context.Background(), "0123456789abcdef01234567", 10, "gateway-pub-1", "connection-1",
+		context.Background(), "0123456789abcdef01234567", 10, "pub-gateway-1", "connection-1",
 	)
 	if err != nil {
 		t.Fatal(err)

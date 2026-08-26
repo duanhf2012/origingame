@@ -63,11 +63,7 @@ func (limiter *Limiter) AllowIdentity(ctx context.Context, accountID string) (bo
 	return limiter.allow(ctx, AccountKey(accountID), limiter.config.Identity)
 }
 
-func (limiter *Limiter) allow(
-	ctx context.Context,
-	key string,
-	config WindowLimitConfig,
-) (bool, error) {
+func (limiter *Limiter) allow(ctx context.Context, key string, config WindowLimitConfig) (bool, error) {
 	if limiter == nil || !limiter.config.Enabled || !config.Enabled {
 		return true, nil
 	}

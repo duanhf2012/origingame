@@ -1,0 +1,140 @@
+[
+  {
+    "name": "Entrance_RobotStart_1001",
+    "title": "机器人开始",
+    "package": "Robot/流程",
+    "description": "每个逻辑机器人从这里进入行为图。",
+    "outputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotHTTPLogin",
+    "title": "HTTP 登录",
+    "package": "Robot/连接",
+    "description": "调用真实 LoginService，Token 只保存在 VirtualPlayer。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "成功", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"},
+      {"port_id": 3, "name": "duration_ms", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotConnectGateway",
+    "title": "连接 Gateway",
+    "package": "Robot/连接",
+    "description": "连接 HTTP 登录返回的真实 TCP Gateway。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "成功", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"},
+      {"port_id": 3, "name": "duration_ms", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotLoginPlayer",
+    "title": "登录玩家",
+    "package": "Robot/协议",
+    "description": "发送 LoginPlayerReq 并按 Sequence 与 MessageID 等待响应。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"},
+      {"port_id": 2, "name": "show_area_id", "type": "data", "data_type": "integer", "has_input": true, "default_value": 1}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "成功", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"},
+      {"port_id": 3, "name": "duration_ms", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotStartHeartbeat",
+    "title": "启动后台心跳",
+    "package": "Robot/协议",
+    "description": "启动VirtualPlayer持有的后台心跳，节点立即返回，不阻塞主业务流程。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"},
+      {"port_id": 2, "name": "interval", "type": "data", "data_type": "string", "has_input": true, "default_value": "5s"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "成功", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotHeartbeat",
+    "title": "发送心跳",
+    "package": "Robot/协议",
+    "description": "发送心跳并等待相同 Sequence 的 Ok。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "成功", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"},
+      {"port_id": 3, "name": "duration_ms", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotWait",
+    "title": "等待",
+    "package": "Robot/流程",
+    "description": "按真实系统时间等待，不受游戏逻辑调时影响。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "duration", "type": "data", "data_type": "string", "has_input": true, "default_value": "5s"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "完成", "type": "exec"},
+      {"port_id": 1, "name": "失败", "type": "exec"},
+      {"port_id": 2, "name": "error_code", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotWaitMessage",
+    "title": "等待服务端消息",
+    "package": "Robot/协议",
+    "description": "等待指定主动推送；普通请求响应必须使用对应动作节点。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"},
+      {"port_id": 2, "name": "message_id", "type": "data", "data_type": "integer", "has_input": true, "default_value": 0},
+      {"port_id": 3, "name": "timeout", "type": "data", "data_type": "string", "has_input": true, "default_value": "15s"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "收到", "type": "exec"},
+      {"port_id": 1, "name": "超时", "type": "exec"},
+      {"port_id": 2, "name": "失败", "type": "exec"},
+      {"port_id": 3, "name": "error_code", "type": "data", "data_type": "integer"},
+      {"port_id": 4, "name": "duration_ms", "type": "data", "data_type": "integer"}
+    ]
+  },
+  {
+    "name": "RobotDisconnect",
+    "title": "断开连接",
+    "package": "Robot/连接",
+    "description": "幂等关闭当前连接并清理 pending。",
+    "inputs": [
+      {"port_id": 0, "name": "执行", "type": "exec"},
+      {"port_id": 1, "name": "robot_id", "type": "data", "data_type": "integer"}
+    ],
+    "outputs": [
+      {"port_id": 0, "name": "完成", "type": "exec"}
+    ]
+  }
+]

@@ -138,10 +138,7 @@ func (target *GatewayService) OnStart(ctx context.Context) error {
 }
 
 // SendClientMessage 实现 GameService 的统一客户端下行入口。
-func (target *GatewayService) SendClientMessage(
-	_ context.Context,
-	request rpcapi.SendClientMessageRequest,
-) error {
+func (target *GatewayService) SendClientMessage(_ context.Context, request rpcapi.SendClientMessageRequest) error {
 	if request.GatewayConnectionID == "" {
 		return errs.ErrInvalidArgument
 	}
@@ -149,10 +146,7 @@ func (target *GatewayService) SendClientMessage(
 }
 
 // CloseClientConnection 幂等关闭当前 Gateway Node 上的指定连接。
-func (target *GatewayService) CloseClientConnection(
-	_ context.Context,
-	request rpcapi.CloseClientConnectionRequest,
-) error {
+func (target *GatewayService) CloseClientConnection(_ context.Context, request rpcapi.CloseClientConnectionRequest) error {
 	if request.GatewayConnectionID == "" {
 		return errs.ErrInvalidArgument
 	}

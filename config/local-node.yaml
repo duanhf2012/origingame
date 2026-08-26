@@ -1,12 +1,29 @@
 nodes:
-  - id: login-pub-1 # 本地公共 HTTP 登录节点。
+  - id: pub-discovery-1 # Origin 内置 DiscoveryService 节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18080" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18080" # 本机局域网地址，供同机及局域网 Node 连接。
+    labels: {scope: pub} # 公共基础设施部署范围。
+    allow_discovery: [] # DiscoveryService 不调用业务 Service。
+    services: [DiscoveryService]
+
+  - id: pub-login-1 # 本地公共 HTTP 登录节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18085" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18085" # 本机局域网地址，供同机及局域网 Node 连接。
     labels: {scope: pub} # 公共部署范围。
     allow_discovery:
       - services: [AccDBService] # 只发现公共账号数据服务。
         node_labels: {scope: pub}
     services: [LoginService]
 
-  - id: gateway-pub-1 # 本地公共客户端长连接节点。
+  - id: pub-gateway-1 # 本地公共客户端长连接节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18084" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18084" # 本机局域网地址，供同机及局域网 Node 连接。
     labels: {scope: pub} # 公共部署范围。
     allow_discovery:
       - services: [AccDBService] # 玩家路由使用公共账号数据域。
@@ -15,13 +32,21 @@ nodes:
         node_labels: {scope: area}
     services: [GatewayService]
 
-  - id: db-pub-1 # 本地公共数据库节点。
+  - id: pub-db-1 # 本地公共数据库节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18081" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18081" # 本机局域网地址，供同机及局域网 Node 连接。
     labels: {scope: pub} # 公共部署范围。
     allow_discovery: [] # DBService 首期不主动调用远端 Service。
     services:
       - "AccDBService:DBService" # DBService 模板的账号数据域实例。
 
-  - id: game-area-1-1 # 真实区服 1 的第一个 Game 节点。
+  - id: area1-game-1 # 真实区服 1 的第一个 Game 节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18083" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18083" # 本机局域网地址，供同机及局域网 Node 连接。
     labels: {scope: area, real_area_id: "1"} # 区服部署范围。
     allow_discovery:
       - services: [AccDBService, RoleDBService] # 只发现本区服 DB 节点上的两个数据域。
@@ -30,9 +55,23 @@ nodes:
         node_labels: {scope: pub}
     services: [GameService]
 
-  - id: db-area-1-1 # 真实区服 1 的数据库节点。
+  - id: area1-db-1 # 真实区服 1 的数据库节点。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18082" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18082" # 本机局域网地址，供同机及局域网 Node 连接。
     labels: {scope: area, real_area_id: "1"} # 区服部署范围。
     allow_discovery: [] # DBService 首期不主动调用远端 Service。
     services:
       - "AccDBService:DBService" # 公共登录协调数据域的区服内副本。
       - "RoleDBService:DBService" # 当前区服独立角色数据域。
+
+  - id: test-robot-1 # 隔离测试机器人节点；默认启动后不自动发流量。
+    discovery_enabled: false # 机器人只走客户端入口，不加入 Origin 服务发现。
+    rpc:
+      tcp:
+        listen: "0.0.0.0:18086" # 当前 Node 的 TCP RPC 本地监听地址。
+        advertise: "192.168.8.5:18086" # 本机局域网地址，供同机及局域网 Node 连接。
+    labels: {scope: test} # 测试能力不得进入公共或区服发现范围。
+    allow_discovery: [] # RobotService 只访问客户端 HTTP/TCP 入口，不调用业务 RPC。
+    services: [RobotService]

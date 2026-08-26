@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/duanhf2012/origin/v3/discovery"
 	"github.com/duanhf2012/origin/v3/errs"
 	"github.com/duanhf2012/origin/v3/log"
 	"github.com/duanhf2012/origin/v3/service"
@@ -44,6 +45,7 @@ type GameService struct {
 }
 
 var _ rpcapi.GameService = (*GameService)(nil)
+var _ discovery.IListener = (*GameService)(nil)
 
 // OnInit 装配本区服两个 DBService、玩家 Module、实例租约和消息路由。
 func (target *GameService) OnInit() error {
@@ -58,6 +60,9 @@ func (target *GameService) OnInit() error {
 	}
 	if err := target.SetDefaultAwaitTimeout(30 * time.Second); err != nil {
 		return err
+	}
+	if _, err := target.AddDiscoveryListener(target); err != nil {
+		return fmt.Errorf("注册 GameService 服务发现日志监听器: %w", err)
 	}
 	node := target.GetNode()
 	if node == nil || node.ID() == "" || node.SessionID() == 0 {
@@ -122,8 +127,66 @@ func (target *GameService) OnInit() error {
 	return target.router.Freeze()
 }
 
+// OnDiscovered 输出 GameService 当前可见的新增 Node/Service。
+func (target *GameService) OnDiscovered(_ context.Context, event discovery.Event) {
+	target.logDiscoveryEvent("discovered", event)
+}
+
+// OnStateChanged 输出 GameService 当前可见 Service 的状态变化。
+func (target *GameService) OnStateChanged(_ context.Context, event discovery.Event) {
+	target.logDiscoveryEvent("state_changed", event)
+}
+
+// OnLost 输出 GameService 当前不可见的 Node/Service。
+func (target *GameService) OnLost(_ context.Context, event discovery.Event) {
+	target.logDiscoveryEvent("lost", event)
+}
+
+// logDiscoveryEvent 按单个 Node/Service 输出，便于在 Debug 日志中直接检索。
+func (target *GameService) logDiscoveryEvent(eventName string, event discovery.Event) {
+	for _, discovered := range event.Services {
+		target.Logger().Debug(
+			"GameService 服务发现目录更新",
+			log.String("discovery_event", eventName),
+			log.String("discovered_node_id", event.NodeID),
+			log.String("discovered_service_name", discovered.ServiceName),
+			log.String("discovered_service_state", discoveryStateName(discovered.State)),
+		)
+	}
+}
+
+// logVisibleDiscoverySnapshot 输出当前可见目录，避免启动早期的发现事件难以从长日志中定位。
+// GameService 仅会输出 allow_discovery 允许看见的实例，不会越过部署范围打印全局目录。
+func (target *GameService) logVisibleDiscoverySnapshot() {
+	for _, serviceName := range []string{"AccDBService", "RoleDBService", "GatewayService"} {
+		for _, discovered := range target.ListDiscoveredServices(serviceName) {
+			target.Logger().Debug(
+				"GameService 服务发现当前目录",
+				log.String("discovery_event", "snapshot"),
+				log.String("discovered_node_id", discovered.NodeID),
+				log.String("discovered_node_session_id", strconv.FormatUint(discovered.SessionID, 10)),
+				log.String("discovered_service_name", discovered.ServiceName),
+				log.String("discovered_service_state", discoveryStateName(discovered.State)),
+				log.Any("discovered_node_labels", discovered.Labels),
+			)
+		}
+	}
+}
+
+func discoveryStateName(state discovery.State) string {
+	switch state {
+	case discovery.StateRunning:
+		return "running"
+	case discovery.StateRetired:
+		return "retired"
+	default:
+		return "unknown"
+	}
+}
+
 // OnStart 在实例进入 Redis 候选集前确认本区服 RoleDBService 可访问。
 func (target *GameService) OnStart(ctx context.Context) error {
+	target.logVisibleDiscoverySnapshot()
 	filter, err := bson.Marshal(bson.D{})
 	if err != nil {
 		return err
@@ -147,10 +210,7 @@ func (target *GameService) OnStart(ctx context.Context) error {
 }
 
 // LoginPlayer 加载或复用本实例 Player，并返回客户端可直接使用的基础角色信息。
-func (target *GameService) LoginPlayer(
-	ctx context.Context,
-	request rpcapi.LoginPlayerRequest,
-) (*commonpb.LoginPlayerResult, error) {
+func (target *GameService) LoginPlayer(ctx context.Context, request rpcapi.LoginPlayerRequest) (*commonpb.LoginPlayerResult, error) {
 	if request.AccountID == "" || request.ShowAreaID <= 0 || request.GatewayNodeID == "" ||
 		request.GatewayConnectionID == "" {
 		return nil, errs.ErrInvalidArgument
@@ -162,11 +222,23 @@ func (target *GameService) LoginPlayer(
 	current := target.players.FindByKey(key)
 	var err error
 	if current == nil {
+		target.Logger().Debug(
+			"GameService 开始加载新玩家",
+			log.Int64("show_area_id", request.ShowAreaID),
+			log.String("gateway_node_id", request.GatewayNodeID),
+			log.String("gateway_connection_id", request.GatewayConnectionID),
+		)
 		current, err = target.players.LoadNew(
 			ctx, request.AccountID, request.ShowAreaID,
 			request.GatewayNodeID, request.GatewayConnectionID,
 		)
 	} else {
+		target.Logger().Debug(
+			"GameService 开始复用在线玩家",
+			log.Int64("show_area_id", request.ShowAreaID),
+			log.String("gateway_node_id", request.GatewayNodeID),
+			log.String("gateway_connection_id", request.GatewayConnectionID),
+		)
 		data := *current.DataInfo()
 		if data.State == player.StateOnline && data.GatewayConnectionID != request.GatewayConnectionID {
 			target.notifyKicked(data.GatewayNodeID, data.GatewayConnectionID)
@@ -174,9 +246,21 @@ func (target *GameService) LoginPlayer(
 		err = target.players.Reconnect(ctx, current, request.GatewayNodeID, request.GatewayConnectionID)
 	}
 	if err != nil {
+		target.Logger().Debug(
+			"GameService 玩家登录失败",
+			log.Int64("show_area_id", request.ShowAreaID),
+			log.String("gateway_node_id", request.GatewayNodeID),
+		)
 		return nil, err
 	}
 	info := current.UserInfo()
+	target.Logger().Debug(
+		"GameService 玩家登录完成",
+		log.Int64("show_area_id", info.ShowAreaID),
+		log.Int64("real_area_id", target.config.RealAreaID),
+		log.String("gateway_node_id", request.GatewayNodeID),
+		log.String("gateway_connection_id", request.GatewayConnectionID),
+	)
 	return &commonpb.LoginPlayerResult{RoleInfo: &commonpb.RoleInfo{
 		AccountId: info.AccountID, ShowAreaId: info.ShowAreaID,
 		Nickname: info.Nickname, Level: info.Level, CreatedAtMs: info.CreatedAt.UnixMilli(),
@@ -184,10 +268,7 @@ func (target *GameService) LoginPlayer(
 }
 
 // HandlePlayerMessage 校验连接索引后把消息交给冻结的实例 Router。
-func (target *GameService) HandlePlayerMessage(
-	_ context.Context,
-	request rpcapi.PlayerMessageRequest,
-) error {
+func (target *GameService) HandlePlayerMessage(_ context.Context, request rpcapi.PlayerMessageRequest) error {
 	if request.GatewayConnectionID == "" || request.Sequence == 0 || len(request.Body) > 4*1024 {
 		return errs.ErrInvalidArgument
 	}
@@ -201,10 +282,7 @@ func (target *GameService) HandlePlayerMessage(
 }
 
 // PlayerDisconnected 按连接ID幂等地让 Player 进入驻留。
-func (target *GameService) PlayerDisconnected(
-	ctx context.Context,
-	request rpcapi.PlayerDisconnectedRequest,
-) error {
+func (target *GameService) PlayerDisconnected(ctx context.Context, request rpcapi.PlayerDisconnectedRequest) error {
 	if request.GatewayConnectionID == "" {
 		return errs.ErrInvalidArgument
 	}

@@ -116,10 +116,7 @@ func scriptDefinitions(serviceName string) []redismodule.ScriptDefinition {
 func (*DBService) OnStart(context.Context) error { return nil }
 
 // ExecuteMongo 执行一个通用 MongoDB 请求。
-func (target *DBService) ExecuteMongo(
-	ctx context.Context,
-	request rpcapi.MongoRequest,
-) (rpcapi.MongoResult, error) {
+func (target *DBService) ExecuteMongo(ctx context.Context, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
 	startedAt := time.Now()
 	if err := mongodbmodule.ValidateRequest(request); err != nil {
 		return rpcapi.MongoResult{}, err
@@ -143,10 +140,7 @@ func (target *DBService) ExecuteMongo(
 }
 
 // ExecuteRedis 执行一个通用 Redis 请求。
-func (target *DBService) ExecuteRedis(
-	ctx context.Context,
-	request rpcapi.RedisRequest,
-) (rpcapi.RedisResult, error) {
+func (target *DBService) ExecuteRedis(ctx context.Context, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 	startedAt := time.Now()
 	if err := target.redis.ValidateRequest(request); err != nil {
 		return rpcapi.RedisResult{}, err

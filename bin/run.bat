@@ -1,16 +1,6 @@
 @echo off
-setlocal
+pushd "%~dp0.."
 
-set "PROJECT_ROOT=%~dp0.."
-set "NODE_ID=%~1"
-if not defined NODE_ID set "NODE_ID=login-pub-1"
+go run ./cmd start --app-name origingame-local --config ./config --pid-dir ./run --node pub-discovery-1,pub-db-1,area1-db-1,area1-game-1,pub-gateway-1,pub-login-1
 
-cd /d "%PROJECT_ROOT%" || exit /b 1
-
-go run ./cmd start ^
-  --app-name "origingame-%NODE_ID%" ^
-  --config ./config ^
-  --pid-dir ./run ^
-  --node "%NODE_ID%"
-
-exit /b %ERRORLEVEL%
+popd

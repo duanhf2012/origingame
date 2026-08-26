@@ -88,13 +88,7 @@ func (module *Module) OnInit() error {
 }
 
 // LoadNew 完成首次玩家路由认领、RoleDB加载、初始保存、上线和自动存档登记。
-func (module *Module) LoadNew(
-	ctx context.Context,
-	accountID string,
-	showAreaID int64,
-	gatewayNodeID string,
-	connectionID string,
-) (*Player, error) {
+func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID int64, gatewayNodeID string, connectionID string) (*Player, error) {
 	startedAt := time.Now()
 	outcome, failureStage := "failure", "route"
 	loadBytes := 0
@@ -182,13 +176,7 @@ func (module *Module) LoadNew(
 	return current, nil
 }
 
-func (module *Module) logSlowLoad(
-	startedAt time.Time,
-	outcome string,
-	failureStage string,
-	showAreaID int64,
-	loadBytes int,
-) {
+func (module *Module) logSlowLoad(startedAt time.Time, outcome string, failureStage string, showAreaID int64, loadBytes int) {
 	duration := time.Since(startedAt)
 	if duration < time.Second {
 		return
@@ -308,12 +296,7 @@ func (module *Module) renewRoutes(ctx context.Context) {
 }
 
 // Reconnect 复用当前实例内的 Resident Player；Online 顶号由调用方先处理旧连接通知。
-func (module *Module) Reconnect(
-	ctx context.Context,
-	current *Player,
-	gatewayNodeID string,
-	connectionID string,
-) error {
+func (module *Module) Reconnect(ctx context.Context, current *Player, gatewayNodeID string, connectionID string) error {
 	if current == nil || module.playersByKey[current.Key()] != current || module.stopping {
 		return errs.ErrServiceNotReady
 	}
@@ -411,12 +394,7 @@ func (module *Module) release(ctx context.Context, current *Player) {
 	current.Release()
 }
 
-func (module *Module) bindConnection(
-	current *Player,
-	gatewayNodeID string,
-	connectionID string,
-	now time.Time,
-) error {
+func (module *Module) bindConnection(current *Player, gatewayNodeID string, connectionID string, now time.Time) error {
 	if existing := module.playersByConnectionID[connectionID]; existing != nil && existing != current {
 		return errors.New("GatewayConnectionID 已绑定其他 Player")
 	}

@@ -1,14 +1,6 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-PROJECT_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-NODE_ID=${1:-${ORIGINGAME_NODE:-login-pub-1}}
+cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 
-cd "$PROJECT_ROOT"
-
-exec go run ./cmd start \
-  --app-name "origingame-${NODE_ID}" \
-  --config ./config \
-  --pid-dir ./run \
-  --node "$NODE_ID"
+go run ./cmd start --app-name origingame-local --config ./config --pid-dir ./run --node pub-discovery-1,pub-db-1,area1-db-1,area1-game-1,pub-gateway-1,pub-login-1
