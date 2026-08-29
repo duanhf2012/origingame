@@ -25,35 +25,35 @@ const loginReadyDispatchKey = "login-ready"
 
 // Config 是 LoginService 完整配置；数据库连接配置只属于 AccDBService。
 type Config struct {
-	HTTP           HTTPConfig
-	Token          TokenConfig
-	Area           AreaConfig
-	Authentication AuthenticationConfig
-	LoginRateLimit ratelimit.Config
+	HTTP           HTTPConfig           `json:"http"`
+	Token          TokenConfig          `json:"token"`
+	Area           AreaConfig           `json:"area"`
+	Authentication AuthenticationConfig `json:"authentication"`
+	LoginRateLimit ratelimit.Config     `json:"login_rate_limit"`
 }
 
 // HTTPConfig 保存对外 HTTP Server 配置。
 type HTTPConfig struct {
-	Server ginmodule.ServerConfig
+	Server ginmodule.ServerConfig `json:"server"`
 }
 
 // TokenConfig 保存 Ed25519 JWT 签发配置。
 type TokenConfig struct {
-	Issuer     string
-	Audience   string
-	Expire     originconfig.Duration
-	ActiveKID  string
-	PrivateKey string
+	Issuer     string                `json:"issuer"`
+	Audience   string                `json:"audience"`
+	Expire     originconfig.Duration `json:"expire"`
+	ActiveKID  string                `json:"active_kid"`
+	PrivateKey string                `json:"private_key"`
 }
 
 // AreaConfig 保存区服快照的自动刷新周期。
 type AreaConfig struct {
-	RefreshInterval originconfig.Duration
+	RefreshInterval originconfig.Duration `json:"refresh_interval"`
 }
 
 // AuthenticationConfig 明确标记当前开发鉴权不会访问第三方平台。
 type AuthenticationConfig struct {
-	DevelopmentPassthrough bool
+	DevelopmentPassthrough bool `json:"development_passthrough"`
 }
 
 // LoginService 装配公共 AccDBService 客户端和登录边界 Module。

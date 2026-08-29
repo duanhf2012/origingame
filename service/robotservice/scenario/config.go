@@ -10,51 +10,53 @@ import (
 
 // Config 保存 RobotService 场景执行、目标和全部资源硬上限。
 type Config struct {
-	Blueprint BlueprintConfig
-	Control   ControlConfig
-	Target    TargetConfig
-	Identity  IdentityConfig
-	Workload  WorkloadConfig
-	IO        IOConfig
+	Blueprint BlueprintConfig `json:"blueprint"`
+	Control   ControlConfig   `json:"control"`
+	Target    TargetConfig    `json:"target"`
+	Identity  IdentityConfig  `json:"identity"`
+	Workload  WorkloadConfig  `json:"workload"`
+	IO        IOConfig        `json:"io"`
 }
 
 // BlueprintConfig 指定机器人节点、行为图和默认入口。
 type BlueprintConfig struct {
-	NodeDir    string
-	GraphDir   string
-	GraphName  string
-	EntranceID int64
+	NodeDir    string `json:"node_dir"`
+	GraphDir   string `json:"graph_dir"`
+	GraphName  string `json:"graph_name"`
+	EntranceID int64  `json:"entrance_id"`
 }
 
 // ControlConfig 决定 Ready 前是否自动启动默认运行。
-type ControlConfig struct{ StartupRun bool }
+type ControlConfig struct {
+	StartupRun bool `json:"startup_run"`
+}
 
 // TargetConfig 保存真实客户端入口，不包含内部 Service 地址。
 type TargetConfig struct {
-	LoginURL   string
-	ShowAreaID int64
+	LoginURL   string `json:"login_url"`
+	ShowAreaID int64  `json:"show_area_id"`
 }
 
 // IdentityConfig 保存隔离测试身份生成规则。
 type IdentityConfig struct {
-	PlatformType     int32
-	PlatformIDPrefix string
+	PlatformType     int32  `json:"platform_type"`
+	PlatformIDPrefix string `json:"platform_id_prefix"`
 }
 
 // WorkloadConfig 保存单实例固定在线人数闭环计划。
 type WorkloadConfig struct {
-	Users              int64
-	RampUp             originconfig.Duration
-	Duration           originconfig.Duration
-	ScenarioRetryCount int
-	ReplaceFailed      bool
-	MaxReplacements    int64
+	Users              int64                 `json:"users"`
+	RampUp             originconfig.Duration `json:"ramp_up"`
+	Duration           originconfig.Duration `json:"duration"`
+	ScenarioRetryCount int                   `json:"scenario_retry_count"`
+	ReplaceFailed      bool                  `json:"replace_failed"`
+	MaxReplacements    int64                 `json:"max_replacements"`
 }
 
 // IOConfig 保存阻塞 I/O Executor 的固定容量。
 type IOConfig struct {
-	Workers       int
-	QueueMessages int
+	Workers       int `json:"workers"`
+	QueueMessages int `json:"queue_messages"`
 }
 
 // ValidateConfig 在创建任何资源前验证全部硬边界。

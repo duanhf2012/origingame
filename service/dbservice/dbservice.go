@@ -26,10 +26,10 @@ const (
 
 // Config 是一个实际 DBService 实例的完整配置。
 type Config struct {
-	MaxIOConcurrency    int64
-	MaxInflightRequests int64
-	MongoDB             originmongo.Config
-	Redis               originredis.Config
+	MaxIOConcurrency    int64              `json:"max_io_concurrency"`
+	MaxInflightRequests int64              `json:"max_inflight_requests"`
+	MongoDB             originmongo.Config `json:"mongodb"`
+	Redis               originredis.Config `json:"redis"`
 }
 
 // DBService 是通过 Origin 模板别名实例化为 AccDBService 或 RoleDBService 的通用服务。

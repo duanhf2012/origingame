@@ -47,9 +47,9 @@ func TestLocalConfigFragmentsMergeWithServiceDefaults(t *testing.T) {
 	}
 
 	var gatewayToken struct {
-		Issuer     string
-		Audience   string
-		PublicKeys map[string]string
+		Issuer     string            `json:"issuer"`
+		Audience   string            `json:"audience"`
+		PublicKeys map[string]string `json:"public_keys"`
 	}
 	gateway, err := snapshot.Root().Lookup("services.GatewayService.token")
 	if err != nil {

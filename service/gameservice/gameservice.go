@@ -26,8 +26,8 @@ import (
 
 // Config 保存 GameService 当前仅有的区服身份和玩家容量配置。
 type Config struct {
-	RealAreaID     int64
-	PlayerCapacity int64
+	RealAreaID     int64 `json:"real_area_id"`
+	PlayerCapacity int64 `json:"player_capacity"`
 }
 
 // GameService 是区服内 Player 的唯一 RPC 和生命周期入口。

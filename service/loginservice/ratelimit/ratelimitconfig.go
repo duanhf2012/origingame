@@ -9,23 +9,23 @@ import (
 
 // Config 保存首期三个独立启停的登录限流维度。
 type Config struct {
-	Enabled     bool
-	IP          WindowLimitConfig
-	Identity    WindowLimitConfig
-	Concurrency ConcurrencyLimitConfig
+	Enabled     bool                   `json:"enabled"`
+	IP          WindowLimitConfig      `json:"ip"`
+	Identity    WindowLimitConfig      `json:"identity"`
+	Concurrency ConcurrencyLimitConfig `json:"concurrency"`
 }
 
 // WindowLimitConfig 保存单个共享滑动窗口规则。
 type WindowLimitConfig struct {
-	Enabled     bool
-	Window      originconfig.Duration
-	MaxRequests int
+	Enabled     bool                  `json:"enabled"`
+	Window      originconfig.Duration `json:"window"`
+	MaxRequests int                   `json:"max_requests"`
 }
 
 // ConcurrencyLimitConfig 保存单实例在途登录硬上限。
 type ConcurrencyLimitConfig struct {
-	Enabled     bool
-	MaxInFlight int
+	Enabled     bool `json:"enabled"`
+	MaxInFlight int  `json:"max_in_flight"`
 }
 
 // ValidateConfig 校验当前启用的限流边界。

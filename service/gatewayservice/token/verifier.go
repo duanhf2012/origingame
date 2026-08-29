@@ -13,9 +13,9 @@ import (
 
 // Config 保存 Gateway 验签所需的公开材料。
 type Config struct {
-	Issuer     string
-	Audience   string
-	PublicKeys map[string]string
+	Issuer     string            `json:"issuer"`
+	Audience   string            `json:"audience"`
+	PublicKeys map[string]string `json:"public_keys"`
 }
 
 // Verifier 使用 kid 选择 Ed25519 公钥，并严格校验标准 Claims。

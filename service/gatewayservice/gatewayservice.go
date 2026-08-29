@@ -22,13 +22,15 @@ const gatewayReadyDispatchKey = "gateway-ready"
 
 // Config 保存 Gateway 自身配置；数据库与 Redis 连接只属于 AccDBService。
 type Config struct {
-	Token  token.Config
-	Area   AreaConfig
-	Client client.Config
+	Token  token.Config  `json:"token"`
+	Area   AreaConfig    `json:"area"`
+	Client client.Config `json:"client"`
 }
 
 // AreaConfig 保存真实系统时间区服映射刷新周期。
-type AreaConfig struct{ RefreshInterval originconfig.Duration }
+type AreaConfig struct {
+	RefreshInterval originconfig.Duration `json:"refresh_interval"`
+}
 
 // GatewayService 装配公共数据客户端、区服映射和统一网络入口。
 type GatewayService struct {

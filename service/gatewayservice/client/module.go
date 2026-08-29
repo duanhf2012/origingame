@@ -21,27 +21,27 @@ import (
 
 // TCPConfig 控制是否创建 TCP 客户端入口。
 type TCPConfig struct {
-	Enabled bool
-	Server  tcp.ServerConfig
+	Enabled bool             `json:"enabled"`
+	Server  tcp.ServerConfig `json:"server"`
 }
 
 // KCPConfig 控制是否创建 KCP 客户端入口。
 type KCPConfig struct {
-	Enabled bool
-	Server  kcp.ServerConfig
+	Enabled bool             `json:"enabled"`
+	Server  kcp.ServerConfig `json:"server"`
 }
 
 // WebSocketConfig 控制是否创建 WebSocket 客户端入口。
 type WebSocketConfig struct {
-	Enabled bool
-	Server  websocket.ServerConfig
+	Enabled bool                   `json:"enabled"`
+	Server  websocket.ServerConfig `json:"server"`
 }
 
 // Config 保存 Gateway 外部网络入口配置。
 type Config struct {
-	TCP       TCPConfig
-	KCP       KCPConfig
-	WebSocket WebSocketConfig
+	TCP       TCPConfig       `json:"tcp"`
+	KCP       KCPConfig       `json:"kcp"`
+	WebSocket WebSocketConfig `json:"websocket"`
 }
 
 // DefaultConfig 从 Origin 网络层完整默认值建立可严格覆盖的配置。
