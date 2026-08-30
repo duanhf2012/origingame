@@ -9,6 +9,14 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
+type testMongoExecutor struct {
+	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
+}
+
+func (executor testMongoExecutor) ExecuteMongo(ctx context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
+	return executor.execute(ctx, key, request)
+}
+
 func TestLoadSnapshotUsesOneSequentialAccDBServiceRequest(t *testing.T) {
 	realBSON, _ := bson.Marshal(mongodb.RealAreaInfo{ID: 1, GateList: []mongodb.GatewayEndpoint{{
 		Protocol: "tcp", Address: "127.0.0.1:9001",
@@ -16,13 +24,13 @@ func TestLoadSnapshotUsesOneSequentialAccDBServiceRequest(t *testing.T) {
 	showBSON, _ := bson.Marshal(mongodb.ShowAreaInfo{ID: 10, RealAreaID: 1, AreaName: "体验服"})
 	var routeKey string
 	var captured rpcapi.MongoRequest
-	repository := NewMongoRepository(func(_ context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
+	repository := NewMongoRepository(testMongoExecutor{execute: func(_ context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
 		routeKey, captured = key, request
 		return rpcapi.MongoResult{Results: []rpcapi.MongoOperationResult{
 			{Status: rpcapi.MongoOperationStatusSucceeded, Documents: [][]byte{realBSON}},
 			{Status: rpcapi.MongoOperationStatusSucceeded, Documents: [][]byte{showBSON}},
 		}}, nil
-	})
+	}})
 
 	snapshot, err := repository.LoadSnapshot(context.Background())
 	if err != nil {

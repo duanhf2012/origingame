@@ -71,7 +71,7 @@ func (scheduler *manualScheduler) fire(t *testing.T, index int) {
 func configuredPlayer(t *testing.T) (*Player, *fakeSession, *manualTimer) {
 	t.Helper()
 	timer := &manualTimer{}
-	player, err := New(1, func(_ time.Duration, callback func()) (func(), error) {
+	player, err := NewPlayer(1, func(_ time.Duration, callback func()) (func(), error) {
 		timer.callback = callback
 		return func() { timer.canceled = true }, nil
 	}, nil)
@@ -145,7 +145,7 @@ func TestPendingTimeoutAndSendFailureCompleteExactlyOnce(t *testing.T) {
 
 func TestHeartbeatAndBusinessRequestsUseIndependentPendingSlots(t *testing.T) {
 	scheduler := &manualScheduler{}
-	player, err := New(1, scheduler.schedule, nil)
+	player, err := NewPlayer(1, scheduler.schedule, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestHeartbeatAndBusinessRequestsUseIndependentPendingSlots(t *testing.T) {
 
 func TestHeartbeatTimeoutFailsPlayerAndClosesSession(t *testing.T) {
 	scheduler := &manualScheduler{}
-	player, err := New(1, scheduler.schedule, nil)
+	player, err := NewPlayer(1, scheduler.schedule, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

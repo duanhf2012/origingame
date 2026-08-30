@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"origingame/internal/mongodb"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 )
 
 // State 是 Player 在本地内存中的生命周期状态。
@@ -47,7 +47,7 @@ type Player struct {
 	userInfoEntry *persistentDataEntry
 	released      bool
 	saveTimer     *time.Timer
-	sendGateway   GatewaySender
+	gateway       GatewayClient
 }
 
 // RecordHeartbeat 只更新当前有效在线连接的逻辑心跳时间。
@@ -60,13 +60,13 @@ func (player *Player) RecordHeartbeat(connectionID string, now time.Time) bool {
 	return true
 }
 
-// New 创建并初始化当前样板版本的全部持久化数据和 Proxy。
-func New(accountID string, showAreaID int64, realAreaID int64) (*Player, error) {
+// NewPlayer 创建并初始化当前样板版本的全部持久化数据和 Proxy。
+func NewPlayer(accountID string, showAreaID int64, realAreaID int64) (*Player, error) {
 	if accountID == "" || showAreaID <= 0 || realAreaID <= 0 {
 		return nil, errors.New("Player 身份无效")
 	}
 	current := &Player{
-		key: playerroute.PlayerKey(accountID, showAreaID), accountID: accountID, showAreaID: showAreaID,
+		key: playerownership.PlayerKey(accountID, showAreaID), accountID: accountID, showAreaID: showAreaID,
 		realAreaID: realAreaID,
 		dataInfo:   DataInfo{State: StateLoading},
 	}
@@ -97,8 +97,8 @@ func (player *Player) UserInfo() *CUserInfo { return &player.userInfo }
 // UserInfoProxy 返回基础数据唯一业务修改入口。
 func (player *Player) UserInfoProxy() *UserInfoProxy { return &player.userInfoProxy }
 
-func (player *Player) routePlayer() playerroute.Player {
-	return playerroute.Player{
+func (player *Player) ownershipPlayer() playerownership.Player {
+	return playerownership.Player{
 		AccountID:  player.accountID,
 		ShowAreaID: player.showAreaID,
 		RealAreaID: player.realAreaID,

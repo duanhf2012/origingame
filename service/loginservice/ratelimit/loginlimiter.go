@@ -11,24 +11,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"origingame/internal/dbexecutor"
 	"origingame/internal/redisscripts"
 	rpcapi "origingame/protocol/rpc"
 )
 
-// RedisExecutor 通过指定路由 Key 调用公共 AccDBService。
-type RedisExecutor func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)
-
 // Limiter 组合两个 AccDBService 共享窗口和单实例并发限制。
 type Limiter struct {
 	config   Config
-	execute  RedisExecutor
+	executor dbexecutor.RedisExecutor
 	inFlight chan struct{}
 	now      func() time.Time
 }
 
-// New 创建有界限流状态；禁用并发限制时不分配 Channel。
-func New(config Config, execute RedisExecutor) *Limiter {
-	limiter := &Limiter{config: config, execute: execute, now: time.Now}
+// NewLimiter 创建有界限流状态；禁用并发限制时不分配 Channel。
+func NewLimiter(config Config, executor dbexecutor.RedisExecutor) *Limiter {
+	limiter := &Limiter{config: config, executor: executor, now: time.Now}
 	if config.Enabled && config.Concurrency.Enabled {
 		limiter.inFlight = make(chan struct{}, config.Concurrency.MaxInFlight)
 	}
@@ -67,7 +65,7 @@ func (limiter *Limiter) allow(ctx context.Context, key string, config WindowLimi
 	if limiter == nil || !limiter.config.Enabled || !config.Enabled {
 		return true, nil
 	}
-	if limiter.execute == nil {
+	if limiter.executor == nil {
 		return false, errors.New("登录限流 AccDBService 未初始化")
 	}
 	request := rpcapi.RedisRequest{
@@ -83,7 +81,7 @@ func (limiter *Limiter) allow(ctx context.Context, key string, config WindowLimi
 			},
 		},
 	}
-	result, err := limiter.execute(ctx, key, request)
+	result, err := limiter.executor.ExecuteRedis(ctx, key, request)
 	if err != nil {
 		return false, err
 	}

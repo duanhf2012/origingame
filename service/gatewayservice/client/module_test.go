@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/duanhf2012/origin/v3/sysmodule/network"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 	commonpb "origingame/protocol/common"
 	rpcapi "origingame/protocol/rpc"
 )
@@ -22,14 +22,33 @@ type fakeSession struct {
 	cancel  context.CancelFunc
 }
 
-type noCapacityRoutes struct{ calls int }
+type noCapacityOwnerships struct{ calls int }
 
-func (routes *noCapacityRoutes) AssignOrGet(context.Context, playerroute.AssignRequest) (playerroute.AssignmentResult, error) {
-	routes.calls++
-	return playerroute.AssignmentResult{Decision: playerroute.AssignmentDecisionNoCapacity}, nil
+type fakeGameServiceCaller struct{ disconnected int }
+
+func (*fakeGameServiceCaller) LoginPlayer(
+	context.Context,
+	playerownership.GameServiceInstance,
+	rpcapi.LoginPlayerRequest,
+) (*commonpb.LoginPlayerResult, error) {
+	return nil, nil
 }
 
-func (*noCapacityRoutes) ReleasePlayerLoad(context.Context, playerroute.Player, playerroute.Instance, string) (bool, error) {
+func (*fakeGameServiceCaller) HandlePlayerMessage(playerownership.GameServiceInstance, rpcapi.PlayerMessageRequest) error {
+	return nil
+}
+
+func (caller *fakeGameServiceCaller) PlayerDisconnected(playerownership.GameServiceInstance, string) error {
+	caller.disconnected++
+	return nil
+}
+
+func (ownerships *noCapacityOwnerships) AssignOrGet(context.Context, playerownership.AssignRequest) (playerownership.AssignmentResult, error) {
+	ownerships.calls++
+	return playerownership.AssignmentResult{Decision: playerownership.AssignmentDecisionNoCapacity}, nil
+}
+
+func (*noCapacityOwnerships) ReleasePlayerLoad(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error) {
 	return true, nil
 }
 
@@ -97,32 +116,29 @@ func TestSendClientMessageUsesFinalNetworkWrite(t *testing.T) {
 
 func TestCloseNotifiesBoundGameServiceOnce(t *testing.T) {
 	session := newFakeSession("connection-1")
-	notified := 0
+	gameServices := &fakeGameServiceCaller{}
 	module := &Module{
-		connections: map[network.SessionID]*connection{},
-		dependencies: Dependencies{NotifyDisconnected: func(playerroute.Instance, string) error {
-			notified++
-			return nil
-		}},
+		connections:  map[network.SessionID]*connection{},
+		dependencies: Dependencies{GameServices: gameServices},
 	}
 	current := newConnection(session, time.Now())
 	current.state = stateOnline
 	module.connections[session.ID()] = current
 	module.onClose(context.Background(), session, nil)
 	module.onClose(context.Background(), session, nil)
-	if notified != 1 {
-		t.Fatalf("notified=%d", notified)
+	if gameServices.disconnected != 1 {
+		t.Fatalf("notified=%d", gameServices.disconnected)
 	}
 }
 
-func TestRouteAndLoginWaitsForCapacityUntilLoginDeadline(t *testing.T) {
-	routes := &noCapacityRoutes{}
+func TestAssignAndLoginWaitsForCapacityUntilLoginDeadline(t *testing.T) {
+	ownerships := &noCapacityOwnerships{}
 	session := newFakeSession("connection-1")
-	module := &Module{dependencies: Dependencies{Routes: routes}}
+	module := &Module{dependencies: Dependencies{OwnershipStore: ownerships}}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	_, err := module.routeAndLogin(ctx, newConnection(session, time.Now()), "account-1", 1, 1)
-	if !errors.Is(err, context.DeadlineExceeded) || routes.calls != 1 {
-		t.Fatalf("routeAndLogin error=%v calls=%d", err, routes.calls)
+	_, err := module.assignAndLogin(ctx, newConnection(session, time.Now()), "account-1", 1, 1)
+	if !errors.Is(err, context.DeadlineExceeded) || ownerships.calls != 1 {
+		t.Fatalf("assignAndLogin error=%v calls=%d", err, ownerships.calls)
 	}
 }

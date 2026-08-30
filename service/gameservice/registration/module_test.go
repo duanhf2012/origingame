@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 )
 
-type fakeRouteStore struct {
+type fakeRegistrationStore struct {
 	mu         sync.Mutex
 	registers  int
 	drains     int
 	registered chan struct{}
 }
 
-func (store *fakeRouteStore) RegisterGameService(context.Context, playerroute.Registration) error {
+func (store *fakeRegistrationStore) RegisterGameService(context.Context, playerownership.GameServiceRegistration) error {
 	store.mu.Lock()
 	store.registers++
 	store.mu.Unlock()
@@ -27,7 +27,7 @@ func (store *fakeRouteStore) RegisterGameService(context.Context, playerroute.Re
 	return nil
 }
 
-func (store *fakeRouteStore) SetGameServiceDraining(context.Context, int64, playerroute.Instance) (bool, error) {
+func (store *fakeRegistrationStore) SetGameServiceDraining(context.Context, int64, playerownership.GameServiceInstance) (bool, error) {
 	store.mu.Lock()
 	store.drains++
 	store.mu.Unlock()
@@ -35,11 +35,11 @@ func (store *fakeRouteStore) SetGameServiceDraining(context.Context, int64, play
 }
 
 func TestModuleRegistersRenewsAndDrains(t *testing.T) {
-	store := &fakeRouteStore{registered: make(chan struct{}, 1)}
-	module := New(store, store, playerroute.Registration{
-		RealAreaID: 1,
-		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
-		MaxPlayers: 5000,
+	store := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
+	module := NewModule(store, store, playerownership.GameServiceRegistration{
+		RealAreaID:  1,
+		GameService: playerownership.GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
+		MaxPlayers:  5000,
 	})
 	module.interval = 5 * time.Millisecond
 
@@ -68,12 +68,12 @@ func TestModuleRegistersRenewsAndDrains(t *testing.T) {
 }
 
 func TestModuleStopUsesLifecycleStore(t *testing.T) {
-	runStore := &fakeRouteStore{registered: make(chan struct{}, 1)}
-	stopStore := &fakeRouteStore{registered: make(chan struct{}, 1)}
-	module := New(runStore, stopStore, playerroute.Registration{
-		RealAreaID: 1,
-		Instance:   playerroute.Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
-		MaxPlayers: 5000,
+	runStore := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
+	stopStore := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
+	module := NewModule(runStore, stopStore, playerownership.GameServiceRegistration{
+		RealAreaID:  1,
+		GameService: playerownership.GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
+		MaxPlayers:  5000,
 	})
 
 	if err := module.OnStop(context.Background()); err != nil {

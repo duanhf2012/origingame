@@ -44,7 +44,7 @@ func (player *Player) send(
 		player.dataInfo.State != StateOnline || player.dataInfo.GatewayConnectionID != requestConnectionID {
 		return nil
 	}
-	if player.sendGateway == nil || player.dataInfo.GatewayNodeID == "" {
+	if player.gateway == nil || player.dataInfo.GatewayNodeID == "" {
 		return errors.New("Player Gateway 下行未初始化")
 	}
 	var payload []byte
@@ -55,7 +55,7 @@ func (player *Player) send(
 			return err
 		}
 	}
-	return player.sendGateway(player.dataInfo.GatewayNodeID, rpcapi.SendClientMessageRequest{
+	return player.gateway.SendClientMessage(player.dataInfo.GatewayNodeID, rpcapi.SendClientMessageRequest{
 		GatewayConnectionID: player.dataInfo.GatewayConnectionID,
 		Message: rpcapi.ClientMessage{
 			MessageID: messageID, Sequence: sequence, ErrorCode: code, Body: payload,

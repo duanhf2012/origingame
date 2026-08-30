@@ -17,8 +17,8 @@ type Module struct {
 	scripts scriptRegistry
 }
 
-// New 校验受控 Script 登记并创建尚未连接的 Redis Module。
-func New(config originredis.Config, definitions []ScriptDefinition) (*Module, error) {
+// NewModule 校验受控 Script 登记并创建尚未连接的 Redis Module。
+func NewModule(config originredis.Config, definitions []ScriptDefinition) (*Module, error) {
 	scripts, err := newScriptRegistry(definitions)
 	if err != nil {
 		return nil, err

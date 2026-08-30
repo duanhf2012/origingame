@@ -20,8 +20,8 @@ type Module struct {
 	collections   map[string]struct{}
 }
 
-// New 创建尚未连接的 MongoDB Module；配置在 Origin OnInit 阶段冻结。
-func New(config originmongo.Config) *Module {
+// NewModule 创建尚未连接的 MongoDB Module；配置在 Origin OnInit 阶段冻结。
+func NewModule(config originmongo.Config) *Module {
 	return &Module{config: config}
 }
 

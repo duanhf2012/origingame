@@ -125,11 +125,11 @@ Application、Node、Service、连接、缓存和其他运行时状态必须由�
 后续设计、配置、实现和部署必须遵守以下已确认关系，不得因调用方便把公共登录协调数据写入区服 RoleDBService，也不得让业务 Service 直接创建 MongoDB 或 Redis Client：
 
 - 仓库只实现一个业务无关的 `DBService` 模板，实际运行时按数据域实例化为 `AccDBService` 和各区服自己的 `RoleDBService`；DBService 仍只提供通用 MongoDB/Redis 执行契约，不增加账号、玩家、登录路由等领域 RPC；
-- `AccDBService` 属于公共账号与登录协调数据域。账号数据、登录限流、GameService 实例注册、负载、玩家在线路由和登录分配使用其固定账号数据库与公共 Redis；LoginService、GatewayService、公共 Service 以及各区服 GameService 均通过 `AccDBService` RPC 使用这些能力；
+- `AccDBService` 属于公共账号与登录协调数据域。账号数据、登录限流、GameService 实例注册、负载、玩家在线归属和登录分配使用其固定账号数据库与公共 Redis；LoginService、GatewayService、公共 Service 以及各区服 GameService 均通过 `AccDBService` RPC 使用这些能力；
 - 公共数据 Node 部署 `AccDBService`，每个区服的 DBServer 也必须部署一个 `AccDBService` 实例；这些实例连接同一套账号数据库和公共 Redis，组成同一公共数据域。NodeID、实际 ServiceName、Node Labels、发现范围和配置归属必须遵循 `docs/design/部署标识与服务发现配置设计.md`，不得通过解析 NodeID 或临时改写 ServiceName 代替明确的 Label 路由；
 - 每个区服的 DBServer 还必须部署本区服独立的 `RoleDBService`。GameService 只通过本区服 `RoleDBService` 读写角色 MongoDB 和区服 Redis，以隔离不同区服的 DBService 队列、并发额度、连接池、Redis 连接、过载和发布故障；即使当前全部区服角色文档混合存放在同一个 MongoDB 数据库中，也不得因此合并各区服的 RoleDBService；
-- GameService 同时依赖本区服 DBServer 上的 `AccDBService` 实例和 `RoleDBService` 实例：前者仍属于公共账号数据域，只用于登录协调和在线路由；后者只用于角色数据及区服业务。本区服 AccDBService 不可用时暂停该区服新的登录协调，但已经在线的区服业务应尽量继续依赖本区服 RoleDBService 运行；
-- Gateway 的 `PlayerRouteStore` 只通过 `AccDBService` 访问公共 Redis，不通过任何区服 RoleDBService。`PlayerRouteStore` 是不持有连接、Timer 和权威内存状态的普通进程内组件，不是 Origin Module 或独立 Service；GameService 注册与租约续期若需要 Timer，由 GameService 自身或其专属生命周期 Module 持有；
+- GameService 同时依赖本区服 DBServer 上的 `AccDBService` 实例和 `RoleDBService` 实例：前者仍属于公共账号数据域，只用于登录协调和在线归属；后者只用于角色数据及区服业务。本区服 AccDBService 不可用时暂停该区服新的登录协调，但已经在线的区服业务应尽量继续依赖本区服 RoleDBService 运行；
+- Gateway 的 `playerownership.PlayerOwnershipStore` 只通过 `AccDBService` 访问公共 Redis，不通过任何区服 RoleDBService。`playerownership.PlayerOwnershipStore` 是不持有连接、Timer 和权威内存状态的普通进程内组件，不是 Origin Module 或独立 Service；GameService 注册与租约续期若需要 Timer，由 GameService 自身或其专属生命周期 Module 持有；
 - 所有区服隔离字段必须显式携带。当前玩家稳定身份固定为 `PlayerKey = AccountID + ShowAreaID`；`RealAreaID` 只表示当前运行归属和 Redis 分组，不参与玩家稳定身份。
 
 ## 工程目录和命名规则

@@ -10,7 +10,7 @@ func (proxy *UserInfoProxy) OnLoaded(ctx PlayerLoadContext) error {
 		now := time.Now().UTC()
 		info := proxy.UserInfo()
 		info.PlayerKey = proxy.Player().Key()
-		parts := proxy.Player().routePlayer()
+		parts := proxy.Player().ownershipPlayer()
 		info.AccountID = parts.AccountID
 		info.ShowAreaID = parts.ShowAreaID
 		info.Level = 1

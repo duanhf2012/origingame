@@ -1,5 +1,5 @@
-// Package playerroute 封装 Gateway 与 GameService 共享的在线玩家 Redis 协议。
-package playerroute
+// Package playerownership 封装 Gateway 与 GameService 共享的在线玩家归属协议。
+package playerownership
 
 import (
 	"context"
@@ -9,29 +9,29 @@ import (
 	"strings"
 	"time"
 
+	"origingame/internal/dbexecutor"
 	"origingame/internal/redisscripts"
 	rpcapi "origingame/protocol/rpc"
 )
 
 const (
-	gameServiceLeaseTTL  = 15 * time.Second
-	assigningTimeout     = 10 * time.Second
-	loadingTimeout       = 35 * time.Second
-	playerRouteTTL       = 60 * time.Second
-	leavingTTL           = 5 * time.Second
-	assignmentScanLimit  = 16
-	maxExcludedInstances = 3
-	maxRenewRoutes       = 256
+	gameServiceLeaseTTL     = 15 * time.Second
+	assigningTimeout        = 10 * time.Second
+	loadingTimeout          = 35 * time.Second
+	playerOwnershipTTL      = 60 * time.Second
+	leavingTTL              = 5 * time.Second
+	assignmentScanLimit     = 16
+	maxExcludedGameServices = 3
+	maxRenewOwnerships      = 256
 )
 
-// RedisExecutor 通过指定路由 Key 调用公共 AccDBService。
-type RedisExecutor func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)
+// PlayerOwnershipStore 不保存权威状态，只负责通用 DBService 请求与在线玩家归属协议之间的转换。
+type PlayerOwnershipStore struct{ executor dbexecutor.RedisExecutor }
 
-// Store 不保存权威状态，只负责通用 DBService 请求与在线路由协议之间的转换。
-type Store struct{ execute RedisExecutor }
-
-// New 创建玩家路由协议适配器。
-func New(execute RedisExecutor) *Store { return &Store{execute: execute} }
+// NewPlayerOwnershipStore 创建玩家归属协议适配器。
+func NewPlayerOwnershipStore(executor dbexecutor.RedisExecutor) *PlayerOwnershipStore {
+	return &PlayerOwnershipStore{executor: executor}
+}
 
 // Player 标识账号在一个显示区服中的稳定玩家。
 type Player struct {
@@ -40,18 +40,18 @@ type Player struct {
 	RealAreaID int64
 }
 
-// Instance 精确标识一次 GameService 进程实例。
-type Instance struct {
+// GameServiceInstance 精确标识一次 GameService 进程实例。
+type GameServiceInstance struct {
 	ServiceName   string
 	NodeID        string
 	NodeSessionID string
 }
 
-// Registration 是 GameService 对登录分配公开的最小实例信息。
-type Registration struct {
-	RealAreaID int64
-	Instance   Instance
-	MaxPlayers int64
+// GameServiceRegistration 是 GameService 对登录分配公开的最小实例信息。
+type GameServiceRegistration struct {
+	RealAreaID  int64
+	GameService GameServiceInstance
+	MaxPlayers  int64
 }
 
 // AssignmentDecision 是 AssignOrGet 的稳定原子决策。
@@ -65,48 +65,48 @@ const (
 	AssignmentDecisionNoCapacity
 )
 
-// AssignmentResult 返回精确 GameService 及当前路由状态。
+// AssignmentResult 返回精确 GameService 及当前归属状态。
 type AssignmentResult struct {
-	Decision AssignmentDecision
-	Instance Instance
-	State    string
+	Decision    AssignmentDecision
+	GameService GameServiceInstance
+	State       string
 }
 
 // AssignRequest 是 Gateway 查询或分配玩家归属所需的全部可信参数。
 type AssignRequest struct {
-	Player              Player
-	GatewayConnectionID string
-	Excluded            []Instance
+	Player               Player
+	GatewayConnectionID  string
+	ExcludedGameServices []GameServiceInstance
 }
 
 // RegisterGameService 原子登记或刷新 READY 实例和15秒租约。
-func (store *Store) RegisterGameService(ctx context.Context, registration Registration) error {
+func (store *PlayerOwnershipStore) RegisterGameService(ctx context.Context, registration GameServiceRegistration) error {
 	if err := validateRegistration(registration); err != nil {
 		return err
 	}
-	info := instanceKey(registration.RealAreaID, registration.Instance)
+	info := instanceKey(registration.RealAreaID, registration.GameService)
 	result, err := store.run(ctx, info, redisscripts.RegisterGameServiceID,
 		[]string{info, info + ":lease", candidatesKey(registration.RealAreaID)},
-		registration.Instance.ServiceName, registration.Instance.NodeID, registration.Instance.NodeSessionID,
+		registration.GameService.ServiceName, registration.GameService.NodeID, registration.GameService.NodeSessionID,
 		strconv.FormatInt(registration.MaxPlayers, 10), milliseconds(gameServiceLeaseTTL))
 	return requireOne(result, err)
 }
 
 // SetGameServiceDraining 条件摘除当前实例，旧进程不能修改新实例。
-func (store *Store) SetGameServiceDraining(ctx context.Context, realAreaID int64, instance Instance) (bool, error) {
-	if err := validateInstance(realAreaID, instance); err != nil {
+func (store *PlayerOwnershipStore) SetGameServiceDraining(ctx context.Context, realAreaID int64, gameService GameServiceInstance) (bool, error) {
+	if err := validateInstance(realAreaID, gameService); err != nil {
 		return false, err
 	}
-	info := instanceKey(realAreaID, instance)
+	info := instanceKey(realAreaID, gameService)
 	result, err := store.run(ctx, info, redisscripts.SetGameServiceDrainingID,
-		[]string{info, candidatesKey(realAreaID)}, instance.NodeID, instance.NodeSessionID)
+		[]string{info, candidatesKey(realAreaID)}, gameService.NodeID, gameService.NodeSessionID)
 	return scriptBoolean(result, err)
 }
 
 // AssignOrGet 返回已有归属，或原子预占当前最低负载的可用实例。
-func (store *Store) AssignOrGet(ctx context.Context, request AssignRequest) (AssignmentResult, error) {
+func (store *PlayerOwnershipStore) AssignOrGet(ctx context.Context, request AssignRequest) (AssignmentResult, error) {
 	if err := validatePlayer(request.Player); err != nil || strings.TrimSpace(request.GatewayConnectionID) == "" ||
-		len(request.Excluded) > maxExcludedInstances {
+		len(request.ExcludedGameServices) > maxExcludedGameServices {
 		return AssignmentResult{}, errors.New("玩家分配参数无效")
 	}
 	args := []string{
@@ -114,19 +114,19 @@ func (store *Store) AssignOrGet(ctx context.Context, request AssignRequest) (Ass
 		request.Player.AccountID,
 		strconv.FormatInt(request.Player.ShowAreaID, 10),
 		strconv.FormatInt(request.Player.RealAreaID, 10),
-		milliseconds(playerRouteTTL), milliseconds(assigningTimeout), milliseconds(loadingTimeout),
+		milliseconds(playerOwnershipTTL), milliseconds(assigningTimeout), milliseconds(loadingTimeout),
 		strconv.Itoa(assignmentScanLimit),
 	}
-	for _, excluded := range request.Excluded {
+	for _, excluded := range request.ExcludedGameServices {
 		if err := validateInstance(request.Player.RealAreaID, excluded); err != nil {
 			return AssignmentResult{}, err
 		}
 		args = append(args, instanceKey(request.Player.RealAreaID, excluded))
 	}
 	key := PlayerKey(request.Player.AccountID, request.Player.ShowAreaID)
-	route := routeKey(request.Player)
+	ownership := ownershipKey(request.Player)
 	result, err := store.run(ctx, key, redisscripts.AssignOrGetPlayerID,
-		[]string{route, candidatesKey(request.Player.RealAreaID)}, args...)
+		[]string{ownership, candidatesKey(request.Player.RealAreaID)}, args...)
 	if err != nil {
 		return AssignmentResult{}, err
 	}
@@ -140,15 +140,15 @@ func (store *Store) AssignOrGet(ctx context.Context, request AssignRequest) (Ass
 		return AssignmentResult{}, errors.New("玩家分配返回决策无效")
 	}
 	assignment := AssignmentResult{Decision: decision}
-	assignment.Instance.ServiceName, err = bytesText(values[1])
+	assignment.GameService.ServiceName, err = bytesText(values[1])
 	if err != nil {
 		return AssignmentResult{}, err
 	}
-	assignment.Instance.NodeID, err = bytesText(values[2])
+	assignment.GameService.NodeID, err = bytesText(values[2])
 	if err != nil {
 		return AssignmentResult{}, err
 	}
-	assignment.Instance.NodeSessionID, err = bytesText(values[3])
+	assignment.GameService.NodeSessionID, err = bytesText(values[3])
 	if err != nil {
 		return AssignmentResult{}, err
 	}
@@ -157,66 +157,66 @@ func (store *Store) AssignOrGet(ctx context.Context, request AssignRequest) (Ass
 		return AssignmentResult{}, err
 	}
 	if (decision == AssignmentDecisionExisting || decision == AssignmentDecisionAssigned) &&
-		validateInstance(request.Player.RealAreaID, assignment.Instance) != nil {
+		validateInstance(request.Player.RealAreaID, assignment.GameService) != nil {
 		return AssignmentResult{}, errors.New("玩家分配返回实例无效")
 	}
 	return assignment, nil
 }
 
-// BeginPlayerLoad 将当前连接的 ASSIGNING 路由条件推进到 LOADING。
-func (store *Store) BeginPlayerLoad(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
-	return store.playerTransition(ctx, player, instance, redisscripts.BeginPlayerLoadID,
-		[]string{routeKey(player), instanceKey(player.RealAreaID, instance), instanceKey(player.RealAreaID, instance) + ":lease"},
-		instance.NodeID, instance.NodeSessionID, connectionID, milliseconds(playerRouteTTL))
+// BeginPlayerLoad 将当前连接的 ASSIGNING 归属条件推进到 LOADING。
+func (store *PlayerOwnershipStore) BeginPlayerLoad(ctx context.Context, player Player, gameService GameServiceInstance, connectionID string) (bool, error) {
+	return store.playerTransition(ctx, player, gameService, redisscripts.BeginPlayerLoadID,
+		[]string{ownershipKey(player), instanceKey(player.RealAreaID, gameService), instanceKey(player.RealAreaID, gameService) + ":lease"},
+		gameService.NodeID, gameService.NodeSessionID, connectionID, milliseconds(playerOwnershipTTL))
 }
 
-// CompletePlayerLogin 将 LOADING 或 RESIDENT 路由推进到 ONLINE。
-func (store *Store) CompletePlayerLogin(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
-	return store.playerTransition(ctx, player, instance, redisscripts.CompletePlayerLoginID,
-		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, connectionID,
-		milliseconds(playerRouteTTL))
+// CompletePlayerLogin 将 LOADING 或 RESIDENT 归属推进到 ONLINE。
+func (store *PlayerOwnershipStore) CompletePlayerLogin(ctx context.Context, player Player, gameService GameServiceInstance, connectionID string) (bool, error) {
+	return store.playerTransition(ctx, player, gameService, redisscripts.CompletePlayerLoginID,
+		transitionKeys(player, gameService), gameService.NodeID, gameService.NodeSessionID, connectionID,
+		milliseconds(playerOwnershipTTL))
 }
 
 // ReleasePlayerLoad 条件回滚尚未完成的加载预占。
-func (store *Store) ReleasePlayerLoad(ctx context.Context, player Player, instance Instance, connectionID string) (bool, error) {
-	return store.playerTransition(ctx, player, instance, redisscripts.ReleasePlayerLoadID,
-		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, connectionID)
+func (store *PlayerOwnershipStore) ReleasePlayerLoad(ctx context.Context, player Player, gameService GameServiceInstance, connectionID string) (bool, error) {
+	return store.playerTransition(ctx, player, gameService, redisscripts.ReleasePlayerLoadID,
+		transitionKeys(player, gameService), gameService.NodeID, gameService.NodeSessionID, connectionID)
 }
 
-// MarkPlayerResident 将当前实例的 ONLINE 路由转为断线驻留。
-func (store *Store) MarkPlayerResident(ctx context.Context, player Player, instance Instance) (bool, error) {
-	return store.playerTransition(ctx, player, instance, redisscripts.MarkPlayerResidentID,
-		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, milliseconds(playerRouteTTL))
+// MarkPlayerResident 将当前实例的 ONLINE 归属转为断线驻留。
+func (store *PlayerOwnershipStore) MarkPlayerResident(ctx context.Context, player Player, gameService GameServiceInstance) (bool, error) {
+	return store.playerTransition(ctx, player, gameService, redisscripts.MarkPlayerResidentID,
+		transitionKeys(player, gameService), gameService.NodeID, gameService.NodeSessionID, milliseconds(playerOwnershipTTL))
 }
 
-// BeginPlayerRelease 将到期 RESIDENT 路由改为 LEAVING，并保留5秒隔离窗口。
-func (store *Store) BeginPlayerRelease(ctx context.Context, player Player, instance Instance) (bool, error) {
-	return store.playerTransition(ctx, player, instance, redisscripts.BeginPlayerReleaseID,
-		transitionKeys(player, instance), instance.NodeID, instance.NodeSessionID, milliseconds(leavingTTL))
+// BeginPlayerRelease 将到期 RESIDENT 归属改为 LEAVING，并保留5秒隔离窗口。
+func (store *PlayerOwnershipStore) BeginPlayerRelease(ctx context.Context, player Player, gameService GameServiceInstance) (bool, error) {
+	return store.playerTransition(ctx, player, gameService, redisscripts.BeginPlayerReleaseID,
+		transitionKeys(player, gameService), gameService.NodeID, gameService.NodeSessionID, milliseconds(leavingTTL))
 }
 
-// RenewPlayerRoutes 条件续租当前实例拥有的最多256条在线或驻留路由。
-func (store *Store) RenewPlayerRoutes(ctx context.Context, realAreaID int64, instance Instance, players []Player) (int64, error) {
-	if err := validateInstance(realAreaID, instance); err != nil || len(players) == 0 || len(players) > maxRenewRoutes {
-		return 0, errors.New("玩家路由续租参数无效")
+// RenewPlayerOwnerships 条件续租当前实例拥有的最多256条在线或驻留归属。
+func (store *PlayerOwnershipStore) RenewPlayerOwnerships(ctx context.Context, realAreaID int64, gameService GameServiceInstance, players []Player) (int64, error) {
+	if err := validateInstance(realAreaID, gameService); err != nil || len(players) == 0 || len(players) > maxRenewOwnerships {
+		return 0, errors.New("玩家归属续租参数无效")
 	}
 	keys := make([]string, len(players))
 	for index, player := range players {
 		if err := validatePlayer(player); err != nil || player.RealAreaID != realAreaID {
-			return 0, errors.New("玩家路由续租包含无效玩家")
+			return 0, errors.New("玩家归属续租包含无效玩家")
 		}
-		keys[index] = routeKey(player)
+		keys[index] = ownershipKey(player)
 	}
-	dispatchKey := instanceKey(realAreaID, instance)
-	result, err := store.run(ctx, dispatchKey, redisscripts.RenewPlayerRoutesID, keys,
-		instance.NodeID, instance.NodeSessionID, milliseconds(playerRouteTTL))
+	dispatchKey := instanceKey(realAreaID, gameService)
+	result, err := store.run(ctx, dispatchKey, redisscripts.RenewPlayerOwnershipsID, keys,
+		gameService.NodeID, gameService.NodeSessionID, milliseconds(playerOwnershipTTL))
 	return scriptInteger(result, err)
 }
 
-func (store *Store) playerTransition(
+func (store *PlayerOwnershipStore) playerTransition(
 	ctx context.Context,
 	player Player,
-	instance Instance,
+	gameService GameServiceInstance,
 	scriptID string,
 	keys []string,
 	args ...string,
@@ -224,22 +224,22 @@ func (store *Store) playerTransition(
 	if err := validatePlayer(player); err != nil {
 		return false, err
 	}
-	if err := validateInstance(player.RealAreaID, instance); err != nil {
+	if err := validateInstance(player.RealAreaID, gameService); err != nil {
 		return false, err
 	}
 	result, err := store.run(ctx, PlayerKey(player.AccountID, player.ShowAreaID), scriptID, keys, args...)
 	return scriptBoolean(result, err)
 }
 
-func (store *Store) run(
+func (store *PlayerOwnershipStore) run(
 	ctx context.Context,
 	dispatchKey string,
 	scriptID string,
 	keys []string,
 	args ...string,
 ) (rpcapi.RedisResult, error) {
-	if store == nil || store.execute == nil {
-		return rpcapi.RedisResult{}, errors.New("PlayerRouteStore 未初始化")
+	if store == nil || store.executor == nil {
+		return rpcapi.RedisResult{}, errors.New("playerownership.PlayerOwnershipStore 未初始化")
 	}
 	encoded := make([][]byte, len(args))
 	for index := range args {
@@ -250,30 +250,30 @@ func (store *Store) run(
 		ExecuteMode: rpcapi.RedisExecuteModeScript,
 		Script:      &rpcapi.RedisScriptCall{ID: scriptID, Keys: keys, Args: encoded},
 	}
-	return store.execute(ctx, dispatchKey, request)
+	return store.executor.ExecuteRedis(ctx, dispatchKey, request)
 }
 
-func transitionKeys(player Player, instance Instance) []string {
+func transitionKeys(player Player, gameService GameServiceInstance) []string {
 	return []string{
-		routeKey(player),
-		instanceKey(player.RealAreaID, instance),
+		ownershipKey(player),
+		instanceKey(player.RealAreaID, gameService),
 		candidatesKey(player.RealAreaID),
 	}
 }
 
-// PlayerKey 是 AccountID 与 ShowAreaID 组成的稳定业务路由 Key。
+// PlayerKey 是 AccountID 与 ShowAreaID 组成的稳定玩家业务 Key。
 func PlayerKey(accountID string, showAreaID int64) string {
 	return strings.TrimSpace(accountID) + ":" + strconv.FormatInt(showAreaID, 10)
 }
 
-func routeKey(player Player) string {
+func ownershipKey(player Player) string {
 	return areaPrefix(player.RealAreaID) + ":player-route:" + strconv.FormatInt(player.ShowAreaID, 10) + ":" + player.AccountID
 }
 
 func candidatesKey(realAreaID int64) string { return areaPrefix(realAreaID) + ":game-services" }
 
-func instanceKey(realAreaID int64, instance Instance) string {
-	return areaPrefix(realAreaID) + ":game-service:" + instance.NodeID + ":" + instance.NodeSessionID
+func instanceKey(realAreaID int64, gameService GameServiceInstance) string {
+	return areaPrefix(realAreaID) + ":game-service:" + gameService.NodeID + ":" + gameService.NodeSessionID
 }
 
 func areaPrefix(realAreaID int64) string { return "{area:" + strconv.FormatInt(realAreaID, 10) + "}" }
@@ -281,24 +281,24 @@ func areaPrefix(realAreaID int64) string { return "{area:" + strconv.FormatInt(r
 func validatePlayer(player Player) error {
 	if strings.TrimSpace(player.AccountID) == "" || player.ShowAreaID <= 0 || player.RealAreaID <= 0 ||
 		strings.ContainsAny(player.AccountID, "{}:") {
-		return errors.New("玩家路由身份无效")
+		return errors.New("玩家归属身份无效")
 	}
 	return nil
 }
 
-func validateInstance(realAreaID int64, instance Instance) error {
-	if realAreaID <= 0 || strings.TrimSpace(instance.ServiceName) == "" || strings.TrimSpace(instance.NodeID) == "" ||
-		strings.TrimSpace(instance.NodeSessionID) == "" || strings.ContainsAny(instance.NodeID+instance.NodeSessionID, "{}:") {
+func validateInstance(realAreaID int64, gameService GameServiceInstance) error {
+	if realAreaID <= 0 || strings.TrimSpace(gameService.ServiceName) == "" || strings.TrimSpace(gameService.NodeID) == "" ||
+		strings.TrimSpace(gameService.NodeSessionID) == "" || strings.ContainsAny(gameService.NodeID+gameService.NodeSessionID, "{}:") {
 		return errors.New("GameService 实例身份无效")
 	}
 	return nil
 }
 
-func validateRegistration(registration Registration) error {
+func validateRegistration(registration GameServiceRegistration) error {
 	if registration.MaxPlayers <= 0 {
 		return errors.New("GameService player_capacity 必须为正数")
 	}
-	return validateInstance(registration.RealAreaID, registration.Instance)
+	return validateInstance(registration.RealAreaID, registration.GameService)
 }
 
 func requireOne(result rpcapi.RedisResult, err error) error {

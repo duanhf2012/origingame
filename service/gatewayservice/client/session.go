@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/duanhf2012/origin/v3/sysmodule/network"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 	stateOnline
 )
 
-// connection 保存单条网络连接当前唯一的登录与后端路由状态。
+// connection 保存单条网络连接当前唯一的登录与 GameService 归属状态。
 type connection struct {
 	session network.Session
 	state   sessionState
@@ -34,7 +34,7 @@ type connection struct {
 	accountID     string
 	showAreaID    int64
 	realAreaID    int64
-	instance      playerroute.Instance
+	gameService   playerownership.GameServiceInstance
 	loginResult   []byte
 }
 

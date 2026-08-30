@@ -2,7 +2,7 @@
 
 > **执行要求：** 按 `superpowers:executing-plans` 分批实施；每个行为变更先写失败测试，再写最小实现，阶段完成后执行对应验证。
 
-**目标：** 在 OriginGame v3 中实现已确认的 DBService、LoginService、GatewayService、GameService、玩家路由及玩家数据加载/存档闭环。
+**目标：** 在 OriginGame v3 中实现已确认的 DBService、LoginService、GatewayService、GameService、玩家归属及玩家数据加载/存档闭环。
 
 **架构边界：** DBService 只提供通用 MongoDB/Redis 执行契约，并通过模板实例化为 `AccDBService` 与 `RoleDBService`。LoginService 负责账号鉴权与登录票据；GatewayService 负责客户端连接、区服映射、GS 分配和转发；GameService 负责玩家登录互斥、数据加载、消息执行、脏数据存档和断线驻留。跨服务契约统一放在 `protocol/rpc`，客户端协议统一放在 `protocol/common`。
 
@@ -68,7 +68,7 @@
 
 - [x] 用测试固定单命令、Pipeline、事务、注册脚本和通用结果树转换。
 - [x] 实现已确认的普通命令白名单，并拒绝阻塞、管理和任意脚本命令。
-- [x] 注册登录限流与玩家路由脚本；脚本只能通过固定 ID 调用。
+- [x] 注册登录限流与玩家归属脚本；脚本只能通过固定 ID 调用。
 - [x] MongoDB 与 Redis 请求共用同一 KeyExecutor，保证相同 dispatch key 跨存储有序。
 
 ## 任务 5：DBService 模板化配置与部署
@@ -106,12 +106,12 @@
 - [x] 实现 IP、身份两个 10 秒固定窗口和本地并发上限，不做 Redis 故障降级。
 - [x] 区服目录每分钟刷新；失败沿用上次成功快照，首次无有效数据则 Service 启动失败。
 
-## 任务 7：公共玩家路由与 GameService 注册
+## 任务 7：公共玩家归属与 GameService 注册
 
 **文件：**
 
-- 新增：`service/gatewayservice/playerroute/playerroute.go`
-- 新增：`service/gatewayservice/playerroute/playerroute_test.go`
+- 新增：`internal/playerownership/playerownership.go`
+- 新增：`internal/playerownership/playerownership_test.go`
 - 新增：`service/gameservice/registration/registration.go`
 - 新增：`service/gameservice/registration/registration_test.go`
 
@@ -164,7 +164,7 @@
 - 新增：`config/gatewayservice.yaml`
 
 - [x] TCP/KCP/WebSocket 统一 string ConnectionID，并维护 ConnectionID 到 Session 的唯一索引。
-- [x] 验证 LoginService JWT、按 ShowAreaID 映射 RealAreaID、按 Label 筛选可用 GS，并使用 Redis 路由分配。
+- [x] 验证 LoginService JWT、按 ShowAreaID 映射 RealAreaID、按 Label 筛选可用 GS，并使用 Redis 归属分配。
 - [x] 客户端包体上限 4KiB；每连接 10 秒窗口最多 200 条，超限主动关闭。
 - [x] 客户端心跳由 Gateway 转发；GameService 超过 15 秒未收到则调用 Gateway RPC 关闭连接。
 - [x] Gateway 的统一 RPC 支持普通响应、错误响应和主动推送；`MessageID == 0` 表示成功且没有业务 Body。
@@ -179,7 +179,7 @@
 - 修改：`cmd/main.go`
 
 - [x] 在唯一 `local-node.yaml` 中配置 LoginServer、GatewayServer、GameServer、公共/区服 DBServer 的 NodeID、ServiceName 和 Labels，避免多个可加载文件重复定义 `nodes`。
-- [x] E2E 覆盖首次创建、已有路由复用、顶号和驻留重连；单元测试固定 Redis 故障不降级、GS 15秒租约、5秒 Leaving 隔离和15分钟断线驻留。
+- [x] E2E 覆盖首次创建、已有归属复用、顶号和驻留重连；单元测试固定 Redis 故障不降级、GS 15秒租约、5秒 Leaving 隔离和15分钟断线驻留。
 - [x] 所有 Service 关键依赖就绪后才 Ready；部分初始化失败按逆序释放已创建资源。
 - [x] 在 Windows 完成单元与竞态测试，在 Ubuntu/Docker 环境完成 MongoDB 副本集、Redis 和五 Node 登录链路联调。
 

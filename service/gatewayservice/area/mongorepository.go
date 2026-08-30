@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"origingame/internal/dbexecutor"
 	"origingame/internal/mongodb"
 	rpcapi "origingame/protocol/rpc"
 )
@@ -15,27 +16,24 @@ const (
 	maxAreaRecords = 100000
 )
 
-// MongoExecutor 通过公共 AccDBService 执行一次数据库请求。
-type MongoExecutor func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
-
 // MongoRepository 只加载 Gateway 所需的显示区服映射。
-type MongoRepository struct{ execute MongoExecutor }
+type MongoRepository struct{ executor dbexecutor.MongoExecutor }
 
 // NewMongoRepository 创建不持有数据库连接的仓储。
-func NewMongoRepository(execute MongoExecutor) *MongoRepository {
-	return &MongoRepository{execute: execute}
+func NewMongoRepository(executor dbexecutor.MongoExecutor) *MongoRepository {
+	return &MongoRepository{executor: executor}
 }
 
 // LoadMapping 完整读取 ShowAreaInfo，并返回独立映射。
 func (repository *MongoRepository) LoadMapping(ctx context.Context) (map[int64]int64, error) {
-	if repository == nil || repository.execute == nil {
+	if repository == nil || repository.executor == nil {
 		return nil, errors.New("Gateway 区服仓储未初始化")
 	}
 	filter, err := bson.Marshal(bson.D{})
 	if err != nil {
 		return nil, err
 	}
-	result, err := repository.execute(ctx, dispatchKey, rpcapi.MongoRequest{
+	result, err := repository.executor.ExecuteMongo(ctx, dispatchKey, rpcapi.MongoRequest{
 		DispatchKey: dispatchKey,
 		ExecuteMode: rpcapi.MongoExecuteModeSequential,
 		Operations: []rpcapi.MongoOperation{{

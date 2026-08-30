@@ -9,22 +9,22 @@ import (
 	"github.com/duanhf2012/origin/v3/errs"
 	"github.com/duanhf2012/origin/v3/log"
 	"github.com/duanhf2012/origin/v3/service"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 )
 
 const renewInterval = 5 * time.Second
 
-type routeStore interface {
-	RegisterGameService(context.Context, playerroute.Registration) error
-	SetGameServiceDraining(context.Context, int64, playerroute.Instance) (bool, error)
+type registrationStore interface {
+	RegisterGameService(context.Context, playerownership.GameServiceRegistration) error
+	SetGameServiceDraining(context.Context, int64, playerownership.GameServiceInstance) (bool, error)
 }
 
 // Module 持有实例登记的真实时间续租协程和停止等待。
 type Module struct {
 	service.Module
-	store        routeStore
-	stopStore    routeStore
-	registration playerroute.Registration
+	store        registrationStore
+	stopStore    registrationStore
+	registration playerownership.GameServiceRegistration
 	interval     time.Duration
 	cancel       context.CancelFunc
 	done         chan struct{}
@@ -32,9 +32,9 @@ type Module struct {
 	stopErr      error
 }
 
-// New 创建固定每5秒续租的 GameService 注册 Module。
+// NewModule 创建固定每5秒续租的 GameService 注册 Module。
 // store 供自有续租协程使用普通 Call；stopStore 在 Service OnStop 生命周期内使用 Await。
-func New(store routeStore, stopStore routeStore, registration playerroute.Registration) *Module {
+func NewModule(store registrationStore, stopStore registrationStore, registration playerownership.GameServiceRegistration) *Module {
 	return &Module{store: store, stopStore: stopStore, registration: registration, interval: renewInterval}
 }
 
@@ -89,7 +89,7 @@ func (module *Module) OnStop(ctx context.Context) error {
 		_, module.stopErr = module.stopStore.SetGameServiceDraining(
 			ctx,
 			module.registration.RealAreaID,
-			module.registration.Instance,
+			module.registration.GameService,
 		)
 	})
 	return module.stopErr

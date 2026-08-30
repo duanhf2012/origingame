@@ -9,7 +9,7 @@ const (
 	ReleasePlayerLoadID      = "release_player_load_v1"
 	MarkPlayerResidentID     = "mark_player_resident_v1"
 	BeginPlayerReleaseID     = "begin_player_release_v1"
-	RenewPlayerRoutesID      = "renew_player_routes_v1"
+	RenewPlayerOwnershipsID  = "renew_player_routes_v1"
 )
 
 const RegisterGameServiceSource = `
@@ -255,7 +255,7 @@ end
 return 1
 `
 
-const RenewPlayerRoutesSource = `
+const RenewPlayerOwnershipsSource = `
 local renewed = 0
 local now_parts = redis.call('TIME')
 local now = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2]) / 1000)

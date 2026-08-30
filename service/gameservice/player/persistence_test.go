@@ -7,7 +7,7 @@ import (
 )
 
 func TestDirtyGenerationSurvivesModificationDuringSave(t *testing.T) {
-	current, err := New("0123456789abcdef01234567", 10, 1)
+	current, err := NewPlayer("0123456789abcdef01234567", 10, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

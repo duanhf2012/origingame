@@ -10,26 +10,24 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"origingame/internal/dbexecutor"
 	"origingame/internal/mongodb"
 	rpcapi "origingame/protocol/rpc"
 )
 
-// MongoExecutor 通过指定路由 Key 调用公共 AccDBService。
-type MongoExecutor func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
-
 // MongoRepository 封装 LoginService 对 Account 集合的唯一写入入口。
 type MongoRepository struct {
-	execute MongoExecutor
+	executor dbexecutor.MongoExecutor
 }
 
 // NewMongoRepository 创建不持有数据库连接的账号仓储。
-func NewMongoRepository(execute MongoExecutor) *MongoRepository {
-	return &MongoRepository{execute: execute}
+func NewMongoRepository(executor dbexecutor.MongoExecutor) *MongoRepository {
+	return &MongoRepository{executor: executor}
 }
 
 // FindOrCreate 原子查询或创建平台账号，并处理并发 upsert 的唯一键竞争。
 func (repository *MongoRepository) FindOrCreate(ctx context.Context, identity PlatformIdentity, clientIP string) (mongodb.Account, error) {
-	if repository == nil || repository.execute == nil {
+	if repository == nil || repository.executor == nil {
 		return mongodb.Account{}, errors.New("账号仓储未初始化")
 	}
 	now := time.Now().UTC()
@@ -66,7 +64,7 @@ func (repository *MongoRepository) FindOrCreate(ctx context.Context, identity Pl
 			},
 		}},
 	}
-	result, err := repository.execute(ctx, key, request)
+	result, err := repository.executor.ExecuteMongo(ctx, key, request)
 	if err != nil {
 		return mongodb.Account{}, err
 	}
@@ -88,7 +86,7 @@ func (repository *MongoRepository) FindOrCreate(ctx context.Context, identity Pl
 			FindOne:     &rpcapi.MongoFindOne{Filter: filter},
 		}},
 	}
-	result, findErr := repository.execute(ctx, key, findRequest)
+	result, findErr := repository.executor.ExecuteMongo(ctx, key, findRequest)
 	if findErr != nil {
 		return mongodb.Account{}, errors.Join(err, findErr)
 	}

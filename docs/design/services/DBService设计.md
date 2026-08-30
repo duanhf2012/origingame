@@ -20,7 +20,7 @@
 
 ## 2. 业务无关边界
 
-DBService 只执行调用方明确提交的数据操作并返回真实执行结果，不理解这些数据属于账号、角色、背包、任务、在线路由还是登录限流。
+DBService 只执行调用方明确提交的数据操作并返回真实执行结果，不理解这些数据属于账号、角色、背包、任务、在线归属还是登录限流。
 
 DBService 不负责：
 
@@ -41,7 +41,7 @@ DBService 不负责：
 - Update：更新文档；
 - Delete：删除文档。
 
-DBService 对外只声明 `ExecuteMongo` 和 `ExecuteRedis` 两个业务无关 RPC 方法。高频 MongoDB 能力使用结构化操作，特殊能力使用受登记约束的原始 BSON Command；Redis 以受限原始命令为基础单元，并为 Pipeline、MULTI/EXEC 和 Script 提供明确执行模式。所有 Redis 访问，包括在线路由、登录限流和需要的分布式协调操作，都必须经过 DBService。
+DBService 对外只声明 `ExecuteMongo` 和 `ExecuteRedis` 两个业务无关 RPC 方法。高频 MongoDB 能力使用结构化操作，特殊能力使用受登记约束的原始 BSON Command；Redis 以受限原始命令为基础单元，并为 Pipeline、MULTI/EXEC 和 Script 提供明确执行模式。所有 Redis 访问，包括在线归属、登录限流和需要的分布式协调操作，都必须经过 DBService。
 
 ## 3. 模板实例与数据库归属
 
@@ -84,7 +84,7 @@ RoleDBService
 | 本地开发 | 当前区服DBServer同时运行一个AccDBService和本区服RoleDBService；公共Node按当前启动范围运行AccDBService | 单成员Replica Set；必须支持Transaction测试 | 公共Acc Redis与区服Role Redis均可使用Standalone |
 | 生产首期 | 公共数据Node运行AccDBService；每个区服DBServer运行一个AccDBService和一个本区服RoleDBService | 三成员Replica Set或等价托管副本集 | 公共Acc Redis和各区服Role Redis分别按需要使用一主多从加至少3个Sentinel；首期不使用Cluster |
 
-公共数据Node和各区服DBServer上的AccDBService实例连接同一账号数据库与公共Redis，组成公共账号和登录协调数据域。LoginService、GatewayService和公共业务Service使用公共DB Node上的AccDBService；每个区服GameService使用本区服DBServer上的AccDBService访问GameService注册、负载、玩家在线路由和登录协调，并通过本区服RoleDBService访问角色MongoDB及区服Redis。公共账号数据库或公共Redis故障时全部范围暂停新的登录协调；只有某一部署范围的AccDBService实例故障时只暂停依赖该范围的新登录协调。已经在线的区服业务不应因此失去本区服RoleDBService的数据能力。
+公共数据Node和各区服DBServer上的AccDBService实例连接同一账号数据库与公共Redis，组成公共账号和登录协调数据域。LoginService、GatewayService和公共业务Service使用公共DB Node上的AccDBService；每个区服GameService使用本区服DBServer上的AccDBService访问GameService注册、负载、玩家在线归属和登录协调，并通过本区服RoleDBService访问角色MongoDB及区服Redis。公共账号数据库或公共Redis故障时全部范围暂停新的登录协调；只有某一部署范围的AccDBService实例故障时只暂停依赖该范围的新登录协调。已经在线的区服业务不应因此失去本区服RoleDBService的数据能力。
 
 各DBServer的NodeID、实际ServiceName、Node Labels和调用范围已经在[部署标识与服务发现配置设计](../部署标识与服务发现配置设计.md)中统一确认：公共DB Node使用`db-pub-N`并只装配`AccDBService:DBService`；区服DB Node使用`db-area-R-N`并同时装配`AccDBService:DBService`和`RoleDBService:DBService`。公共调用方只使用`scope=pub`的AccDBService，GameService只使用本区服两个DBService实例，首期不自动跨范围回退。
 
@@ -235,7 +235,7 @@ node_services:
 | RPC请求和响应Payload | Origin RPC | 否，当前默认4MiB |
 | 单Key积压、操作/命令数量和结果数量 | DBService代码常量 | 否 |
 | 慢请求诊断阈值和日志限频 | DBService代码常量 | 否，日志输出与轮转沿用全局日志配置 |
-| RawCommand和Script登记 | DBService受控扩展 | 在线玩家路由和登录限流已形成首批AccDBService Script登记项；不允许请求携带源码，也不开放任意运行配置脚本 |
+| RawCommand和Script登记 | DBService受控扩展 | 在线玩家归属和登录限流已形成首批AccDBService Script登记项；不允许请求携带源码，也不开放任意运行配置脚本 |
 
 DBService使用`max_inflight_requests`作为自身主要请求准入边界，Origin `scheduler.max_await_tasks`继续作为整个Service的框架硬上限。Handler只进行一次非阻塞Inflight预留，不在Service执行槽内等待；只有预留成功后才进入Await并调用私有`KeyExecutor.Execute`：
 
@@ -660,7 +660,7 @@ Cluster模式下，Pipeline可以按go-redis路由到多个节点但不具备整
 
 ## 19. Redis Script 和结果
 
-Script 不允许请求携带任意代码。在线玩家路由原子分配、条件释放和登录限流已经形成首批真实Script需求，因此首期实现最小登记机制，将稳定Script ID映射到经过审核的源码、内容摘要、只读属性、Key数量、参数上限和返回上限。脚本的业务语义、Key构造、参数和结果解释属于`PlayerRouteStore`、登录限流等调用方能力；DBService只接收装配层提供的登记描述并执行通用校验与调用，不增加领域RPC。所有AccDBService实例必须在Ready前校验所需登记ID、内容摘要和约束一致，并构造进程内Script对象；请求只携带登记ID、Keys和Args：
+Script 不允许请求携带任意代码。在线玩家归属原子分配、条件释放和登录限流已经形成首批真实Script需求，因此首期实现最小登记机制，将稳定Script ID映射到经过审核的源码、内容摘要、只读属性、Key数量、参数上限和返回上限。脚本的业务语义、Key构造、参数和结果解释属于`playerownership.PlayerOwnershipStore`、登录限流等调用方能力；DBService只接收装配层提供的登记描述并执行通用校验与调用，不增加领域RPC。所有AccDBService实例必须在Ready前校验所需登记ID、内容摘要和约束一致，并构造进程内Script对象；请求只携带登记ID、Keys和Args：
 
 ```go
 type RedisScriptCall struct {
@@ -672,7 +672,7 @@ type RedisScriptCall struct {
 
 执行时通过Redis Module的`RunScript`调用登记脚本：优先使用`EVALSHA`，Redis返回`NOSCRIPT`时由Driver自动回退到`EVAL`并重新进入脚本缓存。Redis脚本缓存是可丢失的运行时状态，DBService不把预加载成功作为脚本永久存在的假设，也不增加单独的脚本装载生命周期。
 
-Script 适合登录限流、在线路由 Compare-And-Set、带 TTL 的幂等写等少量短命令原子组合。脚本会阻塞 Redis 执行线程，必须短小、有界、可观测；不得把通用业务流程或长循环放入脚本。
+Script 适合登录限流、在线归属 Compare-And-Set、带 TTL 的幂等写等少量短命令原子组合。脚本会阻塞 Redis 执行线程，必须短小、有界、可观测；不得把通用业务流程或长循环放入脚本。
 
 首期不提供Redis Function模式。它与Script的当前业务能力重叠，同时要求Redis 7及以上、服务器端函数库部署和版本生命周期管理，而Origin v3 Redis Module当前没有对应封装。以后只有在部署统一保证Redis版本、多个调用方确需共享服务器端函数库，并明确函数发布、升级、回滚和兼容策略后，才重新设计Function能力；业务方不能先通过普通Command执行`FCALL`绕过该边界。
 
@@ -904,7 +904,7 @@ handler_total_duration
 
 ## 22. 设计确认结论
 
-MongoDB标准操作字段、可选登记式RawCommand、Sequential/Transaction、通用数量断言、两层错误模型、部分结果状态和结果Go类型已经确认。Redis固定允许表Command、Pipeline、MULTI/EXEC、登记式Script、扁平结果节点表、逐命令状态和错误分类已经确认。在线玩家路由和登录限流作为首批AccDBService Script需求，首期实现最小Script登记机制；RoleDBService只有出现本区服真实脚本时才增加登记项。首期不提供Distinct、Skip、写聚合、空Filter写操作、BulkWrite、Redis Function、WATCH回调、阻塞命令、Pub/Sub或跨请求Cursor；RawCommand仍只在出现第一个真实登记项时实现。
+MongoDB标准操作字段、可选登记式RawCommand、Sequential/Transaction、通用数量断言、两层错误模型、部分结果状态和结果Go类型已经确认。Redis固定允许表Command、Pipeline、MULTI/EXEC、登记式Script、扁平结果节点表、逐命令状态和错误分类已经确认。在线玩家归属和登录限流作为首批AccDBService Script需求，首期实现最小Script登记机制；RoleDBService只有出现本区服真实脚本时才增加登记项。首期不提供Distinct、Skip、写聚合、空Filter写操作、BulkWrite、Redis Function、WATCH回调、阻塞命令、Pub/Sub或跨请求Cursor；RawCommand仍只在出现第一个真实登记项时实现。
 
 首期部署基线为：公共数据Node运行AccDBService；每个区服DBServer同时运行一个AccDBService和一个本区服RoleDBService。全部AccDBService实例连接同一账号数据库和公共Redis，负责账号与登录协调数据；各区服RoleDBService分别提供角色数据和区服Redis能力。AccDBService固定使用公共Redis逻辑数据库0，RoleDBService固定使用其配置Redis的逻辑数据库1，并禁止Redis命令自动重试。每个实际DBService采用`max_io_concurrency=64`、`max_inflight_requests=128`，单Key上限32，MongoDB单Client连接上限为64，Redis每数据节点活动连接上限为64；总连接预算按实际部署实例数核算。
 

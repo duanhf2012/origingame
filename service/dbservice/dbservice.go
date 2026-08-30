@@ -64,11 +64,11 @@ func (target *DBService) OnInit() error {
 	}
 	target.executor = executor
 
-	target.mongo = mongodbmodule.New(target.config.MongoDB)
+	target.mongo = mongodbmodule.NewModule(target.config.MongoDB)
 	if err = target.AddModule(target.mongo); err != nil {
 		return err
 	}
-	target.redis, err = redismodule.New(target.config.Redis, scriptDefinitions(target.Name()))
+	target.redis, err = redismodule.NewModule(target.config.Redis, scriptDefinitions(target.Name()))
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func scriptDefinitions(serviceName string) []redismodule.ScriptDefinition {
 		ID: redisscripts.BeginPlayerReleaseID, Source: redisscripts.BeginPlayerReleaseSource,
 		MinKeys: 3, MaxKeys: 3, MaxArgs: 3, MaxResultNodes: 1,
 	}, {
-		ID: redisscripts.RenewPlayerRoutesID, Source: redisscripts.RenewPlayerRoutesSource,
+		ID: redisscripts.RenewPlayerOwnershipsID, Source: redisscripts.RenewPlayerOwnershipsSource,
 		MinKeys: 1, MaxKeys: 256, MaxArgs: 3, MaxResultNodes: 1,
 	}}
 }

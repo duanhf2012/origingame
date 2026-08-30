@@ -10,8 +10,8 @@ import (
 	originconfig "github.com/duanhf2012/origin/v3/config"
 	"github.com/duanhf2012/origin/v3/errs"
 	"github.com/duanhf2012/origin/v3/service"
-	"origingame/internal/playerroute"
-	commonpb "origingame/protocol/common"
+	"origingame/internal/dbexecutor"
+	"origingame/internal/playerownership"
 	rpcapi "origingame/protocol/rpc"
 	"origingame/service/gatewayservice/area"
 	"origingame/service/gatewayservice/client"
@@ -35,13 +35,12 @@ type AreaConfig struct {
 // GatewayService 装配公共数据客户端、区服映射和统一网络入口。
 type GatewayService struct {
 	service.Service
-	config  Config
-	accDB   rpcapi.DBServiceClient
-	games   rpcapi.GameServiceClient
-	routes  *playerroute.Store
-	areas   area.Catalog
-	refresh *area.RefreshModule
-	client  *client.Module
+	config         Config
+	accDB          rpcapi.DBServiceClient
+	ownershipStore *playerownership.PlayerOwnershipStore
+	areas          area.Catalog
+	refresh        *area.RefreshModule
+	client         *client.Module
 }
 
 var _ rpcapi.GatewayService = (*GatewayService)(nil)
@@ -67,21 +66,9 @@ func (target *GatewayService) OnInit() error {
 	}
 
 	target.accDB = rpcapi.BindDBServiceTo(target, "AccDBService").WhereLabels(map[string]string{"scope": "pub"})
-	target.games = rpcapi.BindGameService(target).WhereLabels(map[string]string{"scope": "area"})
-	target.routes = playerroute.New(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.RedisRequest,
-	) (rpcapi.RedisResult, error) {
-		return target.accDB.Route(key).CallExecuteRedis(ctx, request)
-	})
-	repository := area.NewMongoRepository(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.MongoRequest,
-	) (rpcapi.MongoResult, error) {
-		return target.accDB.Route(key).CallExecuteMongo(ctx, request)
-	})
+	callDB := dbexecutor.NewCallExecutor(target.accDB)
+	target.ownershipStore = playerownership.NewPlayerOwnershipStore(callDB)
+	repository := area.NewMongoRepository(callDB)
 	target.refresh = area.NewRefreshModule(
 		target.config.Area.RefreshInterval.Duration(), repository, &target.areas,
 	)
@@ -89,37 +76,13 @@ func (target *GatewayService) OnInit() error {
 		return err
 	}
 	target.client = client.NewModule(target.config.Client, client.Dependencies{
-		NodeID: node.ID(), Verifier: verifier, Areas: &target.areas, Routes: target.routes,
-		LoginGame: func(
-			ctx context.Context,
-			instance playerroute.Instance,
-			request rpcapi.LoginPlayerRequest,
-		) (*commonpb.LoginPlayerResult, error) {
-			return target.callLoginGame(ctx, instance, request)
-		},
-		NotifyGameMessage: func(instance playerroute.Instance, request rpcapi.PlayerMessageRequest) error {
-			return target.gameClient(instance).NotifyHandlePlayerMessage(context.Background(), request)
-		},
-		NotifyDisconnected: func(instance playerroute.Instance, connectionID string) error {
-			return target.gameClient(instance).NotifyPlayerDisconnected(
-				context.Background(), rpcapi.PlayerDisconnectedRequest{GatewayConnectionID: connectionID},
-			)
-		},
+		NodeID:         node.ID(),
+		Verifier:       verifier,
+		Areas:          &target.areas,
+		OwnershipStore: target.ownershipStore,
+		GameServices:   client.NewRPCGameServiceCaller(target),
 	})
 	return target.AddModule(target.client)
-}
-
-func (target *GatewayService) callLoginGame(
-	ctx context.Context,
-	instance playerroute.Instance,
-	request rpcapi.LoginPlayerRequest,
-) (*commonpb.LoginPlayerResult, error) {
-	return target.gameClient(instance).CallLoginPlayer(ctx, request)
-}
-
-func (target *GatewayService) gameClient(instance playerroute.Instance) rpcapi.GameServiceClient {
-	return rpcapi.BindGameServiceTo(target, instance.ServiceName).
-		WhereLabels(map[string]string{"scope": "area"}).OnNode(instance.NodeID)
 }
 
 // OnStart 确认公共 Redis 和登记 Script 可通过 AccDBService 执行。

@@ -64,8 +64,8 @@ type Player struct {
 	failure          error
 }
 
-// New 创建尚未登录的机器人。
-func New(id int64, schedule ScheduleFunc, onPush func(InboundMessage)) (*Player, error) {
+// NewPlayer 创建尚未登录的机器人。
+func NewPlayer(id int64, schedule ScheduleFunc, onPush func(InboundMessage)) (*Player, error) {
 	if id <= 0 || schedule == nil {
 		return nil, errors.New("机器人ID或Timer调度器无效")
 	}

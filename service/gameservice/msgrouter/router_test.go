@@ -8,7 +8,7 @@ import (
 )
 
 func TestRegisterFreezeAndDispatchUsesConcreteMessageType(t *testing.T) {
-	router := New()
+	router := NewRouter()
 	called := false
 	err := Register(router, commonpb.MessageID_PlayerHeartbeatReq, func(
 		_ *Session,
@@ -36,7 +36,7 @@ func TestRegisterFreezeAndDispatchUsesConcreteMessageType(t *testing.T) {
 }
 
 func BenchmarkRouterDispatch(b *testing.B) {
-	router := New()
+	router := NewRouter()
 	if err := Register(router, commonpb.MessageID_PlayerHeartbeatReq, func(
 		*Session,
 		*player.Player,

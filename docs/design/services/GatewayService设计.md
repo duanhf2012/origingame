@@ -130,25 +130,25 @@ Connected -> LoggingIn -> Online
 
 当前不维护登录前消息白名单。消息处理器必须执行自己的会话、权限和业务状态验证；没有有效路由时不得把普通业务消息转发到后端。
 
-### 6.1 玩家路由查找与GameService分配
+### 6.1 玩家归属查找与GameService分配
 
-Gateway持有普通进程内组件`PlayerRouteStore`。它不是Origin Module或独立Service，不持有Redis连接、Timer和权威内存状态，只通过公共AccDBService RPC执行在线路由登记Script；Gateway不调用任何区服RoleDBService。
+Gateway持有普通进程内组件`playerownership.PlayerOwnershipStore`。它不是Origin Module或独立Service，不持有Redis连接、Timer和权威内存状态，只通过公共AccDBService RPC执行在线归属登记Script；Gateway不调用任何区服RoleDBService。
 
-首版每条已登录连接只保存一个`PlayerRoute`，固定指向承载当前Player的GameService，不增加路由名称、路由Map或预留槽位。
+首版每条已登录连接只保存一个`GameServiceInstance`，固定指向承载当前Player的GameService，不增加多目标Map或预留槽位。
 
-Gateway验签后使用`PlayerKey = AccountID + ShowAreaID`，从当前有效区服快照解析`RealAreaID`，调用`AssignOrGet` Script在一次Redis原子操作中查询已有GameService；没有有效路由时选择并预占当前`Loading + Online + Resident`最小且未满的GameService。Gateway不能先查询再本地选择，也不能使用各Gateway之间广播的负载快照作为权威分配依据。
+Gateway验签后使用`PlayerKey = AccountID + ShowAreaID`，从当前有效区服快照解析`RealAreaID`，调用`AssignOrGet` Script在一次Redis原子操作中查询已有GameService；没有有效归属时选择并预占当前`Loading + Online + Resident`最小且未满的GameService。Gateway不能先查询再本地选择，也不能使用各Gateway之间广播的负载快照作为权威分配依据。
 
 GameService实例通过公共AccDBService Redis注册`RealAreaID`、Service名称、NodeID、Origin每次启动生成的`NodeSessionID`、Ready/Draining状态、加载数、在线数、驻留数、容量和带TTL租约。Origin服务发现负责RPC可达性，Redis注册表负责登录候选、负载和原子预占。
 
-Gateway网络层生成跨全部Gateway节点、TCP/KCP/WebSocket Module和进程重启全局唯一的字符串`GatewayConnectionID`。首次分配的Redis路由保存该值，GameService进入`LOADING`和失败回滚时必须同时校验`GameService NodeID + NodeSessionID + GatewayConnectionID`。
+Gateway网络层生成跨全部Gateway节点、TCP/KCP/WebSocket Module和进程重启全局唯一的字符串`GatewayConnectionID`。首次分配的Redis归属保存该值，GameService进入`LOADING`和失败回滚时必须同时校验`GameService NodeID + NodeSessionID + GatewayConnectionID`。
 
-同一次登录最多尝试三个不同GameService实例。目标不存在、请求确定尚未执行或明确返回`SERVICE_NOT_READY`、`SERVICE_DRAINING`、`SERVICE_FULL`时，Gateway使用上述条件释放`ASSIGNING`预占并排除该实例后重新分配。RPC超时或发送后断开属于状态未知，必须先查询路由；只有实例租约失效或分配状态超时后才能原子回收，不能立即选择第二个所有者。完整流程见[在线玩家路由设计](../在线玩家路由设计.md#6-gateway-原子查找分配与重试)。
+同一次登录最多尝试三个不同GameService实例。目标不存在、请求确定尚未执行或明确返回`SERVICE_NOT_READY`、`SERVICE_DRAINING`、`SERVICE_FULL`时，Gateway使用上述条件释放`ASSIGNING`预占并排除该实例后重新分配。RPC超时或发送后断开属于状态未知，必须先查询归属；只有实例租约失效或分配状态超时后才能原子回收，不能立即选择第二个所有者。完整流程见[在线玩家归属设计](../在线玩家归属设计.md#6-gateway-原子查找分配与重试)。
 
-路由分配结果固定为`EXISTING`、`ASSIGNED`、`WAIT`和`NO_CAPACITY`。遇到`WAIT`时每`1s`重新查询一次，且所有查询、GameService RPC和有界重试共同受本次登录`30s`总Deadline约束；到期仍无法确认时返回服务暂时不可用。
+归属分配结果固定为`EXISTING`、`ASSIGNED`、`WAIT`和`NO_CAPACITY`。遇到`WAIT`时每`1s`重新查询一次，且所有查询、GameService RPC和有界重试共同受本次登录`30s`总Deadline约束；到期仍无法确认时返回服务暂时不可用。
 
 ### 6.2 重复登录与顶号
 
-Redis返回已有`ONLINE`或`RESIDENT`路由时，Gateway仍调用当前承载Player的GameService，不重新分配实例。GameService在不跨`Await`的同步执行段中完成连接校验和替换：相同`GatewayConnectionID`幂等返回；不同连接登录时，先向旧Gateway定向提交“账号已在其他连接登录”通知，再把Player绑定替换为新连接。首期不为全部玩家消息增加通用Player Key有序队列。
+Redis返回已有`ONLINE`或`RESIDENT`归属时，Gateway仍调用当前承载Player的GameService，不重新分配实例。GameService在不跨`Await`的同步执行段中完成连接校验和替换：相同`GatewayConnectionID`幂等返回；不同连接登录时，先向旧Gateway定向提交“账号已在其他连接登录”通知，再把Player绑定替换为新连接。首期不为全部玩家消息增加通用Player Key有序队列。
 
 Gateway收到顶号请求后必须同时匹配自身`NodeID`和全局`GatewayConnectionID`：连接仍存在时先向客户端发送确定的顶号主动推送，完成写入后再关闭连接；连接不存在时幂等返回。旧Gateway通知失败不阻止GameService完成新连接接管，旧连接后续消息仍会因为连接ID不匹配而被GameService拒绝。
 
@@ -255,7 +255,7 @@ GatewayServer 只有在 GatewayService 完成以下准备后才能进入 Ready�
 - 已通过公共AccDBService加载并校验首份区服快照；
 - Gateway自身登录入口、通用协议解析器和连接状态机已经完成初始化；
 - 连接、会话、登录状态和路由组件已经初始化；
-- PlayerRouteStore使用的公共AccDBService RPC已可用，并已通过AccDBService完成Redis登记Script和初始可写性探测；GatewayService不直接组合Redis Module，也不依赖区服RoleDBService；
+- playerownership.PlayerOwnershipStore使用的公共AccDBService RPC已可用，并已通过AccDBService完成Redis登记Script和初始可写性探测；GatewayService不直接组合Redis Module，也不依赖区服RoleDBService；
 - 至少配置一个网络端点，且全部已配置的Server Module均已成功监听；
 - 访问后端服务所需的服务发现或其他必需依赖已经可用。
 

@@ -9,48 +9,39 @@ import (
 	"github.com/duanhf2012/origin/v3/errs"
 	"github.com/duanhf2012/origin/v3/log"
 	"github.com/duanhf2012/origin/v3/service"
-	"origingame/internal/playerroute"
+	"origingame/internal/dbexecutor"
+	"origingame/internal/playerownership"
 	rpcapi "origingame/protocol/rpc"
 )
 
 const (
-	autoSaveInterval    = 5 * time.Minute
-	residentDuration    = 15 * time.Minute
-	heartbeatTimeout    = 15 * time.Second
-	routeRenewBatchSize = 256
-	largePlayerLoadSize = 1 * 1024 * 1024
+	autoSaveInterval        = 5 * time.Minute
+	residentDuration        = 15 * time.Minute
+	heartbeatTimeout        = 15 * time.Second
+	ownershipRenewBatchSize = 256
+	largePlayerLoadSize     = 1 * 1024 * 1024
 )
 
-// MongoExecutor 通过指定 PlayerKey 调用本区服 RoleDBService。
-type MongoExecutor func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
-
-// GatewaySender 把一条已经决定好的业务消息定向发送到 Player 当前 Gateway Node。
-type GatewaySender func(string, rpcapi.SendClientMessageRequest) error
-
-// GatewayCloser 主动关闭指定 Gateway Node 上的客户端连接。
-type GatewayCloser func(string, string) error
-
-type routeStore interface {
-	BeginPlayerLoad(context.Context, playerroute.Player, playerroute.Instance, string) (bool, error)
-	CompletePlayerLogin(context.Context, playerroute.Player, playerroute.Instance, string) (bool, error)
-	ReleasePlayerLoad(context.Context, playerroute.Player, playerroute.Instance, string) (bool, error)
-	MarkPlayerResident(context.Context, playerroute.Player, playerroute.Instance) (bool, error)
-	BeginPlayerRelease(context.Context, playerroute.Player, playerroute.Instance) (bool, error)
-	RenewPlayerRoutes(context.Context, int64, playerroute.Instance, []playerroute.Player) (int64, error)
+type playerOwnershipStore interface {
+	BeginPlayerLoad(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error)
+	CompletePlayerLogin(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error)
+	ReleasePlayerLoad(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error)
+	MarkPlayerResident(context.Context, playerownership.Player, playerownership.GameServiceInstance) (bool, error)
+	BeginPlayerRelease(context.Context, playerownership.Player, playerownership.GameServiceInstance) (bool, error)
+	RenewPlayerOwnerships(context.Context, int64, playerownership.GameServiceInstance, []playerownership.Player) (int64, error)
 }
 
 // Module 是 Player、Proxy、连接索引和存档 Timer 的唯一生命周期所有者。
 type Module struct {
 	service.Module
-	execute               MongoExecutor
-	routes                routeStore
-	instance              playerroute.Instance
+	mongoExecutor         dbexecutor.MongoExecutor
+	ownershipStore        playerOwnershipStore
+	gameService           playerownership.GameServiceInstance
 	realAreaID            int64
 	playersByKey          map[string]*Player
 	playersByConnectionID map[string]*Player
 	stopping              bool
-	sendGateway           GatewaySender
-	closeGateway          GatewayCloser
+	gateway               GatewayClient
 	scanTimer             *time.Timer
 	slowLoadAt            time.Time
 	slowLoadSuppressed    uint64
@@ -58,16 +49,16 @@ type Module struct {
 
 // NewModule 创建不持有数据库连接的 PlayerModule。
 func NewModule(
-	execute MongoExecutor,
-	routes routeStore,
+	mongoExecutor dbexecutor.MongoExecutor,
+	ownershipStore playerOwnershipStore,
 	realAreaID int64,
-	instance playerroute.Instance,
-	sendGateway GatewaySender,
-	closeGateway GatewayCloser,
+	gameService playerownership.GameServiceInstance,
+	gateway GatewayClient,
 ) *Module {
 	return &Module{
-		execute: execute, routes: routes, realAreaID: realAreaID, instance: instance,
-		sendGateway: sendGateway, closeGateway: closeGateway,
+		mongoExecutor: mongoExecutor, ownershipStore: ownershipStore,
+		realAreaID: realAreaID, gameService: gameService,
+		gateway: gateway,
 	}
 }
 
@@ -79,7 +70,7 @@ func (module *Module) OnStart(context.Context) error {
 
 // OnInit 创建固定有界于 player_capacity 的运行期索引。
 func (module *Module) OnInit() error {
-	if module.execute == nil || module.routes == nil {
+	if module.mongoExecutor == nil || module.ownershipStore == nil {
 		return errs.NewMessage(errs.CodeInvalidConfig, "PlayerModule 数据执行依赖不完整")
 	}
 	module.playersByKey = make(map[string]*Player)
@@ -87,10 +78,10 @@ func (module *Module) OnInit() error {
 	return nil
 }
 
-// LoadNew 完成首次玩家路由认领、RoleDB加载、初始保存、上线和自动存档登记。
+// LoadNew 完成首次玩家归属认领、RoleDB加载、初始保存、上线和自动存档登记。
 func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID int64, gatewayNodeID string, connectionID string) (*Player, error) {
 	startedAt := time.Now()
-	outcome, failureStage := "failure", "route"
+	outcome, failureStage := "failure", "ownership"
 	loadBytes := 0
 	defer func() {
 		module.logSlowLoad(startedAt, outcome, failureStage, showAreaID, loadBytes)
@@ -98,25 +89,25 @@ func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID 
 	if module.stopping {
 		return nil, errs.ErrServiceStopping
 	}
-	key := playerroute.PlayerKey(accountID, showAreaID)
+	key := playerownership.PlayerKey(accountID, showAreaID)
 	if existing := module.playersByKey[key]; existing != nil {
 		return nil, errs.ErrServiceNotReady
 	}
-	routePlayer := playerroute.Player{AccountID: accountID, ShowAreaID: showAreaID, RealAreaID: module.realAreaID}
-	accepted, err := module.routes.BeginPlayerLoad(ctx, routePlayer, module.instance, connectionID)
+	ownershipPlayer := playerownership.Player{AccountID: accountID, ShowAreaID: showAreaID, RealAreaID: module.realAreaID}
+	accepted, err := module.ownershipStore.BeginPlayerLoad(ctx, ownershipPlayer, module.gameService, connectionID)
 	if err != nil {
 		return nil, err
 	}
 	if !accepted {
 		return nil, errs.ErrServiceNotReady
 	}
-	current, err := New(accountID, showAreaID, module.realAreaID)
+	current, err := NewPlayer(accountID, showAreaID, module.realAreaID)
 	failureStage = "decode"
 	if err != nil {
-		module.releaseLoad(ctx, routePlayer, connectionID)
+		module.releaseLoad(ctx, ownershipPlayer, connectionID)
 		return nil, err
 	}
-	current.sendGateway = module.sendGateway
+	current.gateway = module.gateway
 	module.playersByKey[key] = current
 	succeeded := false
 	defer func() {
@@ -127,7 +118,7 @@ func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID 
 				current.Offline(time.Now(), 0)
 			}
 			current.Release()
-			module.releaseLoad(ctx, routePlayer, connectionID)
+			module.releaseLoad(ctx, ownershipPlayer, connectionID)
 		}
 	}()
 
@@ -136,7 +127,7 @@ func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID 
 		return nil, err
 	}
 	failureStage = "database"
-	loadResult, err := module.execute(ctx, key, loadRequest)
+	loadResult, err := module.mongoExecutor.ExecuteMongo(ctx, key, loadRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +156,7 @@ func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID 
 	if err = module.bindConnection(current, gatewayNodeID, connectionID, time.Now()); err != nil {
 		return nil, err
 	}
-	accepted, err = module.routes.CompletePlayerLogin(ctx, routePlayer, module.instance, connectionID)
+	accepted, err = module.ownershipStore.CompletePlayerLogin(ctx, ownershipPlayer, module.gameService, connectionID)
 	if err != nil || !accepted {
 		module.unbindConnection(current)
 		return nil, errors.Join(err, errs.ErrServiceNotReady)
@@ -248,14 +239,14 @@ func (module *Module) scheduleScan() {
 				gatewayNodeID := current.dataInfo.GatewayNodeID
 				connectionID := current.dataInfo.GatewayConnectionID
 				_ = module.Disconnect(ctx, connectionID)
-				if module.closeGateway != nil {
-					if err := module.closeGateway(gatewayNodeID, connectionID); err != nil {
+				if module.gateway != nil {
+					if err := module.gateway.CloseClientConnection(gatewayNodeID, connectionID); err != nil {
 						module.Logger().Error("关闭心跳超时 Gateway 连接失败", log.Err(err))
 					}
 				}
 			}
 			module.ReleaseExpired(ctx, now)
-			module.renewRoutes(ctx)
+			module.renewOwnerships(ctx)
 			if !module.stopping {
 				module.scheduleScan()
 			}
@@ -271,15 +262,15 @@ func (module *Module) scheduleScan() {
 	module.scanTimer = timer
 }
 
-func (module *Module) renewRoutes(ctx context.Context) {
-	batch := make([]playerroute.Player, 0, routeRenewBatchSize)
+func (module *Module) renewOwnerships(ctx context.Context) {
+	batch := make([]playerownership.Player, 0, ownershipRenewBatchSize)
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		renewed, err := module.routes.RenewPlayerRoutes(ctx, module.realAreaID, module.instance, batch)
+		renewed, err := module.ownershipStore.RenewPlayerOwnerships(ctx, module.realAreaID, module.gameService, batch)
 		if err != nil || renewed != int64(len(batch)) {
-			module.Logger().Error("续租玩家在线路由失败", log.Int("requested", len(batch)), log.Int64("renewed", renewed), log.Err(err))
+			module.Logger().Error("续租玩家在线归属失败", log.Int("requested", len(batch)), log.Int64("renewed", renewed), log.Err(err))
 		}
 		batch = batch[:0]
 	}
@@ -287,8 +278,8 @@ func (module *Module) renewRoutes(ctx context.Context) {
 		if current.dataInfo.State != StateOnline && current.dataInfo.State != StateResident {
 			continue
 		}
-		batch = append(batch, current.routePlayer())
-		if len(batch) == routeRenewBatchSize {
+		batch = append(batch, current.ownershipPlayer())
+		if len(batch) == ownershipRenewBatchSize {
 			flush()
 		}
 	}
@@ -313,7 +304,7 @@ func (module *Module) Reconnect(ctx context.Context, current *Player, gatewayNod
 	if err := module.bindConnection(current, gatewayNodeID, connectionID, time.Now()); err != nil {
 		return err
 	}
-	accepted, err := module.routes.CompletePlayerLogin(ctx, current.routePlayer(), module.instance, connectionID)
+	accepted, err := module.ownershipStore.CompletePlayerLogin(ctx, current.ownershipPlayer(), module.gameService, connectionID)
 	if err != nil || !accepted {
 		module.unbindConnection(current)
 		current.Offline(time.Now(), residentDuration)
@@ -330,9 +321,9 @@ func (module *Module) Disconnect(ctx context.Context, connectionID string) error
 	}
 	module.unbindConnection(current)
 	current.Offline(time.Now(), residentDuration)
-	accepted, err := module.routes.MarkPlayerResident(ctx, current.routePlayer(), module.instance)
+	accepted, err := module.ownershipStore.MarkPlayerResident(ctx, current.ownershipPlayer(), module.gameService)
 	if err != nil || !accepted {
-		module.Logger().Error("玩家路由转为 Resident 失败", log.Err(err))
+		module.Logger().Error("玩家归属转为 Resident 失败", log.Err(err))
 	}
 	if saveErr := module.save(ctx, current); saveErr != nil {
 		module.Logger().Error("玩家离线存档失败", log.Err(saveErr))
@@ -385,9 +376,9 @@ func (module *Module) release(ctx context.Context, current *Player) {
 	if err := module.save(ctx, current); err != nil {
 		module.Logger().Error("玩家最终存档失败", log.Err(err))
 	}
-	accepted, err := module.routes.BeginPlayerRelease(ctx, current.routePlayer(), module.instance)
+	accepted, err := module.ownershipStore.BeginPlayerRelease(ctx, current.ownershipPlayer(), module.gameService)
 	if err != nil || !accepted {
-		module.Logger().Error("玩家路由进入 Leaving 失败", log.Err(err))
+		module.Logger().Error("玩家归属进入 Leaving 失败", log.Err(err))
 	}
 	delete(module.playersByKey, current.Key())
 	module.unbindConnection(current)
@@ -417,15 +408,15 @@ func (module *Module) save(ctx context.Context, current *Player) error {
 	if err != nil || !ok {
 		return err
 	}
-	result, err := module.execute(ctx, current.Key(), plan.Request)
+	result, err := module.mongoExecutor.ExecuteMongo(ctx, current.Key(), plan.Request)
 	if err != nil {
 		return err
 	}
 	return current.ApplySaveResult(plan, result)
 }
 
-func (module *Module) releaseLoad(ctx context.Context, routePlayer playerroute.Player, connectionID string) {
-	if _, err := module.routes.ReleasePlayerLoad(ctx, routePlayer, module.instance, connectionID); err != nil {
+func (module *Module) releaseLoad(ctx context.Context, ownershipPlayer playerownership.Player, connectionID string) {
+	if _, err := module.ownershipStore.ReleasePlayerLoad(ctx, ownershipPlayer, module.gameService, connectionID); err != nil {
 		module.Logger().Error("回滚玩家加载预占失败", log.Err(err))
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/duanhf2012/origin/v3/service"
 	"github.com/duanhf2012/origin/v3/sysmodule/ginmodule"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"origingame/internal/dbexecutor"
 	"origingame/internal/mongodb"
 	"origingame/internal/security"
 	rpcapi "origingame/protocol/rpc"
@@ -88,28 +89,12 @@ func (target *LoginService) OnInit() error {
 	}
 	authenticator := authentication.DevelopmentAuthenticator{}
 	target.accDB = rpcapi.BindDBServiceTo(target, "AccDBService").WhereLabels(map[string]string{"scope": "pub"})
+	awaitDB := dbexecutor.NewAwaitExecutor(target.accDB)
+	callDB := dbexecutor.NewCallExecutor(target.accDB)
 
-	accounts := account.NewMongoRepository(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.MongoRequest,
-	) (rpcapi.MongoResult, error) {
-		return target.accDB.Route(key).AwaitExecuteMongo(ctx, request)
-	})
-	areas := area.NewMongoRepository(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.MongoRequest,
-	) (rpcapi.MongoResult, error) {
-		return target.accDB.Route(key).CallExecuteMongo(ctx, request)
-	})
-	limiter := ratelimit.New(target.config.LoginRateLimit, func(
-		ctx context.Context,
-		key string,
-		request rpcapi.RedisRequest,
-	) (rpcapi.RedisResult, error) {
-		return target.accDB.Route(key).AwaitExecuteRedis(ctx, request)
-	})
+	accounts := account.NewMongoRepository(awaitDB)
+	areas := area.NewMongoRepository(callDB)
+	limiter := ratelimit.NewLimiter(target.config.LoginRateLimit, awaitDB)
 
 	target.refresh = area.NewRefreshModule(
 		target.config.Area.RefreshInterval.Duration(), areas, &target.catalog,

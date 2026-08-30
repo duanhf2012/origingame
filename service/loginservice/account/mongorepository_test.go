@@ -11,6 +11,14 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
+type testMongoExecutor struct {
+	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
+}
+
+func (executor testMongoExecutor) ExecuteMongo(ctx context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
+	return executor.execute(ctx, key, request)
+}
+
 func TestFindOrCreateUsesAccDBServiceFindOneAndUpdate(t *testing.T) {
 	document := mongodb.Account{
 		ID: bson.NewObjectID(), PlatType: int32(LoginTypeGuest), PlatID: "guest-1",
@@ -22,12 +30,12 @@ func TestFindOrCreateUsesAccDBServiceFindOneAndUpdate(t *testing.T) {
 	}
 	var routeKey string
 	var captured rpcapi.MongoRequest
-	repository := NewMongoRepository(func(_ context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
+	repository := NewMongoRepository(testMongoExecutor{execute: func(_ context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
 		routeKey, captured = key, request
 		return rpcapi.MongoResult{Results: []rpcapi.MongoOperationResult{{
 			Status: rpcapi.MongoOperationStatusSucceeded, Documents: [][]byte{documentBSON},
 		}}}, nil
-	})
+	}})
 
 	result, err := repository.FindOrCreate(context.Background(), PlatformIdentity{
 		PlatType: LoginTypeGuest, PlatID: "guest-1",

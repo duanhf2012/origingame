@@ -18,8 +18,8 @@ type Router struct {
 	frozen bool
 }
 
-// New 创建尚未登记和冻结的实例路由表。
-func New() *Router { return &Router{routes: make(map[commonpb.MessageID]routeHandler)} }
+// NewRouter 创建尚未登记和冻结的实例路由表。
+func NewRouter() *Router { return &Router{routes: make(map[commonpb.MessageID]routeHandler)} }
 
 // Register 使用具体 Protobuf 值类型登记无反射的解码与业务 Handler。
 // T 必须是生成消息的值类型，Handler 参数固定使用 *T。

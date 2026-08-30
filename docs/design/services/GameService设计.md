@@ -287,7 +287,7 @@ PlayerModule将全部已登记持久化数据按登记顺序组合为一次RoleD
 | `OnOffline` | 每次对应连接离线 |
 | `OnRelease` | 一次 |
 
-任何`OnInit`、`OnLoaded`或`OnAllLoaded`返回错误，Player都不能进入Ready。PlayerModule负责停止流程、倒序释放已经初始化的Proxy，并按登录路由设计条件释放本次加载占用。
+任何`OnInit`、`OnLoaded`或`OnAllLoaded`返回错误，Player都不能进入Ready。PlayerModule负责停止流程、倒序释放已经初始化的Proxy，并按登录归属设计条件释放本次加载占用。
 
 ### 6.1 登录RPC与首次加载
 
@@ -307,13 +307,13 @@ type LoginPlayerRequest struct {
 
 每次首次登录、重连或顶号登录，Gateway都必须在`LoginPlayerRequest`中显式携带`GatewayNodeID + GatewayConnectionID`。GameService以该请求为新连接的权威来源；登录处理不从任何`Session`对象读取这两个字段，也不能用Player当前保存的旧连接字段代替。绑定完成后，PlayerModule同时登记`GatewayConnectionID -> *Player`索引并初始化最后心跳时间。
 
-请求不携带`RealAreaID`或玩家级路由版本。Gateway把Redis分配结果中的`NodeSessionID`写入`ExpectedGameServiceNodeSessionID`；目标GameService必须与自身当前启动实例精确比较，不匹配时拒绝旧分配请求，避免同一NodeID重启后接收上一进程的迟到登录。
+请求不携带`RealAreaID`或玩家级归属版本。Gateway把Redis分配结果中的`NodeSessionID`写入`ExpectedGameServiceNodeSessionID`；目标GameService必须与自身当前启动实例精确比较，不匹配时拒绝旧分配请求，避免同一NodeID重启后接收上一进程的迟到登录。
 
 首次加载顺序固定为：
 
 ```text
 校验PlayerKey、GameService NodeID、NodeSessionID和GatewayConnectionID
-    -> Redis路由ASSIGNING改为LOADING
+    -> Redis归属ASSIGNING改为LOADING
     -> NewPlayer及OnInit
     -> 通过RoleDBService加载并反序列化数据
     -> OnLoaded
@@ -321,7 +321,7 @@ type LoginPlayerRequest struct {
     -> 自动插入本次初始化的缺失持久化数据
     -> 初始保存成功后创建Player存档Timer
     -> 绑定Gateway连接并执行OnOnline
-    -> Redis路由改为ONLINE
+    -> Redis归属改为ONLINE
     -> 返回登录成功
 ```
 
@@ -392,7 +392,7 @@ LoginPlayer(context.Context, LoginPlayerRequest) (*commonpb.LoginPlayerResult, e
 
 15分钟内重连时复用原Player，取消本次释放，更新连接并执行`OnOnline`，不重新从MongoDB加载。15分钟内始终未重连时，Player先进入`Releasing`停止新业务并执行一次最终存档；失败时不重试，只记录严重错误日志并继续释放。该简化策略可能丢失最近一次成功存档后的修改，是首期明确接受的取舍。
 
-最终存档返回后，GameService先通过AccDBService把仍属于本实例的`RESIDENT`路由原子改为`LEAVING`并设置5秒TTL，再倒序执行`OnRelease`并移除本地Player。Gateway查询到`LEAVING`时不得调用旧GameService或立即分配其他GameService，只能在登录Deadline内等待并重新查询；TTL到期后才允许重新分配。`OnRelease`不得执行I/O或长时间阻塞，必须在该保护窗口内快速完成。
+最终存档返回后，GameService先通过AccDBService把仍属于本实例的`RESIDENT`归属原子改为`LEAVING`并设置5秒TTL，再倒序执行`OnRelease`并移除本地Player。Gateway查询到`LEAVING`时不得调用旧GameService或立即分配其他GameService，只能在登录Deadline内等待并重新查询；TTL到期后才允许重新分配。`OnRelease`不得执行I/O或长时间阻塞，必须在该保护窗口内快速完成。
 
 GameService停服使用固定90秒优雅期限，不增加配置。期限内完成全部Player最终存档；到期仍失败时记录未保存Player数量和严重告警，`OnStop`返回错误，由最终程序入口决定退出结果。Service不得调用`os.Exit`、无限阻塞或增加本地WAL。
 

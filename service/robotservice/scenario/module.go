@@ -323,7 +323,7 @@ func (module *Module) startAttempt(runtime *runRuntime, robot *robotRuntime) err
 		originlog.Int64("robot_id", robot.id),
 		originlog.Int("attempt", robot.attempts),
 	)
-	player, err := virtualplayer.New(
+	player, err := virtualplayer.NewPlayer(
 		robot.id,
 		module.timers.schedule,
 		func(message virtualplayer.InboundMessage) { module.handlePush(runtime, robot, message) },

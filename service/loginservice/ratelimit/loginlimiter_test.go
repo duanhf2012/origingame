@@ -10,16 +10,24 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
+type testRedisExecutor struct {
+	execute func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)
+}
+
+func (executor testRedisExecutor) ExecuteRedis(ctx context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+	return executor.execute(ctx, key, request)
+}
+
 func TestLimiterBuildsRegisteredScriptRequest(t *testing.T) {
 	var routeKey string
 	var captured rpcapi.RedisRequest
-	limiter := New(Config{
+	limiter := NewLimiter(Config{
 		Enabled: true,
 		IP:      WindowLimitConfig{Enabled: true, Window: originconfig.Duration(10 * time.Second), MaxRequests: 30},
-	}, func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+	}, testRedisExecutor{execute: func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 		routeKey, captured = key, request
 		return integerResult(1), nil
-	})
+	}})
 	limiter.now = func() time.Time { return time.UnixMilli(123456) }
 
 	allowed, err := limiter.AllowIP(context.Background(), "192.0.2.10")
@@ -36,7 +44,7 @@ func TestLimiterBuildsRegisteredScriptRequest(t *testing.T) {
 }
 
 func TestConcurrencyLimiterRejectsWithoutQueueing(t *testing.T) {
-	limiter := New(Config{
+	limiter := NewLimiter(Config{
 		Enabled: true, Concurrency: ConcurrencyLimitConfig{Enabled: true, MaxInFlight: 1},
 	}, nil)
 	release, ok := limiter.AcquireConcurrency()

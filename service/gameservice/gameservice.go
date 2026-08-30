@@ -14,8 +14,9 @@ import (
 	"github.com/duanhf2012/origin/v3/service"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/protobuf/proto"
+	"origingame/internal/dbexecutor"
 	"origingame/internal/mongodb"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 	commonpb "origingame/protocol/common"
 	rpcapi "origingame/protocol/rpc"
 	"origingame/service/gameservice/messagehandler"
@@ -33,15 +34,15 @@ type Config struct {
 // GameService 是区服内 Player 的唯一 RPC 和生命周期入口。
 type GameService struct {
 	service.Service
-	config       Config
-	accDB        rpcapi.DBServiceClient
-	roleDB       rpcapi.DBServiceClient
-	gateway      rpcapi.GatewayServiceClient
-	routes       *playerroute.Store
-	players      *player.Module
-	registration *registration.Module
-	router       *msgrouter.Router
-	instance     playerroute.Instance
+	config              Config
+	accDB               rpcapi.DBServiceClient
+	roleDB              rpcapi.DBServiceClient
+	gateway             rpcapi.GatewayServiceClient
+	ownershipStore      *playerownership.PlayerOwnershipStore
+	players             *player.Module
+	registration        *registration.Module
+	router              *msgrouter.Router
+	gameServiceInstance playerownership.GameServiceInstance
 }
 
 var _ rpcapi.GameService = (*GameService)(nil)
@@ -68,7 +69,7 @@ func (target *GameService) OnInit() error {
 	if node == nil || node.ID() == "" || node.SessionID() == 0 {
 		return errs.NewMessage(errs.CodeInvalidConfig, "GameService 缺少 Node 运行身份")
 	}
-	target.instance = playerroute.Instance{
+	target.gameServiceInstance = playerownership.GameServiceInstance{
 		ServiceName: target.Name(), NodeID: node.ID(),
 		NodeSessionID: strconv.FormatUint(node.SessionID(), 10),
 	}
@@ -76,51 +77,29 @@ func (target *GameService) OnInit() error {
 	target.accDB = rpcapi.BindDBServiceTo(target, "AccDBService").WhereLabels(labels)
 	target.roleDB = rpcapi.BindDBServiceTo(target, "RoleDBService").WhereLabels(labels)
 	target.gateway = rpcapi.BindGatewayService(target).WhereLabels(map[string]string{"scope": "pub"})
-	target.routes = playerroute.New(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.RedisRequest,
-	) (rpcapi.RedisResult, error) {
-		return target.accDB.Route(key).AwaitExecuteRedis(ctx, request)
-	})
+	awaitAccDB := dbexecutor.NewAwaitExecutor(target.accDB)
+	callAccDB := dbexecutor.NewCallExecutor(target.accDB)
+	awaitRoleDB := dbexecutor.NewAwaitExecutor(target.roleDB)
+	target.ownershipStore = playerownership.NewPlayerOwnershipStore(awaitAccDB)
 	// 玩家流程运行在 Service 调度任务内，使用 Await 释放执行权；实例租约由
 	// registration 自有协程续租，必须使用普通 Call，不能依赖 Service 任务上下文。
-	registrationRoutes := playerroute.New(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.RedisRequest,
-	) (rpcapi.RedisResult, error) {
-		return target.accDB.Route(key).CallExecuteRedis(ctx, request)
-	})
-	target.players = player.NewModule(func(
-		ctx context.Context,
-		key string,
-		request rpcapi.MongoRequest,
-	) (rpcapi.MongoResult, error) {
-		return target.roleDB.Route(key).AwaitExecuteMongo(ctx, request)
-	}, target.routes, target.config.RealAreaID, target.instance,
-		func(gatewayNodeID string, request rpcapi.SendClientMessageRequest) error {
-			return target.gateway.OnNode(gatewayNodeID).NotifySendClientMessage(context.Background(), request)
-		},
-		func(gatewayNodeID string, connectionID string) error {
-			return target.gateway.OnNode(gatewayNodeID).NotifyCloseClientConnection(
-				context.Background(),
-				rpcapi.CloseClientConnectionRequest{GatewayConnectionID: connectionID},
-			)
-		},
+	registrationStore := playerownership.NewPlayerOwnershipStore(callAccDB)
+	target.players = player.NewModule(
+		awaitRoleDB, target.ownershipStore, target.config.RealAreaID, target.gameServiceInstance,
+		player.NewGatewayRPCClient(target.gateway),
 	)
 	if err := target.AddModule(target.players); err != nil {
 		return err
 	}
-	target.registration = registration.New(registrationRoutes, target.routes, playerroute.Registration{
-		RealAreaID: target.config.RealAreaID,
-		Instance:   target.instance,
-		MaxPlayers: target.config.PlayerCapacity,
+	target.registration = registration.NewModule(registrationStore, target.ownershipStore, playerownership.GameServiceRegistration{
+		RealAreaID:  target.config.RealAreaID,
+		GameService: target.gameServiceInstance,
+		MaxPlayers:  target.config.PlayerCapacity,
 	})
 	if err := target.AddModule(target.registration); err != nil {
 		return err
 	}
-	target.router = msgrouter.New()
+	target.router = msgrouter.NewRouter()
 	if err := messagehandler.Register(target.router); err != nil {
 		return err
 	}
@@ -215,10 +194,10 @@ func (target *GameService) LoginPlayer(ctx context.Context, request rpcapi.Login
 		request.GatewayConnectionID == "" {
 		return nil, errs.ErrInvalidArgument
 	}
-	if request.ExpectedGameServiceNodeSessionID != target.instance.NodeSessionID {
+	if request.ExpectedGameServiceNodeSessionID != target.gameServiceInstance.NodeSessionID {
 		return nil, errs.ErrServiceNotReady
 	}
-	key := playerroute.PlayerKey(request.AccountID, request.ShowAreaID)
+	key := playerownership.PlayerKey(request.AccountID, request.ShowAreaID)
 	current := target.players.FindByKey(key)
 	var err error
 	if current == nil {

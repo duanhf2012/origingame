@@ -1,4 +1,4 @@
-package playerroute
+package playerownership
 
 import (
 	"context"
@@ -10,11 +10,23 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
-func TestAssignOrGetBuildsStableRoutedScriptRequest(t *testing.T) {
-	var routeKey string
+type testRedisExecutor struct {
+	execute func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)
+}
+
+func (executor testRedisExecutor) ExecuteRedis(ctx context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+	return executor.execute(ctx, key, request)
+}
+
+func newTestPlayerOwnershipStore(execute func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)) *PlayerOwnershipStore {
+	return NewPlayerOwnershipStore(testRedisExecutor{execute: execute})
+}
+
+func TestAssignOrGetBuildsStableDispatchScriptRequest(t *testing.T) {
+	var dispatchKey string
 	var captured rpcapi.RedisRequest
-	store := New(func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
-		routeKey, captured = key, request
+	store := newTestPlayerOwnershipStore(func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+		dispatchKey, captured = key, request
 		return assignmentRedisResult(AssignmentDecisionAssigned, "GameService", "area1-game-1", "session-1", "ASSIGNING"), nil
 	})
 	result, err := store.AssignOrGet(context.Background(), AssignRequest{
@@ -24,12 +36,12 @@ func TestAssignOrGetBuildsStableRoutedScriptRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AssignOrGet() error = %v", err)
 	}
-	if result.Decision != AssignmentDecisionAssigned || result.Instance.NodeID != "area1-game-1" {
+	if result.Decision != AssignmentDecisionAssigned || result.GameService.NodeID != "area1-game-1" {
 		t.Fatalf("AssignOrGet() = %+v", result)
 	}
-	if routeKey != "0123456789abcdef01234567:10" || routeKey != captured.DispatchKey ||
+	if dispatchKey != "0123456789abcdef01234567:10" || dispatchKey != captured.DispatchKey ||
 		captured.Script == nil || captured.Script.ID != redisscripts.AssignOrGetPlayerID || len(captured.Script.Keys) != 2 {
-		t.Fatalf("unexpected request: route=%q request=%+v", routeKey, captured)
+		t.Fatalf("unexpected request: dispatch=%q request=%+v", dispatchKey, captured)
 	}
 	for _, key := range captured.Script.Keys {
 		if !strings.HasPrefix(key, "{area:1}:") {
@@ -39,30 +51,30 @@ func TestAssignOrGetBuildsStableRoutedScriptRequest(t *testing.T) {
 }
 
 func TestRegisterGameServiceUsesInstanceAsDispatchKey(t *testing.T) {
-	var routeKey string
+	var dispatchKey string
 	var captured rpcapi.RedisRequest
-	store := New(func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
-		routeKey, captured = key, request
+	store := newTestPlayerOwnershipStore(func(_ context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+		dispatchKey, captured = key, request
 		return integerRedisResult(1), nil
 	})
-	err := store.RegisterGameService(context.Background(), Registration{
-		RealAreaID: 1,
-		Instance:   Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
-		MaxPlayers: 5000,
+	err := store.RegisterGameService(context.Background(), GameServiceRegistration{
+		RealAreaID:  1,
+		GameService: GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
+		MaxPlayers:  5000,
 	})
 	if err != nil {
 		t.Fatalf("RegisterGameService() error = %v", err)
 	}
-	if routeKey == "" || routeKey != captured.DispatchKey || captured.Script == nil ||
+	if dispatchKey == "" || dispatchKey != captured.DispatchKey || captured.Script == nil ||
 		captured.Script.ID != redisscripts.RegisterGameServiceID || len(captured.Script.Keys) != 3 ||
 		len(captured.Script.Args) != 5 || string(captured.Script.Args[4]) != "15000" {
-		t.Fatalf("unexpected request: route=%q request=%+v", routeKey, captured)
+		t.Fatalf("unexpected request: dispatch=%q request=%+v", dispatchKey, captured)
 	}
 }
 
 func TestAssignOrGetPropagatesRedisFailure(t *testing.T) {
 	want := errors.New("redis unavailable")
-	store := New(func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+	store := newTestPlayerOwnershipStore(func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 		return rpcapi.RedisResult{}, want
 	})
 	_, err := store.AssignOrGet(context.Background(), AssignRequest{
@@ -76,14 +88,14 @@ func TestAssignOrGetPropagatesRedisFailure(t *testing.T) {
 
 func TestBeginPlayerReleaseUsesFiveSecondIsolation(t *testing.T) {
 	var captured rpcapi.RedisRequest
-	store := New(func(_ context.Context, _ string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+	store := newTestPlayerOwnershipStore(func(_ context.Context, _ string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 		captured = request
 		return integerRedisResult(1), nil
 	})
 	accepted, err := store.BeginPlayerRelease(
 		context.Background(),
 		Player{AccountID: "0123456789abcdef01234567", ShowAreaID: 10, RealAreaID: 1},
-		Instance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
+		GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 	)
 	if err != nil || !accepted || captured.Script == nil ||
 		captured.Script.ID != redisscripts.BeginPlayerReleaseID || len(captured.Script.Args) != 3 ||
@@ -92,19 +104,19 @@ func TestBeginPlayerReleaseUsesFiveSecondIsolation(t *testing.T) {
 	}
 }
 
-func TestRenewPlayerRoutesRejectsOversizedBatch(t *testing.T) {
-	store := New(func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+func TestRenewPlayerOwnershipsRejectsOversizedBatch(t *testing.T) {
+	store := newTestPlayerOwnershipStore(func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 		return integerRedisResult(0), nil
 	})
-	players := make([]Player, maxRenewRoutes+1)
+	players := make([]Player, maxRenewOwnerships+1)
 	for index := range players {
 		players[index] = Player{AccountID: "0123456789abcdef01234567", ShowAreaID: int64(index + 1), RealAreaID: 1}
 	}
-	_, err := store.RenewPlayerRoutes(context.Background(), 1, Instance{
+	_, err := store.RenewPlayerOwnerships(context.Background(), 1, GameServiceInstance{
 		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, players)
 	if err == nil {
-		t.Fatal("RenewPlayerRoutes() accepted more than 256 routes")
+		t.Fatal("RenewPlayerOwnerships() accepted more than 256 ownerships")
 	}
 }
 

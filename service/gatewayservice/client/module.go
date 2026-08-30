@@ -14,7 +14,7 @@ import (
 	"github.com/duanhf2012/origin/v3/sysmodule/network/tcp"
 	"github.com/duanhf2012/origin/v3/sysmodule/network/websocket"
 	"google.golang.org/protobuf/proto"
-	"origingame/internal/playerroute"
+	"origingame/internal/playerownership"
 	commonpb "origingame/protocol/common"
 	rpcapi "origingame/protocol/rpc"
 )
@@ -59,21 +59,19 @@ type TokenVerifier interface{ Verify(string) (string, error) }
 // AreaResolver 只暴露当前显示区服映射。
 type AreaResolver interface{ Resolve(int64) (int64, bool) }
 
-// RouteStore 是 Gateway 登录分配使用的最小 Redis 路由能力。
-type RouteStore interface {
-	AssignOrGet(context.Context, playerroute.AssignRequest) (playerroute.AssignmentResult, error)
-	ReleasePlayerLoad(context.Context, playerroute.Player, playerroute.Instance, string) (bool, error)
+// OwnershipStore 是 Gateway 登录分配使用的最小 Redis 玩家归属能力。
+type OwnershipStore interface {
+	AssignOrGet(context.Context, playerownership.AssignRequest) (playerownership.AssignmentResult, error)
+	ReleasePlayerLoad(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error)
 }
 
 // Dependencies 是客户端入口需要的已装配能力，不包含入口自己的 Handler。
 type Dependencies struct {
-	NodeID             string
-	Verifier           TokenVerifier
-	Areas              AreaResolver
-	Routes             RouteStore
-	LoginGame          func(context.Context, playerroute.Instance, rpcapi.LoginPlayerRequest) (*commonpb.LoginPlayerResult, error)
-	NotifyGameMessage  func(playerroute.Instance, rpcapi.PlayerMessageRequest) error
-	NotifyDisconnected func(playerroute.Instance, string) error
+	NodeID         string
+	Verifier       TokenVerifier
+	Areas          AreaResolver
+	OwnershipStore OwnershipStore
+	GameServices   GameServiceCaller
 }
 
 // Module 统一拥有三种网络入口、连接状态和客户端协议处理。
@@ -154,8 +152,8 @@ func (module *Module) OnInit() error {
 
 func (module *Module) validate() error {
 	deps := module.dependencies
-	if deps.NodeID == "" || deps.Verifier == nil || deps.Areas == nil || deps.Routes == nil ||
-		deps.LoginGame == nil || deps.NotifyGameMessage == nil || deps.NotifyDisconnected == nil {
+	if deps.NodeID == "" || deps.Verifier == nil || deps.Areas == nil || deps.OwnershipStore == nil ||
+		deps.GameServices == nil {
 		return errs.NewMessage(errs.CodeInvalidConfig, "Gateway 客户端入口依赖不完整")
 	}
 	return nil
@@ -193,7 +191,7 @@ func (module *Module) onMessage(ctx context.Context, session network.Session, pa
 			ErrorCode: commonpb.ErrorCode_ERROR_CODE_GATEWAY_NOT_LOGGED_IN,
 		})
 	}
-	return module.dependencies.NotifyGameMessage(current.instance, rpcapi.PlayerMessageRequest{
+	return module.dependencies.GameServices.HandlePlayerMessage(current.gameService, rpcapi.PlayerMessageRequest{
 		GatewayConnectionID: string(session.ID()), MessageID: request.messageID,
 		Sequence: request.sequence, Body: append([]byte(nil), request.body...),
 	})
@@ -274,10 +272,10 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 	defer cancel()
 	defer stopSessionCancel()
 	var result *commonpb.LoginPlayerResult
-	failureStage = "route"
+	failureStage = "ownership"
 	err = module.Await(loginCtx, func(waitCtx context.Context) error {
 		var waitErr error
-		result, waitErr = module.routeAndLogin(waitCtx, current, accountID, login.ShowAreaId, realAreaID)
+		result, waitErr = module.assignAndLogin(waitCtx, current, accountID, login.ShowAreaId, realAreaID)
 		return waitErr
 	})
 	if module.connections[current.session.ID()] != current || current.state != stateLoggingIn ||
@@ -312,7 +310,7 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 		log.String("connection_id", string(current.session.ID())),
 		log.Int64("show_area_id", login.ShowAreaId),
 		log.Int64("real_area_id", realAreaID),
-		log.String("game_service_node", current.instance.NodeID),
+		log.String("game_service_node", current.gameService.NodeID),
 	)
 	return module.send(current, rpcapi.ClientMessage{
 		MessageID: commonpb.MessageID_LoginPlayerRes, Sequence: request.sequence,
@@ -341,58 +339,58 @@ func (module *Module) logSlowLogin(startedAt time.Time, outcome string, failureS
 	module.slowSuppressed = 0
 }
 
-func (module *Module) routeAndLogin(
+func (module *Module) assignAndLogin(
 	ctx context.Context,
 	current *connection,
 	accountID string,
 	showAreaID int64,
 	realAreaID int64,
 ) (*commonpb.LoginPlayerResult, error) {
-	player := playerroute.Player{AccountID: accountID, ShowAreaID: showAreaID, RealAreaID: realAreaID}
-	excluded := make([]playerroute.Instance, 0, 3)
+	player := playerownership.Player{AccountID: accountID, ShowAreaID: showAreaID, RealAreaID: realAreaID}
+	excludedGameServices := make([]playerownership.GameServiceInstance, 0, 3)
 	for {
-		assignment, err := module.dependencies.Routes.AssignOrGet(ctx, playerroute.AssignRequest{
-			Player: player, GatewayConnectionID: string(current.session.ID()), Excluded: excluded,
+		assignment, err := module.dependencies.OwnershipStore.AssignOrGet(ctx, playerownership.AssignRequest{
+			Player: player, GatewayConnectionID: string(current.session.ID()), ExcludedGameServices: excludedGameServices,
 		})
 		if err != nil {
 			return nil, err
 		}
 		switch assignment.Decision {
-		case playerroute.AssignmentDecisionWait:
+		case playerownership.AssignmentDecisionWait:
 			if err = waitRetry(ctx); err != nil {
 				return nil, err
 			}
 			continue
-		case playerroute.AssignmentDecisionNoCapacity:
+		case playerownership.AssignmentDecisionNoCapacity:
 			// 候选实例可能正在启动，脚本也会分批清理崩溃后遗留的过期候选；
 			// 继续受登录总Deadline约束重查，不在瞬时无容量时立即失败。
 			if err = waitRetry(ctx); err != nil {
 				return nil, errors.Join(errors.New("当前真实区服没有可用 GameService 容量"), err)
 			}
 			continue
-		case playerroute.AssignmentDecisionAssigned, playerroute.AssignmentDecisionExisting:
+		case playerownership.AssignmentDecisionAssigned, playerownership.AssignmentDecisionExisting:
 		default:
 			return nil, errors.New("未知玩家分配决策")
 		}
 
-		result, callErr := module.dependencies.LoginGame(ctx, assignment.Instance, rpcapi.LoginPlayerRequest{
+		result, callErr := module.dependencies.GameServices.LoginPlayer(ctx, assignment.GameService, rpcapi.LoginPlayerRequest{
 			AccountID: accountID, ShowAreaID: showAreaID,
-			ExpectedGameServiceNodeSessionID: assignment.Instance.NodeSessionID,
+			ExpectedGameServiceNodeSessionID: assignment.GameService.NodeSessionID,
 			GatewayNodeID:                    module.dependencies.NodeID, GatewayConnectionID: string(current.session.ID()),
 		})
 		if callErr == nil {
-			current.instance = assignment.Instance
+			current.gameService = assignment.GameService
 			return result, nil
 		}
-		if assignment.Decision == playerroute.AssignmentDecisionAssigned && definitelyNotExecuted(callErr) {
-			_, releaseErr := module.dependencies.Routes.ReleasePlayerLoad(
-				ctx, player, assignment.Instance, string(current.session.ID()),
+		if assignment.Decision == playerownership.AssignmentDecisionAssigned && definitelyNotExecuted(callErr) {
+			_, releaseErr := module.dependencies.OwnershipStore.ReleasePlayerLoad(
+				ctx, player, assignment.GameService, string(current.session.ID()),
 			)
 			if releaseErr != nil {
 				return nil, errors.Join(callErr, releaseErr)
 			}
-			excluded = append(excluded, assignment.Instance)
-			if len(excluded) >= 3 {
+			excludedGameServices = append(excludedGameServices, assignment.GameService)
+			if len(excludedGameServices) >= 3 {
 				return nil, callErr
 			}
 			continue
@@ -433,9 +431,9 @@ func (module *Module) onClose(_ context.Context, session network.Session, _ erro
 			log.String("connection_id", string(session.ID())),
 			log.Int64("show_area_id", current.showAreaID),
 			log.Int64("real_area_id", current.realAreaID),
-			log.String("game_service_node", current.instance.NodeID),
+			log.String("game_service_node", current.gameService.NodeID),
 		)
-		_ = module.dependencies.NotifyDisconnected(current.instance, string(session.ID()))
+		_ = module.dependencies.GameServices.PlayerDisconnected(current.gameService, string(session.ID()))
 	}
 }
 

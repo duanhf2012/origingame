@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"origingame/internal/dbexecutor"
 	"origingame/internal/mongodb"
 	rpcapi "origingame/protocol/rpc"
 )
@@ -17,22 +18,19 @@ const (
 	maxAreaDocuments       = 100000
 )
 
-// MongoExecutor 通过指定路由 Key 调用公共 AccDBService。
-type MongoExecutor func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
-
 // MongoRepository 负责加载并严格关联两张区服基础表。
 type MongoRepository struct {
-	execute MongoExecutor
+	executor dbexecutor.MongoExecutor
 }
 
 // NewMongoRepository 创建不持有数据库连接的区服仓储。
-func NewMongoRepository(execute MongoExecutor) *MongoRepository {
-	return &MongoRepository{execute: execute}
+func NewMongoRepository(executor dbexecutor.MongoExecutor) *MongoRepository {
+	return &MongoRepository{executor: executor}
 }
 
 // LoadSnapshot 一次读取两张基础表，返回完成校验和稳定排序的独立区服快照。
 func (repository *MongoRepository) LoadSnapshot(ctx context.Context) ([]Info, error) {
-	if repository == nil || repository.execute == nil {
+	if repository == nil || repository.executor == nil {
 		return nil, errors.New("区服仓储未初始化")
 	}
 	emptyFilter, err := bson.Marshal(bson.D{})
@@ -53,7 +51,7 @@ func (repository *MongoRepository) LoadSnapshot(ctx context.Context) ([]Info, er
 			},
 		},
 	}
-	result, err := repository.execute(ctx, areaCatalogDispatchKey, request)
+	result, err := repository.executor.ExecuteMongo(ctx, areaCatalogDispatchKey, request)
 	if err != nil {
 		return nil, err
 	}
