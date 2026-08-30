@@ -23,20 +23,20 @@ type Dependencies struct {
 	Limiter       *ratelimit.Limiter
 }
 
-// Module 只在所有前置 Module 启动成功后绑定监听地址。
-type Module struct {
+// LoginHTTPModule 只在所有前置 Module 启动成功后绑定监听地址。
+type LoginHTTPModule struct {
 	ginmodule.Module
 	config ginmodule.ServerConfig
 	deps   Dependencies
 }
 
-// NewModule 注入业务能力；路由和 Handler 始终由 HTTP Module 自己拥有。
-func NewModule(config ginmodule.ServerConfig, dependencies Dependencies) *Module {
-	return &Module{config: config, deps: dependencies}
+// NewLoginHTTPModule 注入业务能力；路由和 Handler 始终由 HTTP Module 自己拥有。
+func NewLoginHTTPModule(config ginmodule.ServerConfig, dependencies Dependencies) *LoginHTTPModule {
+	return &LoginHTTPModule{config: config, deps: dependencies}
 }
 
 // OnInit 冻结 HTTP 安全边界并注册路由。
-func (module *Module) OnInit() error {
+func (module *LoginHTTPModule) OnInit() error {
 	options, err := module.config.Options()
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (module *Module) OnInit() error {
 	return nil
 }
 
-func (module *Module) limitConcurrency() gin.HandlerFunc {
+func (module *LoginHTTPModule) limitConcurrency() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		// 健康检查不占登录容量；登录在请求 goroutine 入队前抢占槽位，超限立即返回。
 		if ctx.Request.URL.Path != "/api/v1/login" {
@@ -72,6 +72,6 @@ func (module *Module) limitConcurrency() gin.HandlerFunc {
 }
 
 // OnStart 同步完成真实监听；Module 最后装配以保证关键依赖已经 Ready。
-func (module *Module) OnStart(ctx context.Context) error {
+func (module *LoginHTTPModule) OnStart(ctx context.Context) error {
 	return module.Module.OnStart(ctx)
 }

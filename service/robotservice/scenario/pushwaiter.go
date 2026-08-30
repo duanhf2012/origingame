@@ -9,7 +9,7 @@ import (
 	"origingame/service/robotservice/virtualplayer"
 )
 
-func (module *Module) waitForMessage(
+func (module *RobotScenarioModule) waitForMessage(
 	robot *robotRuntime,
 	messageID commonpb.MessageID,
 	timeout time.Duration,
@@ -49,7 +49,7 @@ func (module *Module) waitForMessage(
 	return nil
 }
 
-func (module *Module) handlePush(runtime *runRuntime, robot *robotRuntime, message virtualplayer.InboundMessage) {
+func (module *RobotScenarioModule) handlePush(runtime *runRuntime, robot *robotRuntime, message virtualplayer.InboundMessage) {
 	if module.current != runtime || runtime.robots[robot.id] != robot {
 		return
 	}

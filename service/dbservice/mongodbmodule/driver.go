@@ -11,7 +11,7 @@ import (
 )
 
 type driverRunner struct {
-	module *Module
+	module *MongoDBModule
 }
 
 type resultLimitError struct{}

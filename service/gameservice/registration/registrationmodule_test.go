@@ -36,7 +36,7 @@ func (store *fakeRegistrationStore) SetGameServiceDraining(context.Context, int6
 
 func TestModuleRegistersRenewsAndDrains(t *testing.T) {
 	store := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
-	module := NewModule(store, store, playerownership.GameServiceRegistration{
+	module := NewGameServiceRegistrationModule(store, store, playerownership.GameServiceRegistration{
 		RealAreaID:  1,
 		GameService: playerownership.GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 		MaxPlayers:  5000,
@@ -70,7 +70,7 @@ func TestModuleRegistersRenewsAndDrains(t *testing.T) {
 func TestModuleStopUsesLifecycleStore(t *testing.T) {
 	runStore := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
 	stopStore := &fakeRegistrationStore{registered: make(chan struct{}, 1)}
-	module := NewModule(runStore, stopStore, playerownership.GameServiceRegistration{
+	module := NewGameServiceRegistrationModule(runStore, stopStore, playerownership.GameServiceRegistration{
 		RealAreaID:  1,
 		GameService: playerownership.GameServiceInstance{ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1"},
 		MaxPlayers:  5000,

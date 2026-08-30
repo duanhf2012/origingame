@@ -13,11 +13,11 @@ import (
 
 const controlCompletionMargin = 2 * time.Minute
 
-// RobotService 只持有顶层配置和场景 Module，协议连接与执行资源由 Module 所有。
+// RobotService 只持有顶层配置和场景 Module，协议连接与执行资源由 RobotScenarioModule 所有。
 type RobotService struct {
 	service.Service
 	config    scenario.Config
-	scenarios *scenario.Module
+	scenarios *scenario.RobotScenarioModule
 }
 
 var _ rpcapi.RobotService = (*RobotService)(nil)
@@ -35,7 +35,7 @@ func (target *RobotService) OnInit() error {
 	if err := target.SetDefaultAwaitTimeout(awaitTimeout); err != nil {
 		return err
 	}
-	target.scenarios = scenario.NewModule(target.config)
+	target.scenarios = scenario.NewRobotScenarioModule(target.config)
 	return target.AddModule(target.scenarios)
 }
 

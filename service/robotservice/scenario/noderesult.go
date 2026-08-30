@@ -24,7 +24,7 @@ func durationMilliseconds(started time.Time) blueprintmodule.PortInt {
 	return blueprintmodule.PortInt(duration)
 }
 
-func (module *Module) resumeTo(handle *blueprintmodule.YieldHandle, output int, values ...any) {
+func (module *RobotScenarioModule) resumeTo(handle *blueprintmodule.YieldHandle, output int, values ...any) {
 	if handle == nil {
 		return
 	}

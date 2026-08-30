@@ -8,8 +8,8 @@ import (
 	"github.com/duanhf2012/origin/v3/service"
 )
 
-// RefreshModule 持有区服目录的真实时间周期刷新任务。
-type RefreshModule struct {
+// AreaRefreshModule 持有区服目录的真实时间周期刷新任务。
+type AreaRefreshModule struct {
 	service.Module
 	interval time.Duration
 	source   *MongoRepository
@@ -18,13 +18,13 @@ type RefreshModule struct {
 	done     chan struct{}
 }
 
-// NewRefreshModule 创建区服周期刷新 Module。
-func NewRefreshModule(interval time.Duration, source *MongoRepository, catalog *Catalog) *RefreshModule {
-	return &RefreshModule{interval: interval, source: source, catalog: catalog}
+// NewAreaRefreshModule 创建区服周期刷新 Module。
+func NewAreaRefreshModule(interval time.Duration, source *MongoRepository, catalog *Catalog) *AreaRefreshModule {
+	return &AreaRefreshModule{interval: interval, source: source, catalog: catalog}
 }
 
 // OnStart 同步加载首份有效快照，再启动明确可取消和等待的真实时间刷新协程。
-func (module *RefreshModule) OnStart(ctx context.Context) error {
+func (module *AreaRefreshModule) OnStart(ctx context.Context) error {
 	snapshot, err := module.source.LoadSnapshot(ctx)
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (module *RefreshModule) OnStart(ctx context.Context) error {
 	return nil
 }
 
-func (module *RefreshModule) run(ctx context.Context) {
+func (module *AreaRefreshModule) run(ctx context.Context) {
 	defer close(module.done)
 	ticker := time.NewTicker(module.interval)
 	defer ticker.Stop()
@@ -57,7 +57,7 @@ func (module *RefreshModule) run(ctx context.Context) {
 	}
 }
 
-func (module *RefreshModule) refresh(ctx context.Context) {
+func (module *AreaRefreshModule) refresh(ctx context.Context) {
 	snapshot, err := module.source.LoadSnapshot(ctx)
 	if err != nil {
 		module.Logger().Error("刷新区服列表失败，继续使用上一份有效快照", log.Err(err))
@@ -69,7 +69,7 @@ func (module *RefreshModule) refresh(ctx context.Context) {
 }
 
 // OnStop 取消数据库查询和 Ticker，并等待唯一刷新协程退出。
-func (module *RefreshModule) OnStop(ctx context.Context) error {
+func (module *AreaRefreshModule) OnStop(ctx context.Context) error {
 	if module.cancel == nil {
 		return nil
 	}

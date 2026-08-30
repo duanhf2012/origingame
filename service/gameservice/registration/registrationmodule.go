@@ -19,8 +19,8 @@ type registrationStore interface {
 	SetGameServiceDraining(context.Context, int64, playerownership.GameServiceInstance) (bool, error)
 }
 
-// Module 持有实例登记的真实时间续租协程和停止等待。
-type Module struct {
+// GameServiceRegistrationModule 持有实例登记的真实时间续租协程和停止等待。
+type GameServiceRegistrationModule struct {
 	service.Module
 	store        registrationStore
 	stopStore    registrationStore
@@ -32,14 +32,20 @@ type Module struct {
 	stopErr      error
 }
 
-// NewModule 创建固定每5秒续租的 GameService 注册 Module。
+// NewGameServiceRegistrationModule 创建固定每5秒续租的 GameService 注册 Module。
 // store 供自有续租协程使用普通 Call；stopStore 在 Service OnStop 生命周期内使用 Await。
-func NewModule(store registrationStore, stopStore registrationStore, registration playerownership.GameServiceRegistration) *Module {
-	return &Module{store: store, stopStore: stopStore, registration: registration, interval: renewInterval}
+func NewGameServiceRegistrationModule(
+	store registrationStore,
+	stopStore registrationStore,
+	registration playerownership.GameServiceRegistration,
+) *GameServiceRegistrationModule {
+	return &GameServiceRegistrationModule{
+		store: store, stopStore: stopStore, registration: registration, interval: renewInterval,
+	}
 }
 
 // OnStart 首次登记必须成功；之后才启动可取消的周期续租。
-func (module *Module) OnStart(ctx context.Context) error {
+func (module *GameServiceRegistrationModule) OnStart(ctx context.Context) error {
 	if module.store == nil || module.stopStore == nil {
 		return errs.NewMessage(errs.CodeInvalidConfig, "GameService 实例登记依赖不完整")
 	}
@@ -56,7 +62,7 @@ func (module *Module) OnStart(ctx context.Context) error {
 	return nil
 }
 
-func (module *Module) run(ctx context.Context) {
+func (module *GameServiceRegistrationModule) run(ctx context.Context) {
 	defer close(module.done)
 	ticker := time.NewTicker(module.interval)
 	defer ticker.Stop()
@@ -73,7 +79,7 @@ func (module *Module) run(ctx context.Context) {
 }
 
 // OnStop 停止续租，等待协程退出，再条件摘除当前实例。
-func (module *Module) OnStop(ctx context.Context) error {
+func (module *GameServiceRegistrationModule) OnStop(ctx context.Context) error {
 	module.stopOnce.Do(func() {
 		if module.cancel != nil {
 			module.cancel()

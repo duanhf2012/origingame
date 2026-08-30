@@ -14,7 +14,7 @@ import (
 
 type connectGatewayNode struct {
 	blueprintmodule.BaseExecNode
-	module *Module
+	module *RobotScenarioModule
 }
 
 func (*connectGatewayNode) GetName() string { return "RobotConnectGateway" }

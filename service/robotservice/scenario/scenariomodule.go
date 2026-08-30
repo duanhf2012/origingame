@@ -47,8 +47,8 @@ type runRuntime struct {
 	failureText  string
 }
 
-// Module 同时拥有Blueprint引擎、运行控制、I/O Worker、Timer和全部VirtualPlayer。
-type Module struct {
+// RobotScenarioModule 同时拥有Blueprint引擎、运行控制、I/O Worker、Timer和全部VirtualPlayer。
+type RobotScenarioModule struct {
 	blueprintmodule.Module
 	config Config
 
@@ -63,11 +63,13 @@ type Module struct {
 	stopping   bool
 }
 
-// NewModule 创建尚未绑定RobotService的场景Module。
-func NewModule(config Config) *Module { return &Module{config: config} }
+// NewRobotScenarioModule 创建尚未绑定 RobotService 的场景 Module。
+func NewRobotScenarioModule(config Config) *RobotScenarioModule {
+	return &RobotScenarioModule{config: config}
+}
 
 // OnInit 冻结配置并登记首批节点；此阶段不读取蓝图文件或启动goroutine。
-func (module *Module) OnInit() error {
+func (module *RobotScenarioModule) OnInit() error {
 	if err := ValidateConfig(module.config); err != nil {
 		return err
 	}
@@ -119,7 +121,7 @@ func (module *Module) OnInit() error {
 // OnStart 先启动I/O资源和Blueprint引擎，再按配置预登记默认运行。
 // Origin会在全部OnStart成功后才激活Service调度器，因此自动运行必须经过零延迟Module Timer
 // 跨过激活屏障，不能在OnStart中直接投递普通Service任务。
-func (module *Module) OnStart(ctx context.Context) error {
+func (module *RobotScenarioModule) OnStart(ctx context.Context) error {
 	module.rootCtx, module.rootCancel = context.WithCancel(context.Background())
 	if err := module.executor.start(module.rootCtx); err != nil {
 		module.rootCancel()
@@ -155,7 +157,7 @@ func (module *Module) OnStart(ctx context.Context) error {
 }
 
 // OnStop 先撤销运行和外部I/O，再关闭Blueprint引擎；重复停止安全。
-func (module *Module) OnStop(ctx context.Context) error {
+func (module *RobotScenarioModule) OnStop(ctx context.Context) error {
 	if module.stopping {
 		return nil
 	}
@@ -177,7 +179,7 @@ func (module *Module) OnStop(ctx context.Context) error {
 }
 
 // ListScenarios 返回当前首期唯一默认场景；Blueprint OnStart已保证它可编译。
-func (module *Module) ListScenarios(request rpcapi.ListRobotScenariosRequest) (rpcapi.ListRobotScenariosResponse, error) {
+func (module *RobotScenarioModule) ListScenarios(request rpcapi.ListRobotScenariosRequest) (rpcapi.ListRobotScenariosResponse, error) {
 	if request.Limit < 0 || request.Limit > 100 {
 		return rpcapi.ListRobotScenariosResponse{}, errs.ErrInvalidArgument
 	}
@@ -187,7 +189,7 @@ func (module *Module) ListScenarios(request rpcapi.ListRobotScenariosRequest) (r
 }
 
 // StartRun 幂等启动服务端固定Workload配置。
-func (module *Module) StartRun(request rpcapi.StartRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
+func (module *RobotScenarioModule) StartRun(request rpcapi.StartRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
 	if module == nil || module.rootCtx == nil || module.stopping {
 		return rpcapi.RobotRunSnapshot{}, errs.ErrServiceNotReady
 	}
@@ -267,7 +269,7 @@ func (module *Module) StartRun(request rpcapi.StartRobotRunRequest) (rpcapi.Robo
 }
 
 // StopRun 只发起取消并返回stopping；终态由GetRun轮询取得。
-func (module *Module) StopRun(request rpcapi.StopRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
+func (module *RobotScenarioModule) StopRun(request rpcapi.StopRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
 	snapshot, record, err := module.controller.requestStop(request.RunID)
 	if err != nil {
 		return rpcapi.RobotRunSnapshot{}, controlError(err)
@@ -279,7 +281,7 @@ func (module *Module) StopRun(request rpcapi.StopRobotRunRequest) (rpcapi.RobotR
 }
 
 // GetRun 返回控制器的不可变聚合快照。
-func (module *Module) GetRun(request rpcapi.GetRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
+func (module *RobotScenarioModule) GetRun(request rpcapi.GetRobotRunRequest) (rpcapi.RobotRunSnapshot, error) {
 	snapshot, err := module.controller.get(request.RunID)
 	if err != nil {
 		return rpcapi.RobotRunSnapshot{}, controlError(err)
@@ -298,7 +300,7 @@ func controlError(err error) error {
 	}
 }
 
-func (module *Module) launchRobot(runtime *runRuntime, robotID int64) {
+func (module *RobotScenarioModule) launchRobot(runtime *runRuntime, robotID int64) {
 	if module.current != runtime || runtime.scheduleDone || runtime.record.ctx.Err() != nil {
 		return
 	}
@@ -314,7 +316,7 @@ func (module *Module) launchRobot(runtime *runRuntime, robotID int64) {
 	}
 }
 
-func (module *Module) startAttempt(runtime *runRuntime, robot *robotRuntime) error {
+func (module *RobotScenarioModule) startAttempt(runtime *runRuntime, robot *robotRuntime) error {
 	robot.attempts++
 	robot.attemptErr = nil
 	module.Logger().Debug(
@@ -367,7 +369,7 @@ func (module *Module) startAttempt(runtime *runRuntime, robot *robotRuntime) err
 	return nil
 }
 
-func (module *Module) onRobotComplete(
+func (module *RobotScenarioModule) onRobotComplete(
 	runtime *runRuntime,
 	robot *robotRuntime,
 	execution *blueprintmodule.Execution,
@@ -406,13 +408,13 @@ func (module *Module) onRobotComplete(
 }
 
 // markAttemptFailure 保留本次执行的首次确定失败，避免失败分支完成清理后被误计为成功。
-func (module *Module) markAttemptFailure(robot *robotRuntime, failure error) {
+func (module *RobotScenarioModule) markAttemptFailure(robot *robotRuntime, failure error) {
 	if robot != nil && failure != nil && robot.attemptErr == nil {
 		robot.attemptErr = failure
 	}
 }
 
-func (module *Module) handleAttemptFailure(runtime *runRuntime, robot *robotRuntime, failure error) {
+func (module *RobotScenarioModule) handleAttemptFailure(runtime *runRuntime, robot *robotRuntime, failure error) {
 	if robot != nil {
 		module.Logger().Debug(
 			"机器人场景尝试失败",
@@ -446,7 +448,7 @@ func (module *Module) handleAttemptFailure(runtime *runRuntime, robot *robotRunt
 	}
 }
 
-func (module *Module) closeAttempt(robot *robotRuntime) {
+func (module *RobotScenarioModule) closeAttempt(robot *robotRuntime) {
 	if robot == nil {
 		return
 	}
@@ -466,7 +468,7 @@ func (module *Module) closeAttempt(robot *robotRuntime) {
 	robot.player, robot.instance, robot.execution = nil, nil, nil
 }
 
-func (module *Module) onScheduleDone(runtime *runRuntime, scheduleErr error) {
+func (module *RobotScenarioModule) onScheduleDone(runtime *runRuntime, scheduleErr error) {
 	if module.current != runtime || runtime.scheduleDone {
 		return
 	}
@@ -488,7 +490,7 @@ func (module *Module) onScheduleDone(runtime *runRuntime, scheduleErr error) {
 	module.finishRunIfReady(runtime)
 }
 
-func (module *Module) finishRunIfReady(runtime *runRuntime) {
+func (module *RobotScenarioModule) finishRunIfReady(runtime *runRuntime) {
 	if module.current != runtime || !runtime.scheduleDone || len(runtime.robots) != 0 {
 		return
 	}
@@ -515,7 +517,7 @@ func (module *Module) finishRunIfReady(runtime *runRuntime) {
 	module.current = nil
 }
 
-func (module *Module) failRun(runtime *runRuntime, code string, message string) {
+func (module *RobotScenarioModule) failRun(runtime *runRuntime, code string, message string) {
 	if module.current != runtime {
 		return
 	}
@@ -525,7 +527,7 @@ func (module *Module) failRun(runtime *runRuntime, code string, message string) 
 	runtime.record.cancel()
 }
 
-func (module *Module) forceCleanupCurrent() {
+func (module *RobotScenarioModule) forceCleanupCurrent() {
 	runtime := module.current
 	if runtime == nil {
 		return
@@ -542,7 +544,7 @@ func (module *Module) forceCleanupCurrent() {
 	module.current = nil
 }
 
-func (module *Module) findRobot(robotID int64) (*runRuntime, *robotRuntime, error) {
+func (module *RobotScenarioModule) findRobot(robotID int64) (*runRuntime, *robotRuntime, error) {
 	if robotID <= 0 || module.current == nil {
 		return nil, nil, errors.New("机器人运行不存在")
 	}

@@ -62,8 +62,8 @@ type LoginService struct {
 	service.Service
 	config  Config
 	accDB   rpcapi.DBServiceClient
-	http    *httpapi.Module
-	refresh *area.RefreshModule
+	http    *httpapi.LoginHTTPModule
+	refresh *area.AreaRefreshModule
 	catalog area.Catalog
 }
 
@@ -96,13 +96,13 @@ func (target *LoginService) OnInit() error {
 	areas := area.NewMongoRepository(callDB)
 	limiter := ratelimit.NewLimiter(target.config.LoginRateLimit, awaitDB)
 
-	target.refresh = area.NewRefreshModule(
+	target.refresh = area.NewAreaRefreshModule(
 		target.config.Area.RefreshInterval.Duration(), areas, &target.catalog,
 	)
 	if err = target.AddModule(target.refresh); err != nil {
 		return err
 	}
-	target.http = httpapi.NewModule(target.config.HTTP.Server, httpapi.Dependencies{
+	target.http = httpapi.NewLoginHTTPModule(target.config.HTTP.Server, httpapi.Dependencies{
 		Authenticator: authenticator,
 		Accounts:      accounts,
 		Issuer:        issuer,

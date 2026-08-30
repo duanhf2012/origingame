@@ -37,8 +37,8 @@ type DBService struct {
 	service.Service
 	config   Config
 	executor *keyExecutor
-	mongo    *mongodbmodule.Module
-	redis    *redismodule.Module
+	mongo    *mongodbmodule.MongoDBModule
+	redis    *redismodule.RedisModule
 }
 
 var _ rpcapi.DBService = (*DBService)(nil)
@@ -64,11 +64,11 @@ func (target *DBService) OnInit() error {
 	}
 	target.executor = executor
 
-	target.mongo = mongodbmodule.NewModule(target.config.MongoDB)
+	target.mongo = mongodbmodule.NewMongoDBModule(target.config.MongoDB)
 	if err = target.AddModule(target.mongo); err != nil {
 		return err
 	}
-	target.redis, err = redismodule.NewModule(target.config.Redis, scriptDefinitions(target.Name()))
+	target.redis, err = redismodule.NewRedisModule(target.config.Redis, scriptDefinitions(target.Name()))
 	if err != nil {
 		return err
 	}

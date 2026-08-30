@@ -18,7 +18,7 @@ const protocolRequestTimeout = 15 * time.Second
 
 type startHeartbeatNode struct {
 	blueprintmodule.BaseExecNode
-	module *Module
+	module *RobotScenarioModule
 }
 
 func (*startHeartbeatNode) GetName() string { return "RobotStartHeartbeat" }
@@ -69,7 +69,7 @@ func (node *startHeartbeatNode) Exec() (int, error) {
 
 type loginPlayerNode struct {
 	blueprintmodule.BaseExecNode
-	module *Module
+	module *RobotScenarioModule
 }
 
 func (*loginPlayerNode) GetName() string { return "RobotLoginPlayer" }
@@ -166,7 +166,7 @@ func (node *loginPlayerNode) Exec() (int, error) {
 
 type heartbeatNode struct {
 	blueprintmodule.BaseExecNode
-	module *Module
+	module *RobotScenarioModule
 }
 
 func (*heartbeatNode) GetName() string { return "RobotHeartbeat" }

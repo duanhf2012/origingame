@@ -10,29 +10,29 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
-// Module 统一拥有 DBService 的 Redis Client 生命周期、脚本登记和通用执行入口。
-type Module struct {
+// RedisModule 统一拥有 DBService 的 Redis Client 生命周期、脚本登记和通用执行入口。
+type RedisModule struct {
 	originredis.Module
 	config  originredis.Config
 	scripts scriptRegistry
 }
 
-// NewModule 校验受控 Script 登记并创建尚未连接的 Redis Module。
-func NewModule(config originredis.Config, definitions []ScriptDefinition) (*Module, error) {
+// NewRedisModule 校验受控 Script 登记并创建尚未连接的 Redis Module。
+func NewRedisModule(config originredis.Config, definitions []ScriptDefinition) (*RedisModule, error) {
 	scripts, err := newScriptRegistry(definitions)
 	if err != nil {
 		return nil, err
 	}
-	return &Module{config: config, scripts: scripts}, nil
+	return &RedisModule{config: config, scripts: scripts}, nil
 }
 
 // OnInit 在 Module 已绑定到 DBService 后校验并冻结连接配置。
-func (module *Module) OnInit() error {
+func (module *RedisModule) OnInit() error {
 	return module.Module.Setup(module.config)
 }
 
 // Execute 校验完整请求并在调用方 Await goroutine 中同步执行 Redis I/O。
-func (module *Module) Execute(ctx context.Context, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
+func (module *RedisModule) Execute(ctx context.Context, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {
 	if ctx == nil {
 		return rpcapi.RedisResult{}, errs.ErrInvalidArgument
 	}
@@ -46,7 +46,7 @@ func (module *Module) Execute(ctx context.Context, request rpcapi.RedisRequest) 
 }
 
 // ValidateRequest 在 DBService 预留 inflight 名额前完成命令和 Script 边界校验。
-func (module *Module) ValidateRequest(request rpcapi.RedisRequest) error {
+func (module *RedisModule) ValidateRequest(request rpcapi.RedisRequest) error {
 	if module == nil {
 		return errs.ErrInvalidArgument
 	}
@@ -54,7 +54,7 @@ func (module *Module) ValidateRequest(request rpcapi.RedisRequest) error {
 }
 
 type redisBackend struct {
-	module *Module
+	module *RedisModule
 }
 
 func (backend *redisBackend) executeCommand(ctx context.Context, command rpcapi.RedisCommand) backendResult {

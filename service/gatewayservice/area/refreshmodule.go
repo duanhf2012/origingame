@@ -10,8 +10,8 @@ import (
 
 const queryTimeout = 5 * time.Second
 
-// RefreshModule 同步加载首份映射，并按真实系统时间每分钟刷新。
-type RefreshModule struct {
+// AreaRefreshModule 同步加载首份映射，并按真实系统时间每分钟刷新。
+type AreaRefreshModule struct {
 	service.Module
 	interval time.Duration
 	source   *MongoRepository
@@ -20,13 +20,13 @@ type RefreshModule struct {
 	done     chan struct{}
 }
 
-// NewRefreshModule 创建持有唯一刷新协程的生命周期 Module。
-func NewRefreshModule(interval time.Duration, source *MongoRepository, catalog *Catalog) *RefreshModule {
-	return &RefreshModule{interval: interval, source: source, catalog: catalog}
+// NewAreaRefreshModule 创建持有唯一刷新协程的区服刷新 Module。
+func NewAreaRefreshModule(interval time.Duration, source *MongoRepository, catalog *Catalog) *AreaRefreshModule {
+	return &AreaRefreshModule{interval: interval, source: source, catalog: catalog}
 }
 
 // OnStart 在对外监听前取得首份有效映射。
-func (module *RefreshModule) OnStart(ctx context.Context) error {
+func (module *AreaRefreshModule) OnStart(ctx context.Context) error {
 	if err := module.load(ctx); err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func (module *RefreshModule) OnStart(ctx context.Context) error {
 	return nil
 }
 
-func (module *RefreshModule) load(parent context.Context) error {
+func (module *AreaRefreshModule) load(parent context.Context) error {
 	ctx, cancel := context.WithTimeout(parent, queryTimeout)
 	defer cancel()
 	mapping, err := module.source.LoadMapping(ctx)
@@ -50,7 +50,7 @@ func (module *RefreshModule) load(parent context.Context) error {
 	return module.catalog.Replace(mapping)
 }
 
-func (module *RefreshModule) run(ctx context.Context) {
+func (module *AreaRefreshModule) run(ctx context.Context) {
 	defer close(module.done)
 	ticker := time.NewTicker(module.interval)
 	defer ticker.Stop()
@@ -67,7 +67,7 @@ func (module *RefreshModule) run(ctx context.Context) {
 }
 
 // OnStop 取消查询和 Ticker，并等待刷新协程退出。
-func (module *RefreshModule) OnStop(ctx context.Context) error {
+func (module *AreaRefreshModule) OnStop(ctx context.Context) error {
 	if module.cancel == nil {
 		return nil
 	}

@@ -39,8 +39,8 @@ type GatewayService struct {
 	accDB          rpcapi.DBServiceClient
 	ownershipStore *playerownership.PlayerOwnershipStore
 	areas          area.Catalog
-	refresh        *area.RefreshModule
-	client         *client.Module
+	refresh        *area.AreaRefreshModule
+	client         *client.GatewayClientModule
 }
 
 var _ rpcapi.GatewayService = (*GatewayService)(nil)
@@ -69,13 +69,13 @@ func (target *GatewayService) OnInit() error {
 	callDB := dbexecutor.NewCallExecutor(target.accDB)
 	target.ownershipStore = playerownership.NewPlayerOwnershipStore(callDB)
 	repository := area.NewMongoRepository(callDB)
-	target.refresh = area.NewRefreshModule(
+	target.refresh = area.NewAreaRefreshModule(
 		target.config.Area.RefreshInterval.Duration(), repository, &target.areas,
 	)
 	if err = target.AddModule(target.refresh); err != nil {
 		return err
 	}
-	target.client = client.NewModule(target.config.Client, client.Dependencies{
+	target.client = client.NewGatewayClientModule(target.config.Client, client.Dependencies{
 		NodeID:         node.ID(),
 		Verifier:       verifier,
 		Areas:          &target.areas,

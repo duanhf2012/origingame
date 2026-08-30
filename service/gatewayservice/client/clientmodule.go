@@ -74,8 +74,8 @@ type Dependencies struct {
 	GameServices   GameServiceCaller
 }
 
-// Module 统一拥有三种网络入口、连接状态和客户端协议处理。
-type Module struct {
+// GatewayClientModule 统一拥有三种网络入口、连接状态和客户端协议处理。
+type GatewayClientModule struct {
 	service.Module
 	config         Config
 	dependencies   Dependencies
@@ -85,16 +85,16 @@ type Module struct {
 	slowSuppressed uint64
 }
 
-// NewModule 创建尚未绑定 Service 的客户端入口 Module。
-func NewModule(config Config, dependencies Dependencies) *Module {
-	return &Module{
+// NewGatewayClientModule 创建尚未绑定 Service 的客户端入口 Module。
+func NewGatewayClientModule(config Config, dependencies Dependencies) *GatewayClientModule {
+	return &GatewayClientModule{
 		config: config, dependencies: dependencies,
 		connections: make(map[network.SessionID]*connection), now: time.Now,
 	}
 }
 
 // OnInit 只为明确启用的协议创建 Origin 网络子 Module。
-func (module *Module) OnInit() error {
+func (module *GatewayClientModule) OnInit() error {
 	if err := module.validate(); err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (module *Module) OnInit() error {
 	return nil
 }
 
-func (module *Module) validate() error {
+func (module *GatewayClientModule) validate() error {
 	deps := module.dependencies
 	if deps.NodeID == "" || deps.Verifier == nil || deps.Areas == nil || deps.OwnershipStore == nil ||
 		deps.GameServices == nil {
@@ -159,7 +159,7 @@ func (module *Module) validate() error {
 	return nil
 }
 
-func (module *Module) onOpen(_ context.Context, session network.Session) error {
+func (module *GatewayClientModule) onOpen(_ context.Context, session network.Session) error {
 	if session == nil || session.ID() == "" {
 		return errs.ErrInvalidArgument
 	}
@@ -170,7 +170,7 @@ func (module *Module) onOpen(_ context.Context, session network.Session) error {
 	return nil
 }
 
-func (module *Module) onMessage(ctx context.Context, session network.Session, payload []byte) error {
+func (module *GatewayClientModule) onMessage(ctx context.Context, session network.Session, payload []byte) error {
 	current := module.connections[session.ID()]
 	if current == nil || current.session != session {
 		return errs.ErrTransportClosed
@@ -197,7 +197,7 @@ func (module *Module) onMessage(ctx context.Context, session network.Session, pa
 	})
 }
 
-func (module *Module) handleLogin(ctx context.Context, current *connection, request request) error {
+func (module *GatewayClientModule) handleLogin(ctx context.Context, current *connection, request request) error {
 	startedAt := module.now()
 	outcome, failureStage := "failure", "token"
 	defer func() { module.logSlowLogin(startedAt, outcome, failureStage) }()
@@ -318,7 +318,7 @@ func (module *Module) handleLogin(ctx context.Context, current *connection, requ
 	})
 }
 
-func (module *Module) logSlowLogin(startedAt time.Time, outcome string, failureStage string) {
+func (module *GatewayClientModule) logSlowLogin(startedAt time.Time, outcome string, failureStage string) {
 	duration := module.now().Sub(startedAt)
 	if duration < 2*time.Second {
 		return
@@ -339,7 +339,7 @@ func (module *Module) logSlowLogin(startedAt time.Time, outcome string, failureS
 	module.slowSuppressed = 0
 }
 
-func (module *Module) assignAndLogin(
+func (module *GatewayClientModule) assignAndLogin(
 	ctx context.Context,
 	current *connection,
 	accountID string,
@@ -419,7 +419,7 @@ func waitRetry(ctx context.Context) error {
 	}
 }
 
-func (module *Module) onClose(_ context.Context, session network.Session, _ error) {
+func (module *GatewayClientModule) onClose(_ context.Context, session network.Session, _ error) {
 	current := module.connections[session.ID()]
 	if current == nil || current.session != session {
 		return
@@ -438,7 +438,7 @@ func (module *Module) onClose(_ context.Context, session network.Session, _ erro
 }
 
 // SendClientMessage 编码并写入当前连接；连接不存在时幂等成功。
-func (module *Module) SendClientMessage(request rpcapi.SendClientMessageRequest) error {
+func (module *GatewayClientModule) SendClientMessage(request rpcapi.SendClientMessageRequest) error {
 	current := module.connections[network.SessionID(request.GatewayConnectionID)]
 	if current == nil {
 		return nil
@@ -458,19 +458,19 @@ func (module *Module) SendClientMessage(request rpcapi.SendClientMessageRequest)
 }
 
 // CloseClientConnection 幂等关闭当前 Node 上的指定连接。
-func (module *Module) CloseClientConnection(connectionID string) {
+func (module *GatewayClientModule) CloseClientConnection(connectionID string) {
 	if current := module.connections[network.SessionID(connectionID)]; current != nil {
 		current.session.Close(errs.ErrTransportClosed)
 	}
 }
 
-func (module *Module) replyLoginError(current *connection, sequence uint32, code commonpb.ErrorCode) error {
+func (module *GatewayClientModule) replyLoginError(current *connection, sequence uint32, code commonpb.ErrorCode) error {
 	return module.send(current, rpcapi.ClientMessage{
 		MessageID: commonpb.MessageID_LoginPlayerRes, Sequence: sequence, ErrorCode: code,
 	})
 }
 
-func (module *Module) send(current *connection, message rpcapi.ClientMessage) error {
+func (module *GatewayClientModule) send(current *connection, message rpcapi.ClientMessage) error {
 	payload, err := encodeClientMessage(message)
 	if err != nil {
 		return fmt.Errorf("编码客户端消息: %w", err)

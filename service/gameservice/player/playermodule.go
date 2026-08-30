@@ -31,8 +31,8 @@ type playerOwnershipStore interface {
 	RenewPlayerOwnerships(context.Context, int64, playerownership.GameServiceInstance, []playerownership.Player) (int64, error)
 }
 
-// Module 是 Player、Proxy、连接索引和存档 Timer 的唯一生命周期所有者。
-type Module struct {
+// PlayerModule 是 Player、Proxy、连接索引和存档 Timer 的唯一生命周期所有者。
+type PlayerModule struct {
 	service.Module
 	mongoExecutor         dbexecutor.MongoExecutor
 	ownershipStore        playerOwnershipStore
@@ -47,15 +47,15 @@ type Module struct {
 	slowLoadSuppressed    uint64
 }
 
-// NewModule 创建不持有数据库连接的 PlayerModule。
-func NewModule(
+// NewPlayerModule 创建不持有数据库连接的 PlayerModule。
+func NewPlayerModule(
 	mongoExecutor dbexecutor.MongoExecutor,
 	ownershipStore playerOwnershipStore,
 	realAreaID int64,
 	gameService playerownership.GameServiceInstance,
 	gateway GatewayClient,
-) *Module {
-	return &Module{
+) *PlayerModule {
+	return &PlayerModule{
 		mongoExecutor: mongoExecutor, ownershipStore: ownershipStore,
 		realAreaID: realAreaID, gameService: gameService,
 		gateway: gateway,
@@ -63,13 +63,13 @@ func NewModule(
 }
 
 // OnStart 启动一个实例级真实时间扫描 Timer，不为每个 Player 创建心跳 goroutine。
-func (module *Module) OnStart(context.Context) error {
+func (module *PlayerModule) OnStart(context.Context) error {
 	module.scheduleScan()
 	return nil
 }
 
 // OnInit 创建固定有界于 player_capacity 的运行期索引。
-func (module *Module) OnInit() error {
+func (module *PlayerModule) OnInit() error {
 	if module.mongoExecutor == nil || module.ownershipStore == nil {
 		return errs.NewMessage(errs.CodeInvalidConfig, "PlayerModule 数据执行依赖不完整")
 	}
@@ -79,7 +79,7 @@ func (module *Module) OnInit() error {
 }
 
 // LoadNew 完成首次玩家归属认领、RoleDB加载、初始保存、上线和自动存档登记。
-func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID int64, gatewayNodeID string, connectionID string) (*Player, error) {
+func (module *PlayerModule) LoadNew(ctx context.Context, accountID string, showAreaID int64, gatewayNodeID string, connectionID string) (*Player, error) {
 	startedAt := time.Now()
 	outcome, failureStage := "failure", "ownership"
 	loadBytes := 0
@@ -167,7 +167,7 @@ func (module *Module) LoadNew(ctx context.Context, accountID string, showAreaID 
 	return current, nil
 }
 
-func (module *Module) logSlowLoad(startedAt time.Time, outcome string, failureStage string, showAreaID int64, loadBytes int) {
+func (module *PlayerModule) logSlowLoad(startedAt time.Time, outcome string, failureStage string, showAreaID int64, loadBytes int) {
 	duration := time.Since(startedAt)
 	if duration < time.Second {
 		return
@@ -203,7 +203,7 @@ func mongoResultBytes(result rpcapi.MongoResult) int {
 }
 
 // OnStop 取消全部 Player Timer，不等待驻留期，并在停止 Context 内完成最终释放。
-func (module *Module) OnStop(ctx context.Context) error {
+func (module *PlayerModule) OnStop(ctx context.Context) error {
 	module.stopping = true
 	if module.scanTimer != nil {
 		module.scanTimer.Stop()
@@ -227,7 +227,7 @@ func (module *Module) OnStop(ctx context.Context) error {
 	return nil
 }
 
-func (module *Module) scheduleScan() {
+func (module *PlayerModule) scheduleScan() {
 	var timer *time.Timer
 	timer = time.AfterFunc(5*time.Second, func() {
 		if err := module.DispatchAsync(func(ctx context.Context) {
@@ -262,7 +262,7 @@ func (module *Module) scheduleScan() {
 	module.scanTimer = timer
 }
 
-func (module *Module) renewOwnerships(ctx context.Context) {
+func (module *PlayerModule) renewOwnerships(ctx context.Context) {
 	batch := make([]playerownership.Player, 0, ownershipRenewBatchSize)
 	flush := func() {
 		if len(batch) == 0 {
@@ -287,7 +287,7 @@ func (module *Module) renewOwnerships(ctx context.Context) {
 }
 
 // Reconnect 复用当前实例内的 Resident Player；Online 顶号由调用方先处理旧连接通知。
-func (module *Module) Reconnect(ctx context.Context, current *Player, gatewayNodeID string, connectionID string) error {
+func (module *PlayerModule) Reconnect(ctx context.Context, current *Player, gatewayNodeID string, connectionID string) error {
 	if current == nil || module.playersByKey[current.Key()] != current || module.stopping {
 		return errs.ErrServiceNotReady
 	}
@@ -314,7 +314,7 @@ func (module *Module) Reconnect(ctx context.Context, current *Player, gatewayNod
 }
 
 // Disconnect 按当前连接索引幂等地进入 Resident，并立即尝试保存脏数据。
-func (module *Module) Disconnect(ctx context.Context, connectionID string) error {
+func (module *PlayerModule) Disconnect(ctx context.Context, connectionID string) error {
 	current := module.playersByConnectionID[connectionID]
 	if current == nil || current.dataInfo.GatewayConnectionID != connectionID || current.dataInfo.State != StateOnline {
 		return nil
@@ -332,15 +332,15 @@ func (module *Module) Disconnect(ctx context.Context, connectionID string) error
 }
 
 // FindByKey 返回当前实例内的 Player；调用方不得跨 Service goroutine 保存结果。
-func (module *Module) FindByKey(key string) *Player { return module.playersByKey[key] }
+func (module *PlayerModule) FindByKey(key string) *Player { return module.playersByKey[key] }
 
 // FindByConnection 返回当前连接仍绑定的 Player。
-func (module *Module) FindByConnection(connectionID string) *Player {
+func (module *PlayerModule) FindByConnection(connectionID string) *Player {
 	return module.playersByConnectionID[connectionID]
 }
 
 // Heartbeat 更新当前连接最后一次逻辑心跳的真实系统时间。
-func (module *Module) Heartbeat(connectionID string, now time.Time) bool {
+func (module *PlayerModule) Heartbeat(connectionID string, now time.Time) bool {
 	current := module.playersByConnectionID[connectionID]
 	if current == nil || current.dataInfo.State != StateOnline || current.dataInfo.GatewayConnectionID != connectionID {
 		return false
@@ -350,7 +350,7 @@ func (module *Module) Heartbeat(connectionID string, now time.Time) bool {
 }
 
 // HeartbeatExpired 报告在线连接是否超过15秒未收到玩家逻辑心跳。
-func (module *Module) HeartbeatExpired(now time.Time) []*Player {
+func (module *PlayerModule) HeartbeatExpired(now time.Time) []*Player {
 	result := make([]*Player, 0)
 	for _, current := range module.playersByKey {
 		if current.dataInfo.State == StateOnline && now.Sub(current.dataInfo.LastHeartbeatAt) > heartbeatTimeout {
@@ -361,7 +361,7 @@ func (module *Module) HeartbeatExpired(now time.Time) []*Player {
 }
 
 // ReleaseExpired 释放驻留到期的 Player；最终存档失败只记录错误并继续释放。
-func (module *Module) ReleaseExpired(ctx context.Context, now time.Time) {
+func (module *PlayerModule) ReleaseExpired(ctx context.Context, now time.Time) {
 	for _, current := range module.playersByKey {
 		if current.dataInfo.State != StateResident || now.Before(current.dataInfo.ResidentDeadline) {
 			continue
@@ -370,7 +370,7 @@ func (module *Module) ReleaseExpired(ctx context.Context, now time.Time) {
 	}
 }
 
-func (module *Module) release(ctx context.Context, current *Player) {
+func (module *PlayerModule) release(ctx context.Context, current *Player) {
 	current.dataInfo.State = StateReleasing
 	module.stopAutoSave(current)
 	if err := module.save(ctx, current); err != nil {
@@ -385,7 +385,7 @@ func (module *Module) release(ctx context.Context, current *Player) {
 	current.Release()
 }
 
-func (module *Module) bindConnection(current *Player, gatewayNodeID string, connectionID string, now time.Time) error {
+func (module *PlayerModule) bindConnection(current *Player, gatewayNodeID string, connectionID string, now time.Time) error {
 	if existing := module.playersByConnectionID[connectionID]; existing != nil && existing != current {
 		return errors.New("GatewayConnectionID 已绑定其他 Player")
 	}
@@ -396,14 +396,14 @@ func (module *Module) bindConnection(current *Player, gatewayNodeID string, conn
 	return nil
 }
 
-func (module *Module) unbindConnection(current *Player) {
+func (module *PlayerModule) unbindConnection(current *Player) {
 	connectionID := current.dataInfo.GatewayConnectionID
 	if module.playersByConnectionID[connectionID] == current {
 		delete(module.playersByConnectionID, connectionID)
 	}
 }
 
-func (module *Module) save(ctx context.Context, current *Player) error {
+func (module *PlayerModule) save(ctx context.Context, current *Player) error {
 	plan, ok, err := current.BuildSavePlan()
 	if err != nil || !ok {
 		return err
@@ -415,17 +415,17 @@ func (module *Module) save(ctx context.Context, current *Player) error {
 	return current.ApplySaveResult(plan, result)
 }
 
-func (module *Module) releaseLoad(ctx context.Context, ownershipPlayer playerownership.Player, connectionID string) {
+func (module *PlayerModule) releaseLoad(ctx context.Context, ownershipPlayer playerownership.Player, connectionID string) {
 	if _, err := module.ownershipStore.ReleasePlayerLoad(ctx, ownershipPlayer, module.gameService, connectionID); err != nil {
 		module.Logger().Error("回滚玩家加载预占失败", log.Err(err))
 	}
 }
 
-func (module *Module) startAutoSave(current *Player) {
+func (module *PlayerModule) startAutoSave(current *Player) {
 	module.scheduleAutoSave(current, initialSaveDelay(current.Key()))
 }
 
-func (module *Module) scheduleAutoSave(current *Player, delay time.Duration) {
+func (module *PlayerModule) scheduleAutoSave(current *Player, delay time.Duration) {
 	var timer *time.Timer
 	timer = time.AfterFunc(delay, func() {
 		if err := module.DispatchAsync(func(ctx context.Context) {
@@ -450,7 +450,7 @@ func (module *Module) scheduleAutoSave(current *Player, delay time.Duration) {
 	current.saveTimer = timer
 }
 
-func (module *Module) stopAutoSave(current *Player) {
+func (module *PlayerModule) stopAutoSave(current *Player) {
 	if current.saveTimer != nil {
 		current.saveTimer.Stop()
 		current.saveTimer = nil

@@ -95,7 +95,7 @@ func TestConnectionMessageLimitUsesFixedTenSecondWindow(t *testing.T) {
 
 func TestSendClientMessageUsesFinalNetworkWrite(t *testing.T) {
 	session := newFakeSession("connection-1")
-	module := &Module{connections: map[network.SessionID]*connection{
+	module := &GatewayClientModule{connections: map[network.SessionID]*connection{
 		session.ID(): newConnection(session, time.Now()),
 	}}
 	err := module.SendClientMessage(rpcapi.SendClientMessageRequest{
@@ -117,7 +117,7 @@ func TestSendClientMessageUsesFinalNetworkWrite(t *testing.T) {
 func TestCloseNotifiesBoundGameServiceOnce(t *testing.T) {
 	session := newFakeSession("connection-1")
 	gameServices := &fakeGameServiceCaller{}
-	module := &Module{
+	module := &GatewayClientModule{
 		connections:  map[network.SessionID]*connection{},
 		dependencies: Dependencies{GameServices: gameServices},
 	}
@@ -134,7 +134,7 @@ func TestCloseNotifiesBoundGameServiceOnce(t *testing.T) {
 func TestAssignAndLoginWaitsForCapacityUntilLoginDeadline(t *testing.T) {
 	ownerships := &noCapacityOwnerships{}
 	session := newFakeSession("connection-1")
-	module := &Module{dependencies: Dependencies{OwnershipStore: ownerships}}
+	module := &GatewayClientModule{dependencies: Dependencies{OwnershipStore: ownerships}}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	_, err := module.assignAndLogin(ctx, newConnection(session, time.Now()), "account-1", 1, 1)

@@ -11,8 +11,8 @@ import (
 	rpcapi "origingame/protocol/rpc"
 )
 
-// Module 统一拥有 DBService 的 MongoDB Client 生命周期和通用执行入口。
-type Module struct {
+// MongoDBModule 统一拥有 DBService 的 MongoDB Client 生命周期和通用执行入口。
+type MongoDBModule struct {
 	originmongo.Module
 	config originmongo.Config
 
@@ -20,18 +20,18 @@ type Module struct {
 	collections   map[string]struct{}
 }
 
-// NewModule 创建尚未连接的 MongoDB Module；配置在 Origin OnInit 阶段冻结。
-func NewModule(config originmongo.Config) *Module {
-	return &Module{config: config}
+// NewMongoDBModule 创建尚未连接的 MongoDB Module；配置在 Origin OnInit 阶段冻结。
+func NewMongoDBModule(config originmongo.Config) *MongoDBModule {
+	return &MongoDBModule{config: config}
 }
 
 // OnInit 在 Module 已绑定到 DBService 后校验并冻结连接配置。
-func (module *Module) OnInit() error {
+func (module *MongoDBModule) OnInit() error {
 	return module.Module.Setup(module.config)
 }
 
 // OnStart 连接 MongoDB 后冻结当前已有集合快照，防止业务 RPC 隐式创建集合。
-func (module *Module) OnStart(ctx context.Context) error {
+func (module *MongoDBModule) OnStart(ctx context.Context) error {
 	if err := module.Module.OnStart(ctx); err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (module *Module) OnStart(ctx context.Context) error {
 }
 
 // Execute 校验完整请求并在调用方 Await goroutine 中同步执行数据库 I/O。
-func (module *Module) Execute(ctx context.Context, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
+func (module *MongoDBModule) Execute(ctx context.Context, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
 	if ctx == nil {
 		return rpcapi.MongoResult{}, errs.ErrInvalidArgument
 	}
@@ -66,7 +66,7 @@ func (module *Module) Execute(ctx context.Context, request rpcapi.MongoRequest) 
 	return executeRequest(ctx, request, &driverRunner{module: module}), nil
 }
 
-func (module *Module) allowsCollections(request rpcapi.MongoRequest) bool {
+func (module *MongoDBModule) allowsCollections(request rpcapi.MongoRequest) bool {
 	module.collectionsMu.RLock()
 	defer module.collectionsMu.RUnlock()
 	if module.collections == nil {

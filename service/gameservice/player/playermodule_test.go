@@ -62,7 +62,7 @@ func TestModuleLoadsInitialPlayerAndBuildsConnectionIndex(t *testing.T) {
 		}
 		return rpcapi.MongoResult{Results: results}, nil
 	}
-	module := NewModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
+	module := NewPlayerModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
 		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil)
 	if err := module.OnInit(); err != nil {
@@ -99,7 +99,7 @@ func TestRenewOwnershipsIncludesOnlineAndResidentPlayers(t *testing.T) {
 	execute := func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
 		return rpcapi.MongoResult{}, nil
 	}
-	module := NewModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
+	module := NewPlayerModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
 		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil)
 	if err := module.OnInit(); err != nil {
@@ -128,7 +128,7 @@ func TestDisconnectKeepsPlayerResidentForFifteenMinutes(t *testing.T) {
 		}
 		return rpcapi.MongoResult{Results: results}, nil
 	}
-	module := NewModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
+	module := NewPlayerModule(testMongoExecutor{execute: execute}, ownerships, 1, playerownership.GameServiceInstance{
 		ServiceName: "GameService", NodeID: "area1-game-1", NodeSessionID: "session-1",
 	}, nil)
 	if err := module.OnInit(); err != nil {

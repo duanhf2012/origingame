@@ -39,8 +39,8 @@ type GameService struct {
 	roleDB              rpcapi.DBServiceClient
 	gateway             rpcapi.GatewayServiceClient
 	ownershipStore      *playerownership.PlayerOwnershipStore
-	players             *player.Module
-	registration        *registration.Module
+	players             *player.PlayerModule
+	registration        *registration.GameServiceRegistrationModule
 	router              *msgrouter.Router
 	gameServiceInstance playerownership.GameServiceInstance
 }
@@ -84,18 +84,20 @@ func (target *GameService) OnInit() error {
 	// 玩家流程运行在 Service 调度任务内，使用 Await 释放执行权；实例租约由
 	// registration 自有协程续租，必须使用普通 Call，不能依赖 Service 任务上下文。
 	registrationStore := playerownership.NewPlayerOwnershipStore(callAccDB)
-	target.players = player.NewModule(
+	target.players = player.NewPlayerModule(
 		awaitRoleDB, target.ownershipStore, target.config.RealAreaID, target.gameServiceInstance,
 		player.NewGatewayRPCClient(target.gateway),
 	)
 	if err := target.AddModule(target.players); err != nil {
 		return err
 	}
-	target.registration = registration.NewModule(registrationStore, target.ownershipStore, playerownership.GameServiceRegistration{
-		RealAreaID:  target.config.RealAreaID,
-		GameService: target.gameServiceInstance,
-		MaxPlayers:  target.config.PlayerCapacity,
-	})
+	target.registration = registration.NewGameServiceRegistrationModule(
+		registrationStore, target.ownershipStore, playerownership.GameServiceRegistration{
+			RealAreaID:  target.config.RealAreaID,
+			GameService: target.gameServiceInstance,
+			MaxPlayers:  target.config.PlayerCapacity,
+		},
+	)
 	if err := target.AddModule(target.registration); err != nil {
 		return err
 	}

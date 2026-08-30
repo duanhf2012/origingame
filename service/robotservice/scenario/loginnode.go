@@ -13,7 +13,7 @@ import (
 
 type httpLoginNode struct {
 	blueprintmodule.BaseExecNode
-	module *Module
+	module *RobotScenarioModule
 }
 
 func (*httpLoginNode) GetName() string { return "RobotHTTPLogin" }

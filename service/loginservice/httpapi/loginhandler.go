@@ -10,7 +10,7 @@ import (
 )
 
 // login 完成 POST /api/v1/login 的边界校验和登录流程协调。
-func (module *Module) login(ctx *ginmodule.SafeContext) {
+func (module *LoginHTTPModule) login(ctx *ginmodule.SafeContext) {
 	var request LoginRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		module.logLoginRejected("request_decode", commonpb.ErrorCode_ERROR_CODE_INVALID_REQUEST)
@@ -95,7 +95,7 @@ func (module *Module) login(ctx *ginmodule.SafeContext) {
 }
 
 // logLoginRejected 仅记录安全的失败阶段和协议错误码，避免把登录凭证或请求内容写入日志。
-func (module *Module) logLoginRejected(stage string, code commonpb.ErrorCode) {
+func (module *LoginHTTPModule) logLoginRejected(stage string, code commonpb.ErrorCode) {
 	module.Logger().Debug(
 		"登录请求被拒绝",
 		log.String("login_stage", stage),
@@ -103,6 +103,6 @@ func (module *Module) logLoginRejected(stage string, code commonpb.ErrorCode) {
 	)
 }
 
-func (module *Module) respondError(ctx *ginmodule.SafeContext, status int, code commonpb.ErrorCode) {
+func (module *LoginHTTPModule) respondError(ctx *ginmodule.SafeContext, status int, code commonpb.ErrorCode) {
 	ctx.JSON(status, LoginResponse{ECode: int32(code)})
 }
