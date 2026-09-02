@@ -19,48 +19,48 @@ import (
 const pushInboxCapacity = 8
 
 type messageWaiter struct {
-	messageID     commonpb.MessageID
-	startedAtMS   int64
-	handle        *blueprintmodule.YieldHandle
-	cancelTimeout func()
+	messageID     commonpb.MessageID           // 等待的主动推送消息标识。
+	startedAtMS   int64                        // 开始等待的真实时间戳（毫秒）。
+	handle        *blueprintmodule.YieldHandle // 对应蓝图暂停句柄。
+	cancelTimeout func()                       // 超时任务取消函数。
 }
 
 type robotRuntime struct {
-	id          int64
-	attempts    int
-	firstFailed bool
-	attemptErr  error
-	player      *virtualplayer.Player
-	instance    *blueprintmodule.Instance
-	execution   *blueprintmodule.Execution
-	pushWaiter  *messageWaiter
-	inbox       []virtualplayer.InboundMessage
+	id          int64                          // 稳定机器人标识。
+	attempts    int                            // 已执行的场景尝试次数。
+	firstFailed bool                           // 首次尝试是否失败。
+	attemptErr  error                          // 当前尝试失败原因。
+	player      *virtualplayer.Player          // 真实协议客户端。
+	instance    *blueprintmodule.Instance      // 蓝图实例。
+	execution   *blueprintmodule.Execution     // 当前蓝图执行上下文。
+	pushWaiter  *messageWaiter                 // 当前主动推送等待器。
+	inbox       []virtualplayer.InboundMessage // 有界主动推送收件箱。
 }
 
 type runRuntime struct {
-	record       *runRecord
-	workload     *workload
-	robots       map[int64]*robotRuntime
-	scheduleDone bool
-	scheduleErr  error
-	failureCode  string
-	failureText  string
+	record       *runRecord              // 当前运行控制记录。
+	workload     *workload               // 当前负载调度器。
+	robots       map[int64]*robotRuntime // 机器人运行时状态。
+	scheduleDone bool                    // 是否结束调度。
+	scheduleErr  error                   // 调度失败原因。
+	failureCode  string                  // 聚合失败分类。
+	failureText  string                  // 聚合失败说明。
 }
 
 // RobotScenarioModule 同时拥有Blueprint引擎、运行控制、I/O Worker、Timer和全部VirtualPlayer。
 type RobotScenarioModule struct {
-	blueprintmodule.Module
-	config Config
+	blueprintmodule.Module        // Origin 蓝图 Module 生命周期能力。
+	config                 Config // 场景执行配置。
 
-	login      *virtualplayer.LoginClient
-	executor   *ioExecutor
-	timers     *realTimerScheduler
-	controller *runController
+	login      *virtualplayer.LoginClient // HTTP 登录客户端。
+	executor   *ioExecutor                // 有界阻塞 I/O 执行器。
+	timers     *realTimerScheduler        // 真实时间 Timer 调度器。
+	controller *runController             // 运行生命周期控制器。
 
-	rootCtx    context.Context
-	rootCancel context.CancelFunc
-	current    *runRuntime
-	stopping   bool
+	rootCtx    context.Context    // Module 根取消上下文。
+	rootCancel context.CancelFunc // Module 根取消函数。
+	current    *runRuntime        // 当前活动运行。
+	stopping   bool               // 是否已进入停止流程。
 }
 
 // NewRobotScenarioModule 创建尚未绑定 RobotService 的场景 Module。

@@ -19,8 +19,8 @@ func TestLocalGatewayConfigStrictlyOverlaysNetworkDefaults(t *testing.T) {
 	}
 	configured := Config{Client: client.DefaultConfig()}
 	sections := []struct {
-		path string
-		to   any
+		path string // 配置路径。
+		to   any    // 解码目标。
 	}{
 		{"token", &configured.Token},
 		{"area", &configured.Area},

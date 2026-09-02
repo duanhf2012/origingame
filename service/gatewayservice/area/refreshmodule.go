@@ -12,12 +12,12 @@ const queryTimeout = 5 * time.Second
 
 // AreaRefreshModule 同步加载首份映射，并按真实系统时间每分钟刷新。
 type AreaRefreshModule struct {
-	service.Module
-	interval time.Duration
-	source   *MongoRepository
-	catalog  *Catalog
-	cancel   context.CancelFunc
-	done     chan struct{}
+	service.Module                    // Origin Module 生命周期能力。
+	interval       time.Duration      // 映射刷新间隔。
+	source         *MongoRepository   // 映射 MongoDB 读取器。
+	catalog        *Catalog           // 待发布的映射目录。
+	cancel         context.CancelFunc // 刷新协程取消函数。
+	done           chan struct{}      // 刷新协程退出信号。
 }
 
 // NewAreaRefreshModule 创建持有唯一刷新协程的区服刷新 Module。

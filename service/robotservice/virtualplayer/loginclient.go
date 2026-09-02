@@ -17,23 +17,23 @@ const maxLoginResponseBytes = 1024 * 1024
 
 // LoginClientConfig 保存真实LoginService HTTP契约所需的最小配置。
 type LoginClientConfig struct {
-	URL              string
-	ShowAreaID       int64
-	PlatformType     int32
-	PlatformIDPrefix string
-	Workers          int
+	URL              string // LoginService HTTP 地址。
+	ShowAreaID       int64  // 目标显示区服标识。
+	PlatformType     int32  // 测试平台类型。
+	PlatformIDPrefix string // 测试账号标识前缀。
+	Workers          int    // 连接池容量。
 }
 
 // LoginResult 只保存后续连接必需的数据；Token禁止进入蓝图和日志。
 type LoginResult struct {
-	Token          string
-	GatewayAddress string
+	Token          string // 登录成功后取得的游戏 Token。
+	GatewayAddress string // 目标区服的 TCP Gateway 地址。
 }
 
 // LoginClient 复用一个有界Transport执行机器人HTTP登录。
 type LoginClient struct {
-	config LoginClientConfig
-	client *http.Client
+	config LoginClientConfig // 登录协议配置。
+	client *http.Client      // 复用的有界 HTTP 客户端。
 }
 
 // NewLoginClient 创建不自动重试的HTTP客户端。
@@ -59,25 +59,25 @@ func NewLoginClient(config LoginClientConfig) (*LoginClient, error) {
 }
 
 type loginRequest struct {
-	PlatformType int32  `json:"PlatType"`
-	PlatformID   string `json:"PlatId"`
-	AccessToken  string `json:"AccessToken"`
+	PlatformType int32  `json:"PlatType"`    // 测试平台类型。
+	PlatformID   string `json:"PlatId"`      // 测试平台账号标识。
+	AccessToken  string `json:"AccessToken"` // 平台访问凭证。
 }
 
 type loginResponse struct {
-	ErrorCode int32      `json:"ECode"`
-	Token     string     `json:"Token"`
-	Areas     []areaInfo `json:"AreaList"`
+	ErrorCode int32      `json:"ECode"`    // LoginService 错误码。
+	Token     string     `json:"Token"`    // 成功时的游戏 Token。
+	Areas     []areaInfo `json:"AreaList"` // 可选区服列表。
 }
 
 type areaInfo struct {
-	ShowAreaID int64      `json:"ShowAreaId"`
-	Gates      []gateInfo `json:"GateList"`
+	ShowAreaID int64      `json:"ShowAreaId"` // 显示区服标识。
+	Gates      []gateInfo `json:"GateList"`   // Gateway 列表。
 }
 
 type gateInfo struct {
-	Protocol string `json:"Protocol"`
-	Address  string `json:"Address"`
+	Protocol string `json:"Protocol"` // 连接协议。
+	Address  string `json:"Address"`  // Gateway 地址。
 }
 
 // Login 使用稳定robot_id生成测试身份，并选择配置区服的TCP Gateway入口。

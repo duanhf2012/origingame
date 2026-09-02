@@ -13,16 +13,16 @@ import (
 
 // Config 保存 Gateway 验签所需的公开材料。
 type Config struct {
-	Issuer     string            `json:"issuer"`
-	Audience   string            `json:"audience"`
-	PublicKeys map[string]string `json:"public_keys"`
+	Issuer     string            `json:"issuer"`      // 期望的 Token 签发方。
+	Audience   string            `json:"audience"`    // 期望的 Token 受众。
+	PublicKeys map[string]string `json:"public_keys"` // kid 到 Base64 公钥的映射。
 }
 
 // Verifier 使用 kid 选择 Ed25519 公钥，并严格校验标准 Claims。
 type Verifier struct {
-	issuer   string
-	audience string
-	keys     map[string]ed25519.PublicKey
+	issuer   string                       // 已规范化的期望签发方。
+	audience string                       // 已规范化的期望受众。
+	keys     map[string]ed25519.PublicKey // kid 到已解码公钥的映射。
 }
 
 // NewVerifier 校验并冻结公钥配置；错误信息不会包含密钥内容。

@@ -22,16 +22,16 @@ var (
 )
 
 type runRecord struct {
-	snapshot rpcapi.RobotRunSnapshot
-	ctx      context.Context
-	cancel   context.CancelFunc
+	snapshot rpcapi.RobotRunSnapshot // 当前低频运行快照。
+	ctx      context.Context         // 本次运行取消上下文。
+	cancel   context.CancelFunc      // 本次运行取消函数。
 }
 
 type runController struct {
-	now    func() time.Time
-	newID  func() (string, error)
-	active *runRecord
-	recent []rpcapi.RobotRunSnapshot
+	now    func() time.Time          // 真实系统时间来源。
+	newID  func() (string, error)    // 运行标识生成器。
+	active *runRecord                // 当前活动运行。
+	recent []rpcapi.RobotRunSnapshot // 有界历史运行快照。
 }
 
 func newRunController() *runController {

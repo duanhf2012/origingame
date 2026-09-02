@@ -10,12 +10,12 @@ import (
 
 // AreaRefreshModule 持有区服目录的真实时间周期刷新任务。
 type AreaRefreshModule struct {
-	service.Module
-	interval time.Duration
-	source   *MongoRepository
-	catalog  *Catalog
-	cancel   context.CancelFunc
-	done     chan struct{}
+	service.Module                    // Origin Module 生命周期能力。
+	interval       time.Duration      // 区服目录刷新间隔。
+	source         *MongoRepository   // 区服数据读取器。
+	catalog        *Catalog           // 待发布的区服目录。
+	cancel         context.CancelFunc // 刷新协程取消函数。
+	done           chan struct{}      // 刷新协程退出信号。
 }
 
 // NewAreaRefreshModule 创建区服周期刷新 Module。

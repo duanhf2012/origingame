@@ -18,7 +18,9 @@ type RedisExecutor interface {
 }
 
 // AwaitExecutor 在 Service 顺序任务中使用 Await 释放执行权。
-type AwaitExecutor struct{ client rpcapi.DBServiceClient }
+type AwaitExecutor struct {
+	client rpcapi.DBServiceClient // 按业务 Key 路由的 DBService 客户端。
+}
 
 // NewAwaitExecutor 创建使用 Await 语义的 DBService 执行器。
 func NewAwaitExecutor(client rpcapi.DBServiceClient) *AwaitExecutor {
@@ -36,7 +38,9 @@ func (executor *AwaitExecutor) ExecuteRedis(ctx context.Context, key string, req
 }
 
 // CallExecutor 在普通 goroutine 或独立 Module 协程中阻塞等待 RPC 结果。
-type CallExecutor struct{ client rpcapi.DBServiceClient }
+type CallExecutor struct {
+	client rpcapi.DBServiceClient // 按业务 Key 路由的 DBService 客户端。
+}
 
 // NewCallExecutor 创建使用 Call 语义的 DBService 执行器。
 func NewCallExecutor(client rpcapi.DBServiceClient) *CallExecutor {

@@ -23,19 +23,19 @@ const (
 
 // connection 保存单条网络连接当前唯一的登录与 GameService 归属状态。
 type connection struct {
-	session network.Session
-	state   sessionState
+	session network.Session // 关联的底层网络会话。
+	state   sessionState    // 当前登录阶段。
 
-	windowStarted time.Time
-	windowCount   int
+	windowStarted time.Time // 当前限流窗口起点。
+	windowCount   int       // 当前窗口消息数。
 
-	loginSequence uint32
-	loginAttempt  uint64
-	accountID     string
-	showAreaID    int64
-	realAreaID    int64
-	gameService   playerownership.GameServiceInstance
-	loginResult   []byte
+	loginSequence uint32                              // 正在处理的登录请求序号。
+	loginAttempt  uint64                              // 单调递增的登录尝试号。
+	accountID     string                              // 已登录账号标识。
+	showAreaID    int64                               // 已登录显示区服标识。
+	realAreaID    int64                               // 已登录真实区服标识。
+	gameService   playerownership.GameServiceInstance // 当前归属 GameService。
+	loginResult   []byte                              // 幂等登录响应缓存。
 }
 
 func newConnection(session network.Session, now time.Time) *connection {

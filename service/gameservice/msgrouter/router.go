@@ -14,8 +14,8 @@ type routeHandler func(*Session, *player.Player, []byte) error
 
 // Router 保存单个 GameService 实例冻结后的 MessageID 路由表。
 type Router struct {
-	routes map[commonpb.MessageID]routeHandler
-	frozen bool
+	routes map[commonpb.MessageID]routeHandler // MessageID 到处理器的静态路由表。
+	frozen bool                                // 是否已禁止继续登记。
 }
 
 // NewRouter 创建尚未登记和冻结的实例路由表。

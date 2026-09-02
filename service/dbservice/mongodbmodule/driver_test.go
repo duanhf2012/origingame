@@ -26,10 +26,10 @@ func TestMarshalBSONValuePreservesTypeAndRawValue(t *testing.T) {
 
 func TestClassifyFailureReturnsStableKinds(t *testing.T) {
 	tests := []struct {
-		name         string
-		err          error
-		kind         rpcapi.MongoFailureKind
-		stateUnknown bool
+		name         string                  // 测试名称。
+		err          error                   // 输入错误。
+		kind         rpcapi.MongoFailureKind // 期望失败类型。
+		stateUnknown bool                    // 期望状态未知标记。
 	}{
 		{name: "duplicate", err: mongo.WriteException{WriteErrors: mongo.WriteErrors{{Code: 11000}}}, kind: rpcapi.MongoFailureKindDuplicateKey},
 		{name: "deadline", err: context.DeadlineExceeded, kind: rpcapi.MongoFailureKindTimeout, stateUnknown: true},

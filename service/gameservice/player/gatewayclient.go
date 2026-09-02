@@ -14,7 +14,7 @@ type GatewayClient interface {
 
 // GatewayRPCClient 通过 GatewayService RPC 实现 Player 的下行能力。
 type GatewayRPCClient struct {
-	client rpcapi.GatewayServiceClient
+	client rpcapi.GatewayServiceClient // 通过服务发现路由的 Gateway 客户端。
 }
 
 // NewGatewayRPCClient 创建面向指定 GatewayService 发现范围的调用器。

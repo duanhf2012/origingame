@@ -20,30 +20,30 @@ const (
 // keyExecutor 让 MongoDB 与 Redis 共用同 Key FIFO 和全局 I/O 并发额度。
 // 它不创建 Worker goroutine，等待和 I/O 均由调用方的 Origin Await goroutine 执行。
 type keyExecutor struct {
-	mu        sync.Mutex
-	keyQueues map[string]*keyQueue
-	slots     *semaphore.Weighted
+	mu        sync.Mutex           // 保护 Key 队列映射。
+	keyQueues map[string]*keyQueue // 各路由 Key 的 FIFO 队列。
+	slots     *semaphore.Weighted  // 全局 I/O 并发额度。
 
-	maxInflight int64
-	inflight    atomic.Int64
-	running     atomic.Int64
+	maxInflight int64        // 可预留的最大请求数。
+	inflight    atomic.Int64 // 已预留的执行中或排队请求数。
+	running     atomic.Int64 // 当前正在执行 I/O 的请求数。
 }
 
 type keyQueue struct {
-	requests list.List
+	requests list.List // 同一 Key 的 FIFO 请求队列。
 }
 
 type keyTicket struct {
-	queue   *keyQueue
-	element *list.Element
-	ready   chan struct{}
-	granted bool
+	queue   *keyQueue     // 所属 Key 队列。
+	element *list.Element // 队列中的节点。
+	ready   chan struct{} // 获得队首执行权的通知。
+	granted bool          // 是否已成为队首。
 }
 
 // inflightReservation 是进入 Origin Await 前取得的非阻塞请求名额。
 type inflightReservation struct {
-	executor *keyExecutor
-	once     sync.Once
+	executor *keyExecutor // 所属执行器。
+	once     sync.Once    // 保证名额只归还一次。
 }
 
 func newKeyExecutor(maxIOConcurrency, maxInflightRequests int64) (*keyExecutor, error) {

@@ -27,22 +27,22 @@ import (
 
 // Config 保存 GameService 当前仅有的区服身份和玩家容量配置。
 type Config struct {
-	RealAreaID     int64 `json:"real_area_id"`
-	PlayerCapacity int64 `json:"player_capacity"`
+	RealAreaID     int64 `json:"real_area_id"`    // 服务所属真实区服标识。
+	PlayerCapacity int64 `json:"player_capacity"` // 实例最大玩家容量。
 }
 
 // GameService 是区服内 Player 的唯一 RPC 和生命周期入口。
 type GameService struct {
-	service.Service
-	config              Config
-	accDB               rpcapi.DBServiceClient
-	roleDB              rpcapi.DBServiceClient
-	gateway             rpcapi.GatewayServiceClient
-	ownershipStore      *playerownership.PlayerOwnershipStore
-	players             *player.PlayerModule
-	registration        *registration.GameServiceRegistrationModule
-	router              *msgrouter.Router
-	gameServiceInstance playerownership.GameServiceInstance
+	service.Service                                                 // Origin Service 生命周期能力。
+	config              Config                                      // GameService 本地配置。
+	accDB               rpcapi.DBServiceClient                      // 公共账号数据域客户端。
+	roleDB              rpcapi.DBServiceClient                      // 本区服角色数据域客户端。
+	gateway             rpcapi.GatewayServiceClient                 // Gateway 下行客户端。
+	ownershipStore      *playerownership.PlayerOwnershipStore       // 玩家归属访问器。
+	players             *player.PlayerModule                        // 本实例玩家 Module。
+	registration        *registration.GameServiceRegistrationModule // 实例登记与续租 Module。
+	router              *msgrouter.Router                           // 冻结后的客户端消息路由。
+	gameServiceInstance playerownership.GameServiceInstance         // 当前服务进程身份。
 }
 
 var _ rpcapi.GameService = (*GameService)(nil)

@@ -16,18 +16,18 @@ import (
 
 // Dependencies 是 HTTP 登录流程直接使用的最小业务能力集合。
 type Dependencies struct {
-	Authenticator authentication.Authenticator
-	Accounts      *account.MongoRepository
-	Issuer        *security.TokenIssuer
-	Catalog       *area.Catalog
-	Limiter       *ratelimit.Limiter
+	Authenticator authentication.Authenticator // 平台身份鉴权器。
+	Accounts      *account.MongoRepository     // 账号仓储。
+	Issuer        *security.TokenIssuer        // 游戏 Token 签发器。
+	Catalog       *area.Catalog                // 显示区服目录。
+	Limiter       *ratelimit.Limiter           // 登录限流器。
 }
 
 // LoginHTTPModule 只在所有前置 Module 启动成功后绑定监听地址。
 type LoginHTTPModule struct {
-	ginmodule.Module
-	config ginmodule.ServerConfig
-	deps   Dependencies
+	ginmodule.Module                        // Origin HTTP Module 生命周期能力。
+	config           ginmodule.ServerConfig // HTTP 监听配置。
+	deps             Dependencies           // 已装配的登录依赖。
 }
 
 // NewLoginHTTPModule 注入业务能力；路由和 Handler 始终由 HTTP Module 自己拥有。

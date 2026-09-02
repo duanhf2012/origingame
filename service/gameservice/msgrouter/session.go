@@ -8,9 +8,9 @@ import (
 
 // Session 仅描述当前入站请求，不拥有 Gateway 连接关系。
 type Session struct {
-	player       *player.Player
-	connectionID string
-	sequence     uint32
+	player       *player.Player // 当前处理的玩家对象。
+	connectionID string         // 当前 Gateway 连接标识。
+	sequence     uint32         // 当前请求序号。
 }
 
 // ConnectionID 返回本次请求来源，用于跨 Await 后的连接校验。

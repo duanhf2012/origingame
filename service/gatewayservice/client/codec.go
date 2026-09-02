@@ -16,9 +16,9 @@ const (
 
 // request 是已完成通用头校验的客户端消息。
 type request struct {
-	messageID commonpb.MessageID
-	sequence  uint32
-	body      []byte
+	messageID commonpb.MessageID // 客户端请求消息标识。
+	sequence  uint32             // 客户端请求序号。
+	body      []byte             // 未解码的业务负载。
 }
 
 func decodeRequest(payload []byte) (request, error) {

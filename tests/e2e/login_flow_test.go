@@ -20,15 +20,15 @@ import (
 const maxTestFrameSize = 4 * 1024
 
 type loginHTTPResponse struct {
-	ECode int32  `json:"ECode"`
-	Token string `json:"Token"`
+	ECode int32  `json:"ECode"` // 登录错误码。
+	Token string `json:"Token"` // 登录令牌。
 }
 
 type clientMessage struct {
-	messageID commonpb.MessageID
-	sequence  uint32
-	errorCode commonpb.ErrorCode
-	body      []byte
+	messageID commonpb.MessageID // 消息标识。
+	sequence  uint32             // 请求序号。
+	errorCode commonpb.ErrorCode // 业务错误码。
+	body      []byte             // 消息主体。
 }
 
 // TestLoginFlow 验证 HTTP 登录、玩家加载、心跳响应，以及新连接顶掉旧连接。

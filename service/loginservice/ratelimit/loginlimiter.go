@@ -18,10 +18,10 @@ import (
 
 // Limiter 组合两个 AccDBService 共享窗口和单实例并发限制。
 type Limiter struct {
-	config   Config
-	executor dbexecutor.RedisExecutor
-	inFlight chan struct{}
-	now      func() time.Time
+	config   Config                   // 限流规则配置。
+	executor dbexecutor.RedisExecutor // Redis 执行器。
+	inFlight chan struct{}            // 有界并发登录名额。
+	now      func() time.Time         // 真实系统时间来源。
 }
 
 // NewLimiter 创建有界限流状态；禁用并发限制时不分配 Channel。

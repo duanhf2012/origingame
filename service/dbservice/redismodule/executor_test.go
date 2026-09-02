@@ -102,9 +102,9 @@ func TestExecuteRequestPreservesPipelineItemFailures(t *testing.T) {
 }
 
 type fakeBackend struct {
-	command  backendResult
-	pipeline []backendResult
-	script   backendResult
+	command  backendResult   // 单命令执行结果。
+	pipeline []backendResult // 管道执行结果。
+	script   backendResult   // 脚本执行结果。
 }
 
 func (backend *fakeBackend) executeCommand(context.Context, rpcapi.RedisCommand) backendResult {

@@ -10,53 +10,53 @@ import (
 
 // Config 保存 RobotService 场景执行、目标和全部资源硬上限。
 type Config struct {
-	Blueprint BlueprintConfig `json:"blueprint"`
-	Control   ControlConfig   `json:"control"`
-	Target    TargetConfig    `json:"target"`
-	Identity  IdentityConfig  `json:"identity"`
-	Workload  WorkloadConfig  `json:"workload"`
-	IO        IOConfig        `json:"io"`
+	Blueprint BlueprintConfig `json:"blueprint"` // 蓝图加载配置。
+	Control   ControlConfig   `json:"control"`   // 运行控制配置。
+	Target    TargetConfig    `json:"target"`    // 外部目标配置。
+	Identity  IdentityConfig  `json:"identity"`  // 测试身份配置。
+	Workload  WorkloadConfig  `json:"workload"`  // 压测负载配置。
+	IO        IOConfig        `json:"io"`        // 阻塞 I/O 配置。
 }
 
 // BlueprintConfig 指定机器人节点、行为图和默认入口。
 type BlueprintConfig struct {
-	NodeDir    string `json:"node_dir"`
-	GraphDir   string `json:"graph_dir"`
-	GraphName  string `json:"graph_name"`
-	EntranceID int64  `json:"entrance_id"`
+	NodeDir    string `json:"node_dir"`    // 节点定义目录。
+	GraphDir   string `json:"graph_dir"`   // 蓝图图定义目录。
+	GraphName  string `json:"graph_name"`  // 默认蓝图图名称。
+	EntranceID int64  `json:"entrance_id"` // 默认入口节点标识。
 }
 
 // ControlConfig 决定 Ready 前是否自动启动默认运行。
 type ControlConfig struct {
-	StartupRun bool `json:"startup_run"`
+	StartupRun bool `json:"startup_run"` // Ready 后是否自动启动。
 }
 
 // TargetConfig 保存真实客户端入口，不包含内部 Service 地址。
 type TargetConfig struct {
-	LoginURL   string `json:"login_url"`
-	ShowAreaID int64  `json:"show_area_id"`
+	LoginURL   string `json:"login_url"`    // LoginService HTTP 地址。
+	ShowAreaID int64  `json:"show_area_id"` // 目标显示区服标识。
 }
 
 // IdentityConfig 保存隔离测试身份生成规则。
 type IdentityConfig struct {
-	PlatformType     int32  `json:"platform_type"`
-	PlatformIDPrefix string `json:"platform_id_prefix"`
+	PlatformType     int32  `json:"platform_type"`      // 测试平台类型。
+	PlatformIDPrefix string `json:"platform_id_prefix"` // 测试账号标识前缀。
 }
 
 // WorkloadConfig 保存单实例固定在线人数闭环计划。
 type WorkloadConfig struct {
-	Users              int64                 `json:"users"`
-	RampUp             originconfig.Duration `json:"ramp_up"`
-	Duration           originconfig.Duration `json:"duration"`
-	ScenarioRetryCount int                   `json:"scenario_retry_count"`
-	ReplaceFailed      bool                  `json:"replace_failed"`
-	MaxReplacements    int64                 `json:"max_replacements"`
+	Users              int64                 `json:"users"`                // 目标在线机器人数量。
+	RampUp             originconfig.Duration `json:"ramp_up"`              // 渐进启动时长。
+	Duration           originconfig.Duration `json:"duration"`             // 运行总时长。
+	ScenarioRetryCount int                   `json:"scenario_retry_count"` // 单机器人场景重试次数。
+	ReplaceFailed      bool                  `json:"replace_failed"`       // 是否补充失败机器人。
+	MaxReplacements    int64                 `json:"max_replacements"`     // 最多替补机器人数量。
 }
 
 // IOConfig 保存阻塞 I/O Executor 的固定容量。
 type IOConfig struct {
-	Workers       int `json:"workers"`
-	QueueMessages int `json:"queue_messages"`
+	Workers       int `json:"workers"`        // 固定 I/O Worker 数。
+	QueueMessages int `json:"queue_messages"` // 有界 I/O 任务队列容量。
 }
 
 // ValidateConfig 在创建任何资源前验证全部硬边界。

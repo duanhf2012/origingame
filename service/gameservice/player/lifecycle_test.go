@@ -7,8 +7,8 @@ import (
 )
 
 type recordingProxy struct {
-	name  string
-	calls *[]string
+	name  string    // 代理名称。
+	calls *[]string // 生命周期调用记录。
 }
 
 func (proxy *recordingProxy) OnInit(*Player) error {

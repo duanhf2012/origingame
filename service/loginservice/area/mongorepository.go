@@ -20,7 +20,7 @@ const (
 
 // MongoRepository 负责加载并严格关联两张区服基础表。
 type MongoRepository struct {
-	executor dbexecutor.MongoExecutor
+	executor dbexecutor.MongoExecutor // 区服数据 MongoDB 执行器。
 }
 
 // NewMongoRepository 创建不持有数据库连接的区服仓储。

@@ -28,8 +28,8 @@ const (
 )
 
 type backendResult struct {
-	value any
-	err   error
+	value any   // Redis Driver 原始返回值。
+	err   error // Redis Driver 返回错误。
 }
 
 type commandBackend interface {
@@ -231,9 +231,9 @@ func classifyRedisFailure(err error) (rpcapi.RedisFailureKind, bool) {
 }
 
 type redisValueBuilder struct {
-	nodes    []rpcapi.RedisValueNode
-	maxNodes int
-	bytes    int
+	nodes    []rpcapi.RedisValueNode // 已构建的扁平化节点表。
+	maxNodes int                     // 允许的最多结果节点数。
+	bytes    int                     // 当前结果负载估算字节数。
 }
 
 func buildRedisValue(value any, maxNodes int) (rpcapi.RedisValue, error) {

@@ -21,27 +21,27 @@ import (
 
 // TCPConfig 控制是否创建 TCP 客户端入口。
 type TCPConfig struct {
-	Enabled bool             `json:"enabled"`
-	Server  tcp.ServerConfig `json:"server"`
+	Enabled bool             `json:"enabled"` // 是否启用 TCP 入口。
+	Server  tcp.ServerConfig `json:"server"`  // TCP 监听配置。
 }
 
 // KCPConfig 控制是否创建 KCP 客户端入口。
 type KCPConfig struct {
-	Enabled bool             `json:"enabled"`
-	Server  kcp.ServerConfig `json:"server"`
+	Enabled bool             `json:"enabled"` // 是否启用 KCP 入口。
+	Server  kcp.ServerConfig `json:"server"`  // KCP 监听配置。
 }
 
 // WebSocketConfig 控制是否创建 WebSocket 客户端入口。
 type WebSocketConfig struct {
-	Enabled bool                   `json:"enabled"`
-	Server  websocket.ServerConfig `json:"server"`
+	Enabled bool                   `json:"enabled"` // 是否启用 WebSocket 入口。
+	Server  websocket.ServerConfig `json:"server"`  // WebSocket 监听配置。
 }
 
 // Config 保存 Gateway 外部网络入口配置。
 type Config struct {
-	TCP       TCPConfig       `json:"tcp"`
-	KCP       KCPConfig       `json:"kcp"`
-	WebSocket WebSocketConfig `json:"websocket"`
+	TCP       TCPConfig       `json:"tcp"`       // TCP 入口配置。
+	KCP       KCPConfig       `json:"kcp"`       // KCP 入口配置。
+	WebSocket WebSocketConfig `json:"websocket"` // WebSocket 入口配置。
 }
 
 // DefaultConfig 从 Origin 网络层完整默认值建立可严格覆盖的配置。
@@ -68,22 +68,22 @@ type OwnershipStore interface {
 
 // Dependencies 是客户端入口需要的已装配能力，不包含入口自己的 Handler。
 type Dependencies struct {
-	NodeID         string
-	Verifier       TokenVerifier
-	Areas          AreaResolver
-	OwnershipStore OwnershipStore
-	GameServices   GameServiceCaller
+	NodeID         string            // 当前 Gateway Node 标识。
+	Verifier       TokenVerifier     // 登录 Token 验证器。
+	Areas          AreaResolver      // 显示区服映射读取器。
+	OwnershipStore OwnershipStore    // 玩家归属存储访问器。
+	GameServices   GameServiceCaller // GameService 调用器。
 }
 
 // GatewayClientModule 统一拥有三种网络入口、连接状态和客户端协议处理。
 type GatewayClientModule struct {
-	service.Module
-	config         Config
-	dependencies   Dependencies
-	connections    map[network.SessionID]*connection
-	now            func() time.Time
-	slowLoginAt    time.Time
-	slowSuppressed uint64
+	service.Module                                   // Origin Module 生命周期能力。
+	config         Config                            // 客户端入口配置。
+	dependencies   Dependencies                      // 已装配的外部能力。
+	connections    map[network.SessionID]*connection // 当前网络会话状态。
+	now            func() time.Time                  // 真实系统时间来源。
+	slowLoginAt    time.Time                         // 上次慢登录日志时间。
+	slowSuppressed uint64                            // 已合并的慢登录日志数。
 }
 
 // NewGatewayClientModule 创建尚未绑定 Service 的客户端入口 Module。

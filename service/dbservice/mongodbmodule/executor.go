@@ -28,7 +28,7 @@ type operationAbort struct{}
 func (operationAbort) Error() string { return "mongodb operation aborted" }
 
 type transactionFailureError struct {
-	failure rpcapi.MongoExecutionFailure
+	failure rpcapi.MongoExecutionFailure // 已分类的事务失败信息。
 }
 
 func (current *transactionFailureError) Error() string { return "mongodb transaction failed" }
@@ -366,8 +366,8 @@ func checkExpectation(
 		return nil
 	}
 	checks := []struct {
-		rangeValue *rpcapi.MongoCountRange
-		actual     int64
+		rangeValue *rpcapi.MongoCountRange // 期望数量范围。
+		actual     int64                   // 实际操作数量。
 	}{
 		{expectation.Documents, int64(len(result.Documents))},
 		{expectation.Inserted, result.InsertedCount},

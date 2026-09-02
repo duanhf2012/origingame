@@ -22,11 +22,11 @@ const (
 
 // DataInfo 只保存当前 Player 生命周期内的非持久化状态。
 type DataInfo struct {
-	GatewayNodeID       string
-	GatewayConnectionID string
-	State               State
-	LastHeartbeatAt     time.Time
-	ResidentDeadline    time.Time
+	GatewayNodeID       string    // 当前连接所属 Gateway Node。
+	GatewayConnectionID string    // 当前客户端连接标识。
+	State               State     // 本地玩家生命周期状态。
+	LastHeartbeatAt     time.Time // 最近业务心跳真实时间。
+	ResidentDeadline    time.Time // 断线驻留到期真实时间。
 }
 
 // CUserInfo 是 UserInfo 集合的玩家基础持久化数据。
@@ -34,20 +34,20 @@ type CUserInfo = mongodb.UserInfo
 
 // Player 保存稳定身份、连接状态、基础数据和固定顺序的功能 Proxy。
 type Player struct {
-	key        string
-	accountID  string
-	showAreaID int64
-	realAreaID int64
-	dataInfo   DataInfo
-	userInfo   CUserInfo
+	key        string    // 账号与显示区服组成的稳定键。
+	accountID  string    // 已验证的账号标识。
+	showAreaID int64     // 所属显示区服标识。
+	realAreaID int64     // 所属真实区服标识。
+	dataInfo   DataInfo  // 非持久化生命周期状态。
+	userInfo   CUserInfo // 基础持久化角色数据。
 
-	userInfoProxy UserInfoProxy
-	proxies       []PlayerProxy
-	persistent    []*persistentDataEntry
-	userInfoEntry *persistentDataEntry
-	released      bool
-	saveTimer     *time.Timer
-	gateway       GatewayClient
+	userInfoProxy UserInfoProxy          // 基础角色数据 Proxy。
+	proxies       []PlayerProxy          // 固定顺序的功能 Proxy。
+	persistent    []*persistentDataEntry // 所有持久化数据登记项。
+	userInfoEntry *persistentDataEntry   // 基础角色数据登记项。
+	released      bool                   // 是否已完成释放。
+	saveTimer     *time.Timer            // 下一次持久化检查 Timer。
+	gateway       GatewayClient          // Gateway 下行能力。
 }
 
 // RecordHeartbeat 只更新当前有效在线连接的逻辑心跳时间。

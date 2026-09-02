@@ -12,9 +12,9 @@ import (
 
 // RedisModule 统一拥有 DBService 的 Redis Client 生命周期、脚本登记和通用执行入口。
 type RedisModule struct {
-	originredis.Module
-	config  originredis.Config
-	scripts scriptRegistry
+	originredis.Module                    // Origin Redis 生命周期能力。
+	config             originredis.Config // 已冻结的连接配置。
+	scripts            scriptRegistry     // 已登记的受控 Script。
 }
 
 // NewRedisModule 校验受控 Script 登记并创建尚未连接的 Redis Module。
@@ -54,7 +54,7 @@ func (module *RedisModule) ValidateRequest(request rpcapi.RedisRequest) error {
 }
 
 type redisBackend struct {
-	module *RedisModule
+	module *RedisModule // 提供 Redis Driver 调用的 Module。
 }
 
 func (backend *redisBackend) executeCommand(ctx context.Context, command rpcapi.RedisCommand) backendResult {

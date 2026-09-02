@@ -47,9 +47,9 @@ func TestLocalConfigFragmentsMergeWithServiceDefaults(t *testing.T) {
 	}
 
 	var gatewayToken struct {
-		Issuer     string            `json:"issuer"`
-		Audience   string            `json:"audience"`
-		PublicKeys map[string]string `json:"public_keys"`
+		Issuer     string            `json:"issuer"`      // 签发方。
+		Audience   string            `json:"audience"`    // 接收方。
+		PublicKeys map[string]string `json:"public_keys"` // 公钥集合。
 	}
 	gateway, err := snapshot.Root().Lookup("services.GatewayService.token")
 	if err != nil {

@@ -97,59 +97,59 @@ const (
 
 // MongoRequest 是一次同 Key 有序执行的 MongoDB 请求。
 type MongoRequest struct {
-	DispatchKey string
-	ExecuteMode MongoExecuteMode
-	Operations  []MongoOperation
+	DispatchKey string           // 保证同 Key 有序的路由键。
+	ExecuteMode MongoExecuteMode // 多操作执行语义。
+	Operations  []MongoOperation // 待执行的 MongoDB 操作。
 }
 
 // MongoOperation 是 MongoDB 操作的判别联合；Kind 对应的参数必须恰好一个非空。
 type MongoOperation struct {
-	Kind        MongoOperationKind
-	Collection  string
-	Expectation *MongoExpectation
+	Kind        MongoOperationKind // 判别联合的操作类型。
+	Collection  string             // 目标集合名称。
+	Expectation *MongoExpectation  // 操作结果数量断言。
 
-	InsertOne              *MongoInsertOne
-	InsertMany             *MongoInsertMany
-	FindOne                *MongoFindOne
-	FindMany               *MongoFindMany
-	CountDocuments         *MongoCountDocuments
-	EstimatedDocumentCount *MongoEstimatedDocumentCount
-	Aggregate              *MongoAggregate
-	UpdateOne              *MongoUpdateOne
-	UpdateMany             *MongoUpdateMany
-	ReplaceOne             *MongoReplaceOne
-	FindOneAndUpdate       *MongoFindOneAndUpdate
-	FindOneAndReplace      *MongoFindOneAndReplace
-	FindOneAndDelete       *MongoFindOneAndDelete
-	DeleteOne              *MongoDeleteOne
-	DeleteMany             *MongoDeleteMany
-	RawCommand             *MongoRawCommand
+	InsertOne              *MongoInsertOne              // 单文档插入参数。
+	InsertMany             *MongoInsertMany             // 多文档插入参数。
+	FindOne                *MongoFindOne                // 单文档查询参数。
+	FindMany               *MongoFindMany               // 多文档查询参数。
+	CountDocuments         *MongoCountDocuments         // 文档计数参数。
+	EstimatedDocumentCount *MongoEstimatedDocumentCount // 估算文档计数标记。
+	Aggregate              *MongoAggregate              // 聚合管道参数。
+	UpdateOne              *MongoUpdateOne              // 单文档更新参数。
+	UpdateMany             *MongoUpdateMany             // 多文档更新参数。
+	ReplaceOne             *MongoReplaceOne             // 单文档替换参数。
+	FindOneAndUpdate       *MongoFindOneAndUpdate       // 查询并更新参数。
+	FindOneAndReplace      *MongoFindOneAndReplace      // 查询并替换参数。
+	FindOneAndDelete       *MongoFindOneAndDelete       // 查询并删除参数。
+	DeleteOne              *MongoDeleteOne              // 单文档删除参数。
+	DeleteMany             *MongoDeleteMany             // 多文档删除参数。
+	RawCommand             *MongoRawCommand             // 受控原始命令参数。
 }
 
 type MongoInsertOne struct {
-	Document []byte
+	Document []byte // BSON 文档。
 }
 
 type MongoInsertMany struct {
-	Documents [][]byte
-	Unordered bool
+	Documents [][]byte // BSON 文档列表。
+	Unordered bool     // 是否允许无序写入。
 }
 
 type MongoFindOne struct {
-	Filter     []byte
-	Projection []byte
-	Sort       []byte
+	Filter     []byte // BSON 过滤条件。
+	Projection []byte // BSON 投影条件。
+	Sort       []byte // BSON 排序条件。
 }
 
 type MongoFindMany struct {
-	Filter     []byte
-	Projection []byte
-	Sort       []byte
-	Limit      int64
+	Filter     []byte // BSON 过滤条件。
+	Projection []byte // BSON 投影条件。
+	Sort       []byte // BSON 排序条件。
+	Limit      int64  // 返回文档数量上限。
 }
 
 type MongoCountDocuments struct {
-	Filter []byte
+	Filter []byte // BSON 过滤条件。
 }
 
 // MongoEstimatedDocumentCount 是无参数操作的显式标记；值必须为 true。
@@ -157,129 +157,129 @@ type MongoCountDocuments struct {
 type MongoEstimatedDocumentCount bool
 
 type MongoAggregate struct {
-	Pipeline     [][]byte
-	MaxDocuments int64
-	AllowDiskUse bool
+	Pipeline     [][]byte // BSON 聚合阶段列表。
+	MaxDocuments int64    // 返回文档数量上限。
+	AllowDiskUse bool     // 是否允许服务端磁盘暂存。
 }
 
 // MongoUpdate 保存普通更新文档或更新 Pipeline，二者只能选择一个。
 type MongoUpdate struct {
-	Kind     MongoUpdateKind
-	Document []byte
-	Pipeline [][]byte
+	Kind     MongoUpdateKind // 更新参数编码类型。
+	Document []byte          // BSON 更新文档。
+	Pipeline [][]byte        // BSON 更新阶段列表。
 }
 
 type MongoUpdateOne struct {
-	Filter       []byte
-	Update       MongoUpdate
-	Upsert       bool
-	ArrayFilters [][]byte
+	Filter       []byte      // BSON 过滤条件。
+	Update       MongoUpdate // 更新内容。
+	Upsert       bool        // 未匹配时是否插入。
+	ArrayFilters [][]byte    // BSON 数组过滤条件。
 }
 
 type MongoUpdateMany struct {
-	Filter       []byte
-	Update       MongoUpdate
-	ArrayFilters [][]byte
+	Filter       []byte      // BSON 过滤条件。
+	Update       MongoUpdate // 更新内容。
+	ArrayFilters [][]byte    // BSON 数组过滤条件。
 }
 
 type MongoReplaceOne struct {
-	Filter      []byte
-	Replacement []byte
-	Upsert      bool
+	Filter      []byte // BSON 过滤条件。
+	Replacement []byte // 替换用 BSON 文档。
+	Upsert      bool   // 未匹配时是否插入。
 }
 
 type MongoFindOneAndUpdate struct {
-	Filter         []byte
-	Update         MongoUpdate
-	Projection     []byte
-	Sort           []byte
-	Upsert         bool
-	ReturnDocument MongoReturnDocument
-	ArrayFilters   [][]byte
+	Filter         []byte              // BSON 过滤条件。
+	Update         MongoUpdate         // 更新内容。
+	Projection     []byte              // BSON 投影条件。
+	Sort           []byte              // BSON 排序条件。
+	Upsert         bool                // 未匹配时是否插入。
+	ReturnDocument MongoReturnDocument // 返回修改前或后的文档。
+	ArrayFilters   [][]byte            // BSON 数组过滤条件。
 }
 
 type MongoFindOneAndReplace struct {
-	Filter         []byte
-	Replacement    []byte
-	Projection     []byte
-	Sort           []byte
-	Upsert         bool
-	ReturnDocument MongoReturnDocument
+	Filter         []byte              // BSON 过滤条件。
+	Replacement    []byte              // 替换用 BSON 文档。
+	Projection     []byte              // BSON 投影条件。
+	Sort           []byte              // BSON 排序条件。
+	Upsert         bool                // 未匹配时是否插入。
+	ReturnDocument MongoReturnDocument // 返回修改前或后的文档。
 }
 
 type MongoFindOneAndDelete struct {
-	Filter     []byte
-	Projection []byte
-	Sort       []byte
+	Filter     []byte // BSON 过滤条件。
+	Projection []byte // BSON 投影条件。
+	Sort       []byte // BSON 排序条件。
 }
 
 type MongoDeleteOne struct {
-	Filter []byte
+	Filter []byte // BSON 过滤条件。
 }
 
 type MongoDeleteMany struct {
-	Filter []byte
+	Filter []byte // BSON 过滤条件。
 }
 
 // MongoRawCommand 调用 DBService 启动阶段登记的受控原始命令。
 type MongoRawCommand struct {
-	ID           string
-	Command      []byte
-	MaxDocuments int64
+	ID           string // 启动时登记的命令标识。
+	Command      []byte // BSON 原始命令文档。
+	MaxDocuments int64  // 返回文档数量上限。
 }
 
 // MongoExpectation 对单个操作的可观察数量做通用断言。
 type MongoExpectation struct {
-	Documents *MongoCountRange
-	Inserted  *MongoCountRange
-	Matched   *MongoCountRange
-	Modified  *MongoCountRange
-	Deleted   *MongoCountRange
-	Upserted  *MongoCountRange
+	Documents *MongoCountRange // 返回文档数量范围。
+	Inserted  *MongoCountRange // 插入数量范围。
+	Matched   *MongoCountRange // 匹配数量范围。
+	Modified  *MongoCountRange // 修改数量范围。
+	Deleted   *MongoCountRange // 删除数量范围。
+	Upserted  *MongoCountRange // Upsert 数量范围。
 }
 
 type MongoCountRange struct {
-	Min int64
-	Max int64
+	Min int64 // 允许的最小数量。
+	Max int64 // 允许的最大数量。
 }
 
 // MongoResult 保留全部操作的逐项状态和首个整体失败。
 type MongoResult struct {
-	Results []MongoOperationResult
-	Failure *MongoExecutionFailure
+	Results []MongoOperationResult // 各操作执行结果。
+	Failure *MongoExecutionFailure // 首个整体执行失败。
 }
 
 type MongoOperationResult struct {
-	Status          MongoOperationStatus
-	Documents       [][]byte
-	Count           int64
-	InsertedCount   int64
-	MatchedCount    int64
-	ModifiedCount   int64
-	DeletedCount    int64
-	UpsertedCount   int64
-	InsertedIDs     []MongoBSONValue
-	UpsertedIDs     []MongoBSONValue
-	WriteFailures   []MongoWriteFailure
-	CommandResponse []byte
+	Status          MongoOperationStatus // 最终执行状态。
+	Documents       [][]byte             // 查询或聚合返回的 BSON 文档。
+	Count           int64                // 文档计数结果。
+	InsertedCount   int64                // 实际插入数量。
+	MatchedCount    int64                // 更新匹配数量。
+	ModifiedCount   int64                // 实际修改数量。
+	DeletedCount    int64                // 实际删除数量。
+	UpsertedCount   int64                // Upsert 数量。
+	InsertedIDs     []MongoBSONValue     // 插入文档主键。
+	UpsertedIDs     []MongoBSONValue     // Upsert 文档主键。
+	WriteFailures   []MongoWriteFailure  // 逐文档写入失败。
+	CommandResponse []byte               // 原始命令响应 BSON。
 }
 
 type MongoBSONValue struct {
-	Type  byte
-	Value []byte
+	Type  byte   // BSON 值类型编号。
+	Value []byte // BSON 值编码。
 }
 
 type MongoExecutionFailure struct {
-	OperationIndex int32
-	Kind           MongoFailureKind
-	ServerCode     int32
-	StateUnknown   bool
+	OperationIndex int32            // 发生失败的操作索引。
+	Kind           MongoFailureKind // 跨 RPC 稳定失败分类。
+	ServerCode     int32            // MongoDB 服务端错误码。
+	StateUnknown   bool             // 是否无法确认写入状态。
 }
 
 type MongoWriteFailure struct {
-	DocumentIndex int32
-	Kind          MongoFailureKind
-	ServerCode    int32
+	DocumentIndex int32            // 失败文档在批次中的索引。
+	Kind          MongoFailureKind // 跨 RPC 稳定失败分类。
+	ServerCode    int32            // MongoDB 服务端错误码。
 }
 
 // RedisExecuteMode 指定命令组合的执行语义。
@@ -339,54 +339,54 @@ const (
 
 // RedisRequest 是一次同 Key 有序执行的 Redis 请求。
 type RedisRequest struct {
-	DispatchKey string
-	ExecuteMode RedisExecuteMode
-	Commands    []RedisCommand
-	Script      *RedisScriptCall
+	DispatchKey string           // 保证同 Key 有序的路由键。
+	ExecuteMode RedisExecuteMode // 命令组合执行语义。
+	Commands    []RedisCommand   // 命令或管道内容。
+	Script      *RedisScriptCall // 受控 Script 调用参数。
 }
 
 type RedisCommand struct {
-	Name string
-	Args [][]byte
+	Name string   // 大写 Redis 命令名称。
+	Args [][]byte // 命令二进制参数。
 }
 
 type RedisScriptCall struct {
-	ID   string
-	Keys []string
-	Args [][]byte
+	ID   string   // 启动时登记的 Script 标识。
+	Keys []string // Script 键参数。
+	Args [][]byte // Script 二进制参数。
 }
 
 // RedisValue 使用节点表和索引表达非递归的嵌套结果。
 type RedisValue struct {
-	RootIndex uint32
-	Nodes     []RedisValueNode
+	RootIndex uint32           // 根节点在 Nodes 中的索引。
+	Nodes     []RedisValueNode // 扁平化结果节点表。
 }
 
 type RedisValueNode struct {
-	Kind     RedisValueKind
-	Bytes    []byte
-	Integer  int64
-	Double   float64
-	Boolean  bool
-	Children []uint32
+	Kind     RedisValueKind // 节点值类型。
+	Bytes    []byte         // 字节串或大数文本。
+	Integer  int64          // 整数值。
+	Double   float64        // 双精度值。
+	Boolean  bool           // 布尔值。
+	Children []uint32       // 数组或映射的子节点索引。
 }
 
 type RedisResult struct {
-	Results []RedisCommandResult
-	Failure *RedisExecutionFailure
+	Results []RedisCommandResult   // 各命令或 Script 执行结果。
+	Failure *RedisExecutionFailure // 首个整体执行失败。
 }
 
 type RedisCommandResult struct {
-	Status  RedisCommandStatus
-	Value   RedisValue
-	Failure *RedisCommandFailure
+	Status  RedisCommandStatus   // 最终执行状态。
+	Value   RedisValue           // 成功时的结构化返回值。
+	Failure *RedisCommandFailure // 命令级失败信息。
 }
 
 type RedisCommandFailure struct {
-	Kind RedisFailureKind
+	Kind RedisFailureKind // 跨 RPC 稳定失败分类。
 }
 
 type RedisExecutionFailure struct {
-	Kind         RedisFailureKind
-	StateUnknown bool
+	Kind         RedisFailureKind // 跨 RPC 稳定失败分类。
+	StateUnknown bool             // 是否无法确认写入状态。
 }

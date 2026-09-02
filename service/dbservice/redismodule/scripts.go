@@ -10,21 +10,21 @@ import (
 // ScriptDefinition 是装配层提供给 DBService 的受控 Lua Script 描述。
 // 业务 RPC 只能携带 ID、Keys 和 Args，不能提交源码或覆盖限制。
 type ScriptDefinition struct {
-	ID             string
-	Source         string
-	MinKeys        int
-	MaxKeys        int
-	MaxArgs        int
-	MaxResultNodes int
+	ID             string // 稳定 Script 标识。
+	Source         string // 受控 Lua 源码。
+	MinKeys        int    // 允许的最少键参数数。
+	MaxKeys        int    // 允许的最多键参数数。
+	MaxArgs        int    // 允许的最多普通参数数。
+	MaxResultNodes int    // 允许的最多结果节点数。
 }
 
 type registeredScript struct {
-	id             string
-	minKeys        int
-	maxKeys        int
-	maxArgs        int
-	maxResultNodes int
-	script         *redis.Script
+	id             string        // 稳定 Script 标识。
+	minKeys        int           // 最少键参数数。
+	maxKeys        int           // 最多键参数数。
+	maxArgs        int           // 最多普通参数数。
+	maxResultNodes int           // 最多结果节点数。
+	script         *redis.Script // 已编译的 Redis Script。
 }
 
 type scriptRegistry map[string]registeredScript

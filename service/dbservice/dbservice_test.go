@@ -41,8 +41,8 @@ func TestConfigDefaultsAndDataDomainValidation(t *testing.T) {
 	}
 
 	invalid := []struct {
-		name   string
-		config Config
+		name   string // 待校验的服务名。
+		config Config // 待校验的配置。
 	}{
 		{name: "unknown service", config: validAcc},
 		{name: "AccDBService", config: func() Config { value := validAcc; value.Redis.Database = 1; return value }()},

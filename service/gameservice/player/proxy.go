@@ -2,18 +2,18 @@ package player
 
 // PlayerLoadContext 描述全部持久化数据完成反序列化后的加载事实。
 type PlayerLoadContext struct {
-	IsNewPlayer bool
+	IsNewPlayer bool // 是否首次创建玩家。
 }
 
 // PlayerOnlineContext 描述一次连接上线。
 type PlayerOnlineContext struct {
-	GatewayNodeID       string
-	GatewayConnectionID string
+	GatewayNodeID       string // 当前连接所属 Gateway Node。
+	GatewayConnectionID string // 当前客户端连接标识。
 }
 
 // PlayerOfflineContext 描述当前连接离线。
 type PlayerOfflineContext struct {
-	GatewayConnectionID string
+	GatewayConnectionID string // 断开的客户端连接标识。
 }
 
 // PlayerProxy 是注册到单个 Player 上的完整功能生命周期。
@@ -27,7 +27,9 @@ type PlayerProxy interface {
 }
 
 // BasePlayerProxy 提供默认空回调和对所属 Player 公共数据的统一访问。
-type BasePlayerProxy struct{ player *Player }
+type BasePlayerProxy struct {
+	player *Player // 所属玩家对象。
+}
 
 func (proxy *BasePlayerProxy) OnInit(player *Player) error {
 	proxy.player = player

@@ -9,22 +9,22 @@ import (
 var errIOExecutorFull = errors.New("RobotService I/O队列已满")
 
 type ioJob struct {
-	ctx      context.Context
-	work     func(context.Context) (any, error)
-	complete func(any, error)
+	ctx      context.Context                    // 可取消的 I/O 请求上下文。
+	work     func(context.Context) (any, error) // 阻塞 I/O 工作函数。
+	complete func(any, error)                   // 回到 Service 的完成回调。
 }
 
 // ioExecutor 使用固定Worker执行HTTP登录和TCP拨号等阻塞冷路径。
 type ioExecutor struct {
-	workers  int
-	queue    chan ioJob
-	dispatch func(func(context.Context)) error
+	workers  int                               // 固定 Worker 数。
+	queue    chan ioJob                        // 有界 I/O 任务队列。
+	dispatch func(func(context.Context)) error // 将回调投递回 Service。
 
-	mu     sync.Mutex
-	ctx    context.Context
-	cancel context.CancelFunc
-	closed bool
-	wg     sync.WaitGroup
+	mu     sync.Mutex         // 保护启动和关闭状态。
+	ctx    context.Context    // Worker 共享取消上下文。
+	cancel context.CancelFunc // Worker 取消函数。
+	closed bool               // 是否已停止接收任务。
+	wg     sync.WaitGroup     // 等待全部 Worker 退出。
 }
 
 func newIOExecutor(workers int, queueMessages int, dispatch func(func(context.Context)) error) (*ioExecutor, error) {

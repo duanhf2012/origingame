@@ -21,15 +21,15 @@ type registrationStore interface {
 
 // GameServiceRegistrationModule 持有实例登记的真实时间续租协程和停止等待。
 type GameServiceRegistrationModule struct {
-	service.Module
-	store        registrationStore
-	stopStore    registrationStore
-	registration playerownership.GameServiceRegistration
-	interval     time.Duration
-	cancel       context.CancelFunc
-	done         chan struct{}
-	stopOnce     sync.Once
-	stopErr      error
+	service.Module                                         // Origin Module 生命周期能力。
+	store          registrationStore                       // 续租协程使用的普通调用存储。
+	stopStore      registrationStore                       // 停止阶段使用的 Await 调用存储。
+	registration   playerownership.GameServiceRegistration // 当前实例登记信息。
+	interval       time.Duration                           // 真实系统续租间隔。
+	cancel         context.CancelFunc                      // 续租协程取消函数。
+	done           chan struct{}                           // 续租协程退出信号。
+	stopOnce       sync.Once                               // 保证停止只执行一次。
+	stopErr        error                                   // 首次停止失败。
 }
 
 // NewGameServiceRegistrationModule 创建固定每5秒续租的 GameService 注册 Module。

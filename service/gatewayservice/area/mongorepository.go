@@ -17,7 +17,9 @@ const (
 )
 
 // MongoRepository 只加载 Gateway 所需的显示区服映射。
-type MongoRepository struct{ executor dbexecutor.MongoExecutor }
+type MongoRepository struct {
+	executor dbexecutor.MongoExecutor // 通过 AccDBService 执行 MongoDB 请求。
+}
 
 // NewMongoRepository 创建不持有数据库连接的仓储。
 func NewMongoRepository(executor dbexecutor.MongoExecutor) *MongoRepository {

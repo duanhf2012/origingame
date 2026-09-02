@@ -48,8 +48,8 @@ func TestRobotBlueprintLoginHeartbeatFlow(t *testing.T) {
 	login := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		defer request.Body.Close()
 		var credential struct {
-			PlatformType int32  `json:"PlatType"`
-			PlatformID   string `json:"PlatId"`
+			PlatformType int32  `json:"PlatType"` // 平台类型。
+			PlatformID   string `json:"PlatId"`   // 平台用户标识。
 		}
 		if request.Method != http.MethodPost || json.NewDecoder(request.Body).Decode(&credential) != nil ||
 			credential.PlatformType != 1 || credential.PlatformID != "robot-blueprint-1" {
@@ -176,8 +176,8 @@ func robotE2EConfig(t *testing.T, root string, loginURL string) *originconfig.Sn
 
 func queryRobotRun(target *robotservice.RobotService) (rpcapi.RobotRunSnapshot, error) {
 	type queryResult struct {
-		snapshot rpcapi.RobotRunSnapshot
-		err      error
+		snapshot rpcapi.RobotRunSnapshot // 查询快照。
+		err      error                   // 查询错误。
 	}
 	result := make(chan queryResult, 1)
 	if err := target.DispatchAsync(func(ctx context.Context) {
@@ -195,14 +195,14 @@ func queryRobotRun(target *robotservice.RobotService) (rpcapi.RobotRunSnapshot, 
 }
 
 type robotGatewayFixture struct {
-	listener     net.Listener
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
-	errors       chan error
-	closeOnce    sync.Once
-	loginPlayers atomic.Int64
-	heartbeats   atomic.Int64
+	listener     net.Listener       // 测试监听器。
+	ctx          context.Context    // 测试服务上下文。
+	cancel       context.CancelFunc // 测试服务取消函数。
+	wg           sync.WaitGroup     // 服务协程等待组。
+	errors       chan error         // 异步错误队列。
+	closeOnce    sync.Once          // 关闭保护。
+	loginPlayers atomic.Int64       // 登录请求计数。
+	heartbeats   atomic.Int64       // 心跳请求计数。
 }
 
 func newRobotGatewayFixture(t *testing.T) *robotGatewayFixture {

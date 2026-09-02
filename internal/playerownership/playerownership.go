@@ -26,7 +26,9 @@ const (
 )
 
 // PlayerOwnershipStore 不保存权威状态，只负责通用 DBService 请求与在线玩家归属协议之间的转换。
-type PlayerOwnershipStore struct{ executor dbexecutor.RedisExecutor }
+type PlayerOwnershipStore struct {
+	executor dbexecutor.RedisExecutor // 通过 AccDBService 执行归属 Redis 脚本。
+}
 
 // NewPlayerOwnershipStore 创建玩家归属协议适配器。
 func NewPlayerOwnershipStore(executor dbexecutor.RedisExecutor) *PlayerOwnershipStore {
@@ -35,48 +37,53 @@ func NewPlayerOwnershipStore(executor dbexecutor.RedisExecutor) *PlayerOwnership
 
 // Player 标识账号在一个显示区服中的稳定玩家。
 type Player struct {
-	AccountID  string
-	ShowAreaID int64
-	RealAreaID int64
+	AccountID  string // 账号的稳定身份标识。
+	ShowAreaID int64  // 玩家选择的显示区服标识。
+	RealAreaID int64  // 当前运行归属的真实区服标识。
 }
 
 // GameServiceInstance 精确标识一次 GameService 进程实例。
 type GameServiceInstance struct {
-	ServiceName   string
-	NodeID        string
-	NodeSessionID string
+	ServiceName   string // 服务发现使用的 GameService 名称。
+	NodeID        string // 承载实例的 Node 标识。
+	NodeSessionID string // 区分同一 Node 的不同进程实例。
 }
 
 // GameServiceRegistration 是 GameService 对登录分配公开的最小实例信息。
 type GameServiceRegistration struct {
-	RealAreaID  int64
-	GameService GameServiceInstance
-	MaxPlayers  int64
+	RealAreaID  int64               // 限定实例可服务的真实区服。
+	GameService GameServiceInstance // 标识本次登记的服务实例。
+	MaxPlayers  int64               // 实例允许承载的最大玩家数。
 }
 
 // AssignmentDecision 是 AssignOrGet 的稳定原子决策。
 type AssignmentDecision int64
 
 const (
+	// AssignmentDecisionUnspecified 表示 Redis 返回了无效或未设置的决策。
 	AssignmentDecisionUnspecified AssignmentDecision = iota
+	// AssignmentDecisionExisting 表示玩家已有有效归属。
 	AssignmentDecisionExisting
+	// AssignmentDecisionAssigned 表示本次已为玩家预占新归属。
 	AssignmentDecisionAssigned
+	// AssignmentDecisionWait 表示其他 Gateway 正在建立玩家归属。
 	AssignmentDecisionWait
+	// AssignmentDecisionNoCapacity 表示当前没有可分配的 GameService 容量。
 	AssignmentDecisionNoCapacity
 )
 
 // AssignmentResult 返回精确 GameService 及当前归属状态。
 type AssignmentResult struct {
-	Decision    AssignmentDecision
-	GameService GameServiceInstance
-	State       string
+	Decision    AssignmentDecision  // 本次归属查询或预占的结果。
+	GameService GameServiceInstance // 本次决策对应的服务实例。
+	State       string              // Redis 中当前玩家归属状态。
 }
 
 // AssignRequest 是 Gateway 查询或分配玩家归属所需的全部可信参数。
 type AssignRequest struct {
-	Player               Player
-	GatewayConnectionID  string
-	ExcludedGameServices []GameServiceInstance
+	Player               Player                // 待查询或分配的稳定玩家身份。
+	GatewayConnectionID  string                // 发起本次登录的网关连接。
+	ExcludedGameServices []GameServiceInstance // 本次重试中不能再次选择的实例。
 }
 
 // RegisterGameService 原子登记或刷新 READY 实例和15秒租约。

@@ -10,10 +10,10 @@ import (
 )
 
 type fakeRegistrationStore struct {
-	mu         sync.Mutex
-	registers  int
-	drains     int
-	registered chan struct{}
+	mu         sync.Mutex    // 保护测试状态。
+	registers  int           // 注册调用数。
+	drains     int           // 排空调用数。
+	registered chan struct{} // 注册通知。
 }
 
 func (store *fakeRegistrationStore) RegisterGameService(context.Context, playerownership.GameServiceRegistration) error {

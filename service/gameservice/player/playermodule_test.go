@@ -10,7 +10,7 @@ import (
 )
 
 type testMongoExecutor struct {
-	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
+	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error) // 模拟 Mongo 执行。
 }
 
 func (executor testMongoExecutor) ExecuteMongo(ctx context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {
@@ -18,12 +18,12 @@ func (executor testMongoExecutor) ExecuteMongo(ctx context.Context, key string, 
 }
 
 type fakeOwnerships struct {
-	begin    int
-	complete int
-	release  int
-	resident int
-	leaving  int
-	renewed  int
+	begin    int // 开始加载调用数。
+	complete int // 完成登录调用数。
+	release  int // 开始释放调用数。
+	resident int // 驻留查询调用数。
+	leaving  int // 离开确认调用数。
+	renewed  int // 续租调用数。
 }
 
 func (ownerships *fakeOwnerships) BeginPlayerLoad(context.Context, playerownership.Player, playerownership.GameServiceInstance, string) (bool, error) {

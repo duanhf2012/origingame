@@ -22,25 +22,25 @@ const gatewayReadyDispatchKey = "gateway-ready"
 
 // Config 保存 Gateway 自身配置；数据库与 Redis 连接只属于 AccDBService。
 type Config struct {
-	Token  token.Config  `json:"token"`
-	Area   AreaConfig    `json:"area"`
-	Client client.Config `json:"client"`
+	Token  token.Config  `json:"token"`  // 登录 Token 验签配置。
+	Area   AreaConfig    `json:"area"`   // 显示区服映射配置。
+	Client client.Config `json:"client"` // 客户端网络入口配置。
 }
 
 // AreaConfig 保存真实系统时间区服映射刷新周期。
 type AreaConfig struct {
-	RefreshInterval originconfig.Duration `json:"refresh_interval"`
+	RefreshInterval originconfig.Duration `json:"refresh_interval"` // 映射刷新间隔。
 }
 
 // GatewayService 装配公共数据客户端、区服映射和统一网络入口。
 type GatewayService struct {
-	service.Service
-	config         Config
-	accDB          rpcapi.DBServiceClient
-	ownershipStore *playerownership.PlayerOwnershipStore
-	areas          area.Catalog
-	refresh        *area.AreaRefreshModule
-	client         *client.GatewayClientModule
+	service.Service                                       // Origin Service 生命周期能力。
+	config          Config                                // Gateway 本地配置。
+	accDB           rpcapi.DBServiceClient                // 公共数据域 RPC 客户端。
+	ownershipStore  *playerownership.PlayerOwnershipStore // 玩家归属访问器。
+	areas           area.Catalog                          // 当前显示区服映射。
+	refresh         *area.AreaRefreshModule               // 映射刷新 Module。
+	client          *client.GatewayClientModule           // 客户端网络入口 Module。
 }
 
 var _ rpcapi.GatewayService = (*GatewayService)(nil)
@@ -130,8 +130,8 @@ func (target *GatewayService) loadConfig() error {
 	// 先填充 Origin 网络层默认值，再由本地配置严格覆盖。
 	target.config.Client = client.DefaultConfig()
 	sections := []struct {
-		path string
-		to   any
+		path string // 配置节路径。
+		to   any    // 配置接收目标。
 	}{
 		{"token", &target.config.Token},
 		{"area", &target.config.Area},

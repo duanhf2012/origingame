@@ -8,19 +8,19 @@ import (
 )
 
 type scheduledTimer struct {
-	owner *realTimerScheduler
-	once  sync.Once
-	timer *time.Timer
+	owner *realTimerScheduler // 所属 Timer 调度器。
+	once  sync.Once           // 保证任务只取消一次。
+	timer *time.Timer         // 底层真实时间 Timer。
 }
 
 // realTimerScheduler 统一拥有机器人基础设施真实时间等待。
 type realTimerScheduler struct {
-	dispatch func(func(context.Context)) error
+	dispatch func(func(context.Context)) error // 将回调投递回 Service。
 
-	mu      sync.Mutex
-	stopped bool
-	timers  map[*scheduledTimer]struct{}
-	wg      sync.WaitGroup
+	mu      sync.Mutex                   // 保护停止状态和任务集合。
+	stopped bool                         // 是否已停止登记新任务。
+	timers  map[*scheduledTimer]struct{} // 当前未完成任务集合。
+	wg      sync.WaitGroup               // 等待 Timer 回调退出。
 }
 
 func newRealTimerScheduler(dispatch func(func(context.Context)) error) (*realTimerScheduler, error) {

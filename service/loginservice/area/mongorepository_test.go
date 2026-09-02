@@ -10,7 +10,7 @@ import (
 )
 
 type testMongoExecutor struct {
-	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error)
+	execute func(context.Context, string, rpcapi.MongoRequest) (rpcapi.MongoResult, error) // 模拟 Mongo 执行。
 }
 
 func (executor testMongoExecutor) ExecuteMongo(ctx context.Context, key string, request rpcapi.MongoRequest) (rpcapi.MongoResult, error) {

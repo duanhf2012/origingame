@@ -26,19 +26,19 @@ const (
 
 // Config 是一个实际 DBService 实例的完整配置。
 type Config struct {
-	MaxIOConcurrency    int64              `json:"max_io_concurrency"`
-	MaxInflightRequests int64              `json:"max_inflight_requests"`
-	MongoDB             originmongo.Config `json:"mongodb"`
-	Redis               originredis.Config `json:"redis"`
+	MaxIOConcurrency    int64              `json:"max_io_concurrency"`    // 最大并发数据库 I/O 数。
+	MaxInflightRequests int64              `json:"max_inflight_requests"` // 最大执行中或排队请求数。
+	MongoDB             originmongo.Config `json:"mongodb"`               // MongoDB 连接配置。
+	Redis               originredis.Config `json:"redis"`                 // Redis 连接配置。
 }
 
 // DBService 是通过 Origin 模板别名实例化为 AccDBService 或 RoleDBService 的通用服务。
 type DBService struct {
-	service.Service
-	config   Config
-	executor *keyExecutor
-	mongo    *mongodbmodule.MongoDBModule
-	redis    *redismodule.RedisModule
+	service.Service                              // Origin Service 生命周期能力。
+	config          Config                       // 当前 DBService 配置。
+	executor        *keyExecutor                 // 同 Key 有序执行器。
+	mongo           *mongodbmodule.MongoDBModule // MongoDB 生命周期 Module。
+	redis           *redismodule.RedisModule     // Redis 生命周期 Module。
 }
 
 var _ rpcapi.DBService = (*DBService)(nil)

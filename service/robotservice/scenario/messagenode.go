@@ -17,8 +17,8 @@ import (
 const protocolRequestTimeout = 15 * time.Second
 
 type startHeartbeatNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*startHeartbeatNode) GetName() string { return "RobotStartHeartbeat" }
@@ -68,8 +68,8 @@ func (node *startHeartbeatNode) Exec() (int, error) {
 }
 
 type loginPlayerNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*loginPlayerNode) GetName() string { return "RobotLoginPlayer" }
@@ -165,8 +165,8 @@ func (node *loginPlayerNode) Exec() (int, error) {
 }
 
 type heartbeatNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*heartbeatNode) GetName() string { return "RobotHeartbeat" }

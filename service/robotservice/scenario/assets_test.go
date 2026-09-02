@@ -56,18 +56,18 @@ func TestBusinessLoopCarriesEditorFallbackPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	var document struct {
-		Nodes []struct {
-			ID         string `json:"id"`
+		Nodes []struct { // 蓝图节点。
+			ID         string `json:"id"` // 节点标识。
 			Properties struct {
-				LegacyClass  string `json:"legacyClass"`
+				LegacyClass  string `json:"legacyClass"` // 编辑器兼容节点类型。
 				LegacyInputs []struct {
-					Key string `json:"key"`
-				} `json:"legacyInputs"`
+					Key string `json:"key"` // 输入端口标识。
+				} `json:"legacyInputs"` // 编辑器兼容输入端口。
 				LegacyOutputs []struct {
-					Key string `json:"key"`
-				} `json:"legacyOutputs"`
-			} `json:"properties"`
-		} `json:"nodes"`
+					Key string `json:"key"` // 输出端口标识。
+				} `json:"legacyOutputs"` // 编辑器兼容输出端口。
+			} `json:"properties"` // 节点属性。
+		} `json:"nodes"` // 蓝图节点集合。
 	}
 	if err = json.Unmarshal(content, &document); err != nil {
 		t.Fatal(err)
@@ -95,12 +95,12 @@ func TestBackgroundHeartbeatStartsBeforeBusinessLoop(t *testing.T) {
 		t.Fatal(err)
 	}
 	var document struct {
-		Connections []struct {
-			Source       string `json:"source"`
-			SourceOutput string `json:"sourceOutput"`
-			Target       string `json:"target"`
-			TargetInput  string `json:"targetInput"`
-		} `json:"connections"`
+		Connections []struct { // 蓝图连线。
+			Source       string `json:"source"`       // 源节点标识。
+			SourceOutput string `json:"sourceOutput"` // 源端口标识。
+			Target       string `json:"target"`       // 目标节点标识。
+			TargetInput  string `json:"targetInput"`  // 目标端口标识。
+		} `json:"connections"` // 蓝图连线集合。
 	}
 	if err = json.Unmarshal(content, &document); err != nil {
 		t.Fatal(err)

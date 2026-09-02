@@ -11,7 +11,7 @@ import (
 )
 
 type driverRunner struct {
-	module *MongoDBModule
+	module *MongoDBModule // 提供 MongoDB Driver 调用的 Module。
 }
 
 type resultLimitError struct{}

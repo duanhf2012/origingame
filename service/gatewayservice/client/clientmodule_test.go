@@ -14,17 +14,21 @@ import (
 )
 
 type fakeSession struct {
-	id      network.SessionID
-	sent    [][]byte
-	final   []byte
-	closed  bool
-	context context.Context
-	cancel  context.CancelFunc
+	id      network.SessionID  // 测试会话标识。
+	sent    [][]byte           // 已发送消息。
+	final   []byte             // 最后一条消息。
+	closed  bool               // 是否已关闭。
+	context context.Context    // 会话上下文。
+	cancel  context.CancelFunc // 会话取消函数。
 }
 
-type noCapacityOwnerships struct{ calls int }
+type noCapacityOwnerships struct {
+	calls int // 分配调用数。
+}
 
-type fakeGameServiceCaller struct{ disconnected int }
+type fakeGameServiceCaller struct {
+	disconnected int // 断线通知数。
+}
 
 func (*fakeGameServiceCaller) LoginPlayer(
 	context.Context,

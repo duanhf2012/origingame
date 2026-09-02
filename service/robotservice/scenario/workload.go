@@ -9,15 +9,15 @@ import (
 
 // workload 只拥有一个可停止调度goroutine，不执行机器人业务逻辑。
 type workload struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	users    int64
-	rampUp   time.Duration
-	duration time.Duration
-	launch   func(int64) error
+	ctx      context.Context    // 工作负载取消上下文。
+	cancel   context.CancelFunc // 工作负载取消函数。
+	users    int64              // 目标机器人数量。
+	rampUp   time.Duration      // 渐进启动时长。
+	duration time.Duration      // 运行总时长。
+	launch   func(int64) error  // 启动单个机器人的回调。
 
-	done chan error
-	wg   sync.WaitGroup
+	done chan error     // 运行完成结果。
+	wg   sync.WaitGroup // 等待调度协程退出。
 }
 
 func newWorkload(

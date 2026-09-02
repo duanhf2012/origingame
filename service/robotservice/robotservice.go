@@ -15,9 +15,9 @@ const controlCompletionMargin = 2 * time.Minute
 
 // RobotService 只持有顶层配置和场景 Module，协议连接与执行资源由 RobotScenarioModule 所有。
 type RobotService struct {
-	service.Service
-	config    scenario.Config
-	scenarios *scenario.RobotScenarioModule
+	service.Service                               // Origin Service 生命周期能力。
+	config          scenario.Config               // 机器人场景运行配置。
+	scenarios       *scenario.RobotScenarioModule // 场景执行 Module。
 }
 
 var _ rpcapi.RobotService = (*RobotService)(nil)
@@ -41,8 +41,8 @@ func (target *RobotService) OnInit() error {
 
 func (target *RobotService) loadConfig() error {
 	sections := []struct {
-		path        string
-		destination any
+		path        string // 配置节路径。
+		destination any    // 配置接收目标。
 	}{
 		{"blueprint", &target.config.Blueprint},
 		{"control", &target.config.Control},

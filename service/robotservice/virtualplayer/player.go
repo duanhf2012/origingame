@@ -27,41 +27,41 @@ type ScheduleFunc func(time.Duration, func()) (cancel func(), err error)
 
 // Response 是一个确定完成的请求响应或基础设施错误。
 type Response struct {
-	MessageID commonpb.MessageID
-	ErrorCode commonpb.ErrorCode
-	Body      []byte
-	Err       error
+	MessageID commonpb.MessageID // 响应消息标识。
+	ErrorCode commonpb.ErrorCode // 响应业务错误码。
+	Body      []byte             // 未解码业务负载。
+	Err       error              // 基础设施或超时错误。
 }
 
 type pendingRequest struct {
-	sequence          uint32
-	expectedMessageID commonpb.MessageID
-	complete          func(Response)
-	cancelTimeout     func()
+	sequence          uint32             // 请求序号。
+	expectedMessageID commonpb.MessageID // 预期响应消息标识。
+	complete          func(Response)     // 唯一完成回调。
+	cancelTimeout     func()             // 超时任务取消函数。
 }
 
 type heartbeatLoop struct {
-	interval   time.Duration
-	timeout    time.Duration
-	cancelNext func()
-	onFailure  func(error)
+	interval   time.Duration // 心跳发送间隔。
+	timeout    time.Duration // 单次心跳超时。
+	cancelNext func()        // 下一次心跳任务取消函数。
+	onFailure  func(error)   // 心跳失败回调。
 }
 
 // Player 持有一个机器人的Token、Gateway Session、业务pending和后台心跳。
 // 所有状态方法必须在RobotService串行上下文调用；Session.Send和Close自身并发安全。
 type Player struct {
-	id               int64
-	state            State
-	token            string
-	gatewayAddress   string
-	session          network.Session
-	nextSequence     uint32
-	businessPending  *pendingRequest
-	heartbeatPending *pendingRequest
-	heartbeat        *heartbeatLoop
-	schedule         ScheduleFunc
-	onPush           func(InboundMessage)
-	failure          error
+	id               int64                // 稳定机器人标识。
+	state            State                // 当前客户端状态。
+	token            string               // 登录取得的敏感游戏 Token。
+	gatewayAddress   string               // 目标 Gateway 地址。
+	session          network.Session      // 当前底层网络会话。
+	nextSequence     uint32               // 下一个客户端请求序号。
+	businessPending  *pendingRequest      // 当前业务请求 Pending。
+	heartbeatPending *pendingRequest      // 当前心跳请求 Pending。
+	heartbeat        *heartbeatLoop       // 运行中的后台心跳。
+	schedule         ScheduleFunc         // 场景 Module 所有的 Timer 调度器。
+	onPush           func(InboundMessage) // 主动推送回调。
+	failure          error                // 终态失败原因。
 }
 
 // NewPlayer 创建尚未登录的机器人。

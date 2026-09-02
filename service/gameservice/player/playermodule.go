@@ -33,18 +33,18 @@ type playerOwnershipStore interface {
 
 // PlayerModule 是 Player、Proxy、连接索引和存档 Timer 的唯一生命周期所有者。
 type PlayerModule struct {
-	service.Module
-	mongoExecutor         dbexecutor.MongoExecutor
-	ownershipStore        playerOwnershipStore
-	gameService           playerownership.GameServiceInstance
-	realAreaID            int64
-	playersByKey          map[string]*Player
-	playersByConnectionID map[string]*Player
-	stopping              bool
-	gateway               GatewayClient
-	scanTimer             *time.Timer
-	slowLoadAt            time.Time
-	slowLoadSuppressed    uint64
+	service.Module                                            // Origin Module 生命周期能力。
+	mongoExecutor         dbexecutor.MongoExecutor            // 角色数据 MongoDB 执行器。
+	ownershipStore        playerOwnershipStore                // 玩家归属存储访问器。
+	gameService           playerownership.GameServiceInstance // 当前 GameService 实例身份。
+	realAreaID            int64                               // 本实例所属真实区服标识。
+	playersByKey          map[string]*Player                  // 稳定玩家键索引。
+	playersByConnectionID map[string]*Player                  // Gateway 连接索引。
+	stopping              bool                                // 是否已开始停止流程。
+	gateway               GatewayClient                       // Gateway 下行能力。
+	scanTimer             *time.Timer                         // 驻留玩家扫描 Timer。
+	slowLoadAt            time.Time                           // 上次慢加载日志时间。
+	slowLoadSuppressed    uint64                              // 已合并的慢加载日志数。
 }
 
 // NewPlayerModule 创建不持有数据库连接的 PlayerModule。

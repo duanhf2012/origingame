@@ -13,10 +13,10 @@ import (
 )
 
 type fakeSession struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	sent    [][]byte
-	sendErr error
+	ctx     context.Context    // 测试会话上下文。
+	cancel  context.CancelFunc // 会话取消函数。
+	sent    [][]byte           // 已发送消息。
+	sendErr error              // 预设发送错误。
 }
 
 func newFakeSession() *fakeSession {
@@ -43,16 +43,18 @@ func (*fakeSession) Cause() error                { return nil }
 func (*fakeSession) Stats() network.SessionStats { return network.SessionStats{} }
 
 type manualTimer struct {
-	callback func()
-	canceled bool
+	callback func() // 到期回调。
+	canceled bool   // 是否已取消。
 }
 
 type queuedTimer struct {
-	callback func()
-	canceled bool
+	callback func() // 到期回调。
+	canceled bool   // 是否已取消。
 }
 
-type manualScheduler struct{ timers []*queuedTimer }
+type manualScheduler struct {
+	timers []*queuedTimer // 已登记的测试计时器。
+}
 
 func (scheduler *manualScheduler) schedule(_ time.Duration, callback func()) (func(), error) {
 	timer := &queuedTimer{callback: callback}

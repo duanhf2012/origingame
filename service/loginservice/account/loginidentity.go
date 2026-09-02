@@ -17,15 +17,15 @@ const (
 
 // LoginCredential 是客户端提交、尚未被信任的平台登录凭证。
 type LoginCredential struct {
-	PlatType    LoginType
-	PlatID      string
-	AccessToken string
+	PlatType    LoginType // 客户端声明的平台类型。
+	PlatID      string    // 客户端提交的平台账号标识。
+	AccessToken string    // 供平台 SDK 验证的访问凭证。
 }
 
 // PlatformIdentity 是鉴权实现确认后的可信平台身份。
 type PlatformIdentity struct {
-	PlatType LoginType
-	PlatID   string
+	PlatType LoginType // 鉴权确认的平台类型。
+	PlatID   string    // 鉴权确认的平台账号标识。
 }
 
 // ValidLoginType 报告登录类型是否属于当前协议约定范围。

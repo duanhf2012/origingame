@@ -17,7 +17,7 @@ import (
 
 // MongoRepository 封装 LoginService 对 Account 集合的唯一写入入口。
 type MongoRepository struct {
-	executor dbexecutor.MongoExecutor
+	executor dbexecutor.MongoExecutor // 账号数据 MongoDB 执行器。
 }
 
 // NewMongoRepository 创建不持有数据库连接的账号仓储。

@@ -14,25 +14,27 @@ import (
 
 // TokenConfig 描述 LoginService 签发游戏 JWT 所需的不可变配置。
 type TokenConfig struct {
-	Issuer     string
-	Audience   string
-	Expire     time.Duration
-	ActiveKID  string
-	PrivateKey string
+	Issuer     string        // Token 签发方。
+	Audience   string        // Token 受众。
+	Expire     time.Duration // Token 有效期。
+	ActiveKID  string        // 当前签发公钥标识。
+	PrivateKey string        // Base64 编码的 Ed25519 私钥材料。
 }
 
 // GameClaims 只携带 Gateway 验签所需的标准 JWT Claims。
-type GameClaims struct{ jwt.RegisteredClaims }
+type GameClaims struct {
+	jwt.RegisteredClaims // JWT 标准声明。
+}
 
 // TokenIssuer 使用 Ed25519 私钥签发只面向 Gateway 的短期游戏 Token。
 type TokenIssuer struct {
-	issuer     string
-	audience   string
-	expire     time.Duration
-	activeKID  string
-	privateKey ed25519.PrivateKey
-	publicKey  ed25519.PublicKey
-	now        func() time.Time
+	issuer     string             // 已规范化的 Token 签发方。
+	audience   string             // 已规范化的 Token 受众。
+	expire     time.Duration      // 签发 Token 的有效期。
+	activeKID  string             // 当前签发公钥标识。
+	privateKey ed25519.PrivateKey // 用于签名的私钥。
+	publicKey  ed25519.PublicKey  // 可公开配置的验签公钥。
+	now        func() time.Time   // 真实系统时间来源。
 }
 
 // NewTokenIssuer 校验并冻结配置。PrivateKey 接受 Base64 编码的 32 字节 Seed 或 64 字节私钥。

@@ -13,11 +13,11 @@ import (
 
 // MongoDBModule 统一拥有 DBService 的 MongoDB Client 生命周期和通用执行入口。
 type MongoDBModule struct {
-	originmongo.Module
-	config originmongo.Config
+	originmongo.Module                    // Origin MongoDB 生命周期能力。
+	config             originmongo.Config // 已冻结的连接配置。
 
-	collectionsMu sync.RWMutex
-	collections   map[string]struct{}
+	collectionsMu sync.RWMutex        // 保护集合快照。
+	collections   map[string]struct{} // 启动时发现的允许集合。
 }
 
 // NewMongoDBModule 创建尚未连接的 MongoDB Module；配置在 Origin OnInit 阶段冻结。

@@ -6,10 +6,14 @@ import (
 	"sync/atomic"
 )
 
-type snapshot struct{ realByShow map[int64]int64 }
+type snapshot struct {
+	realByShow map[int64]int64 // 显示区服到真实区服的完整映射。
+}
 
 // Catalog 原子发布完整且不可变的区服映射。
-type Catalog struct{ current atomic.Pointer[snapshot] }
+type Catalog struct {
+	current atomic.Pointer[snapshot] // 原子发布的当前映射快照。
+}
 
 // Replace 校验并替换整份映射；失败不会覆盖上一份有效数据。
 func (catalog *Catalog) Replace(mapping map[int64]int64) error {

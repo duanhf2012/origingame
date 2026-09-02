@@ -17,8 +17,8 @@ func TestValidateRequestRejectsInvalidMongoOperations(t *testing.T) {
 	marker := rpcapi.MongoEstimatedDocumentCount(true)
 
 	tests := []struct {
-		name    string
-		request rpcapi.MongoRequest
+		name    string              // 测试名称。
+		request rpcapi.MongoRequest // 待校验请求。
 	}{
 		{name: "unspecified mode", request: rpcapi.MongoRequest{Operations: []rpcapi.MongoOperation{{}}}},
 		{name: "empty operations", request: rpcapi.MongoRequest{ExecuteMode: rpcapi.MongoExecuteModeSequential}},
@@ -180,15 +180,15 @@ func TestExecuteTransactionMarksEarlierResultsRolledBack(t *testing.T) {
 }
 
 type runResult struct {
-	result  rpcapi.MongoOperationResult
-	failure *rpcapi.MongoExecutionFailure
+	result  rpcapi.MongoOperationResult   // 操作执行结果。
+	failure *rpcapi.MongoExecutionFailure // 操作失败信息。
 }
 
 type fakeRunner struct {
-	results           []runResult
-	calls             int
-	transactionCalled bool
-	transactionErr    error
+	results           []runResult // 预设操作结果。
+	calls             int         // 已执行操作数。
+	transactionCalled bool        // 是否执行事务。
+	transactionErr    error       // 预设事务错误。
 }
 
 func (runner *fakeRunner) runOperation(context.Context, rpcapi.MongoOperation) (rpcapi.MongoOperationResult, *rpcapi.MongoExecutionFailure) {

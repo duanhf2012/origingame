@@ -13,8 +13,8 @@ import (
 )
 
 type connectGatewayNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*connectGatewayNode) GetName() string { return "RobotConnectGateway" }

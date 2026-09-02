@@ -10,8 +10,8 @@ import (
 )
 
 type waitNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*waitNode) GetName() string { return "RobotWait" }
@@ -39,8 +39,8 @@ func (node *waitNode) Exec() (int, error) {
 }
 
 type waitMessageNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*waitMessageNode) GetName() string { return "RobotWaitMessage" }
@@ -72,8 +72,8 @@ func (node *waitMessageNode) Exec() (int, error) {
 }
 
 type disconnectNode struct {
-	blueprintmodule.BaseExecNode
-	module *RobotScenarioModule
+	blueprintmodule.BaseExecNode                      // 蓝图节点基础能力。
+	module                       *RobotScenarioModule // 场景执行协调器。
 }
 
 func (*disconnectNode) GetName() string { return "RobotDisconnect" }

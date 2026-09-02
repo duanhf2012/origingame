@@ -13,8 +13,8 @@ import (
 
 func TestKeyExecutorRejectsInvalidCapacity(t *testing.T) {
 	tests := []struct {
-		io       int64
-		inflight int64
+		io       int64 // I/O 并发上限。
+		inflight int64 // 在途请求上限。
 	}{
 		{io: 0, inflight: 1},
 		{io: 1, inflight: 0},

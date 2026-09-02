@@ -18,7 +18,7 @@ type GameServiceCaller interface {
 
 // RPCGameServiceCaller 通过 Origin 服务发现定向调用指定的 GameService 实例。
 type RPCGameServiceCaller struct {
-	owner service.IService
+	owner service.IService // 用于绑定 GameService RPC 客户端的 GatewayService。
 }
 
 // NewRPCGameServiceCaller 创建由 GatewayService 装配的 GameService 调用器。

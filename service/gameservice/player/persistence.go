@@ -10,23 +10,23 @@ import (
 )
 
 type persistentDataEntry struct {
-	collection string
-	document   any
-	loaded     bool
-	generation uint64
-	saved      uint64
+	collection string // 所属 MongoDB 集合。
+	document   any    // 已登记的持久化文档指针。
+	loaded     bool   // 是否已从数据库应用数据。
+	generation uint64 // 最近一次变更代数。
+	saved      uint64 // 已成功保存的变更代数。
 }
 
 // SavePlan 固定一次存档请求与开始时的脏代数快照。
 type SavePlan struct {
-	Request   rpcapi.MongoRequest
-	snapshots []saveSnapshot
+	Request   rpcapi.MongoRequest // 固定的 MongoDB 保存请求。
+	snapshots []saveSnapshot      // 请求开始时的脏数据快照。
 }
 
 type saveSnapshot struct {
-	entry      *persistentDataEntry
-	generation uint64
-	insert     bool
+	entry      *persistentDataEntry // 对应已登记的持久化数据。
+	generation uint64               // 保存时的变更代数。
+	insert     bool                 // 是否执行首次插入。
 }
 
 func (player *Player) registerPersistentData(collection string, document any) (*persistentDataEntry, error) {

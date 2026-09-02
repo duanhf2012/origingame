@@ -26,45 +26,45 @@ const loginReadyDispatchKey = "login-ready"
 
 // Config 是 LoginService 完整配置；数据库连接配置只属于 AccDBService。
 type Config struct {
-	HTTP           HTTPConfig           `json:"http"`
-	Token          TokenConfig          `json:"token"`
-	Area           AreaConfig           `json:"area"`
-	Authentication AuthenticationConfig `json:"authentication"`
-	LoginRateLimit ratelimit.Config     `json:"login_rate_limit"`
+	HTTP           HTTPConfig           `json:"http"`             // 对外 HTTP 配置。
+	Token          TokenConfig          `json:"token"`            // Token 签发配置。
+	Area           AreaConfig           `json:"area"`             // 区服目录配置。
+	Authentication AuthenticationConfig `json:"authentication"`   // SDK 鉴权配置。
+	LoginRateLimit ratelimit.Config     `json:"login_rate_limit"` // 登录限流配置。
 }
 
 // HTTPConfig 保存对外 HTTP Server 配置。
 type HTTPConfig struct {
-	Server ginmodule.ServerConfig `json:"server"`
+	Server ginmodule.ServerConfig `json:"server"` // HTTP 监听配置。
 }
 
 // TokenConfig 保存 Ed25519 JWT 签发配置。
 type TokenConfig struct {
-	Issuer     string                `json:"issuer"`
-	Audience   string                `json:"audience"`
-	Expire     originconfig.Duration `json:"expire"`
-	ActiveKID  string                `json:"active_kid"`
-	PrivateKey string                `json:"private_key"`
+	Issuer     string                `json:"issuer"`      // Token 签发方。
+	Audience   string                `json:"audience"`    // Token 受众。
+	Expire     originconfig.Duration `json:"expire"`      // Token 有效期。
+	ActiveKID  string                `json:"active_kid"`  // 当前签发公钥标识。
+	PrivateKey string                `json:"private_key"` // Base64 编码私钥材料。
 }
 
 // AreaConfig 保存区服快照的自动刷新周期。
 type AreaConfig struct {
-	RefreshInterval originconfig.Duration `json:"refresh_interval"`
+	RefreshInterval originconfig.Duration `json:"refresh_interval"` // 区服目录刷新间隔。
 }
 
 // AuthenticationConfig 明确标记当前开发鉴权不会访问第三方平台。
 type AuthenticationConfig struct {
-	DevelopmentPassthrough bool `json:"development_passthrough"`
+	DevelopmentPassthrough bool `json:"development_passthrough"` // 是否使用开发透传鉴权。
 }
 
 // LoginService 装配公共 AccDBService 客户端和登录边界 Module。
 type LoginService struct {
-	service.Service
-	config  Config
-	accDB   rpcapi.DBServiceClient
-	http    *httpapi.LoginHTTPModule
-	refresh *area.AreaRefreshModule
-	catalog area.Catalog
+	service.Service                          // Origin Service 生命周期能力。
+	config          Config                   // LoginService 本地配置。
+	accDB           rpcapi.DBServiceClient   // 公共数据域 RPC 客户端。
+	http            *httpapi.LoginHTTPModule // HTTP 登录入口 Module。
+	refresh         *area.AreaRefreshModule  // 区服目录刷新 Module。
+	catalog         area.Catalog             // 当前显示区服目录。
 }
 
 // OnInit 严格解析配置，并按区服快照、HTTP 的依赖顺序登记 Module。
@@ -152,8 +152,8 @@ func dependencyNotReady(message string, err error) error {
 func (target *LoginService) loadConfig() error {
 	target.config = defaultConfig()
 	sections := []struct {
-		path        string
-		destination any
+		path        string // 配置节路径。
+		destination any    // 配置接收目标。
 	}{
 		{"http", &target.config.HTTP},
 		{"token", &target.config.Token},

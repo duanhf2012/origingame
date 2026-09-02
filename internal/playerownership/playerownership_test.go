@@ -11,7 +11,7 @@ import (
 )
 
 type testRedisExecutor struct {
-	execute func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error)
+	execute func(context.Context, string, rpcapi.RedisRequest) (rpcapi.RedisResult, error) // 模拟 Redis 执行。
 }
 
 func (executor testRedisExecutor) ExecuteRedis(ctx context.Context, key string, request rpcapi.RedisRequest) (rpcapi.RedisResult, error) {

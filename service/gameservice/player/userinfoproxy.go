@@ -3,7 +3,9 @@ package player
 import "time"
 
 // UserInfoProxy 拥有 CUserInfo 的初始化和全部业务修改入口。
-type UserInfoProxy struct{ BasePlayerProxy }
+type UserInfoProxy struct {
+	BasePlayerProxy // 提供所属玩家和默认生命周期回调。
+}
 
 func (proxy *UserInfoProxy) OnLoaded(ctx PlayerLoadContext) error {
 	if ctx.IsNewPlayer {

@@ -15,10 +15,10 @@ const (
 
 // InboundMessage 是已经完成公共头校验的Gateway下行消息。
 type InboundMessage struct {
-	MessageID commonpb.MessageID
-	Sequence  uint32
-	ErrorCode commonpb.ErrorCode
-	Body      []byte
+	MessageID commonpb.MessageID // Gateway 下行消息标识。
+	Sequence  uint32             // 对应请求序号，零表示主动推送。
+	ErrorCode commonpb.ErrorCode // 响应业务错误码。
+	Body      []byte             // 未解码业务负载。
 }
 
 // EncodeRequest 使用与Gateway相同的BigEndian客户端请求头。
