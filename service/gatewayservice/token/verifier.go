@@ -27,11 +27,13 @@ type Verifier struct {
 
 // NewVerifier 校验并冻结公钥配置；错误信息不会包含密钥内容。
 func NewVerifier(config Config) (*Verifier, error) {
+	// 规范化配置中的标识字段，避免空白字符改变校验语义。
 	config.Issuer = strings.TrimSpace(config.Issuer)
 	config.Audience = strings.TrimSpace(config.Audience)
 	if config.Issuer == "" || config.Audience == "" || len(config.PublicKeys) == 0 {
 		return nil, errors.New("token issuer、audience 和 public_keys 不能为空")
 	}
+	// 解码并复制每把公钥，冻结验证器持有的配置。
 	keys := make(map[string]ed25519.PublicKey, len(config.PublicKeys))
 	for kid, encoded := range config.PublicKeys {
 		kid = strings.TrimSpace(kid)
@@ -46,14 +48,17 @@ func NewVerifier(config Config) (*Verifier, error) {
 
 // Verify 返回签名可信且非空的 AccountID；失败时不区分内部原因给客户端。
 func (verifier *Verifier) Verify(raw string) (string, error) {
+	// 空 Token 或未初始化验证器直接按无效凭证处理。
 	if verifier == nil || strings.TrimSpace(raw) == "" {
 		return "", errors.New("token 无效")
 	}
+	// 使用固定算法、签发方、受众和有效期解析 Claims。
 	claims := &security.GameClaims{}
 	parsed, err := jwt.ParseWithClaims(
 		raw,
 		claims,
 		func(token *jwt.Token) (any, error) {
+			// 拒绝算法降级，并按 kid 选择已登记公钥。
 			if token.Method != jwt.SigningMethodEdDSA || token.Method.Alg() != jwt.SigningMethodEdDSA.Alg() {
 				return nil, errors.New("token alg 无效")
 			}
@@ -72,6 +77,7 @@ func (verifier *Verifier) Verify(raw string) (string, error) {
 		jwt.WithAudience(verifier.audience),
 		jwt.WithExpirationRequired(),
 	)
+	// 仅返回已验签且携带账号主体的 Token。
 	if err != nil || !parsed.Valid || strings.TrimSpace(claims.Subject) == "" {
 		return "", errors.New("token 无效")
 	}

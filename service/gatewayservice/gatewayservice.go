@@ -47,6 +47,7 @@ var _ rpcapi.GatewayService = (*GatewayService)(nil)
 
 // OnInit 按区服快照先于网络监听的顺序装配 Module。
 func (target *GatewayService) OnInit() error {
+	// 读取并校验 Gateway 本地配置。
 	if err := target.loadConfig(); err != nil {
 		return err
 	}
@@ -56,6 +57,7 @@ func (target *GatewayService) OnInit() error {
 	if err := target.SetDefaultAwaitTimeout(30 * time.Second); err != nil {
 		return err
 	}
+	// 初始化只在 Gateway 本地执行的 Token 验证器。
 	verifier, err := token.NewVerifier(target.config.Token)
 	if err != nil {
 		return fmt.Errorf("初始化 Gateway TokenVerifier: %w", err)
@@ -65,6 +67,7 @@ func (target *GatewayService) OnInit() error {
 		return errs.NewMessage(errs.CodeInvalidConfig, "GatewayService 缺少 NodeID")
 	}
 
+	// 通过公共数据域装配玩家归属和区服映射读取能力。
 	target.accDB = rpcapi.BindDBServiceTo(target, "AccDBService").WhereLabels(map[string]string{"scope": "pub"})
 	callDB := dbexecutor.NewCallExecutor(target.accDB)
 	target.ownershipStore = playerownership.NewPlayerOwnershipStore(callDB)
@@ -75,6 +78,7 @@ func (target *GatewayService) OnInit() error {
 	if err = target.AddModule(target.refresh); err != nil {
 		return err
 	}
+	// 在网络监听前注册统一的客户端入口。
 	target.client = client.NewGatewayClientModule(target.config.Client, client.Dependencies{
 		NodeID:         node.ID(),
 		Verifier:       verifier,
@@ -87,6 +91,7 @@ func (target *GatewayService) OnInit() error {
 
 // OnStart 确认公共 Redis 和登记 Script 可通过 AccDBService 执行。
 func (target *GatewayService) OnStart(ctx context.Context) error {
+	// 探测公共 Redis，避免依赖未就绪时对外提供登录服务。
 	result, err := target.accDB.Route(gatewayReadyDispatchKey).CallExecuteRedis(ctx, rpcapi.RedisRequest{
 		DispatchKey: gatewayReadyDispatchKey,
 		ExecuteMode: rpcapi.RedisExecuteModeCommand,
@@ -104,6 +109,7 @@ func (target *GatewayService) OnStart(ctx context.Context) error {
 
 // SendClientMessage 实现 GameService 的统一客户端下行入口。
 func (target *GatewayService) SendClientMessage(_ context.Context, request rpcapi.SendClientMessageRequest) error {
+	// 拒绝缺少本地连接标识的下行请求。
 	if request.GatewayConnectionID == "" {
 		return errs.ErrInvalidArgument
 	}
@@ -112,6 +118,7 @@ func (target *GatewayService) SendClientMessage(_ context.Context, request rpcap
 
 // CloseClientConnection 幂等关闭当前 Gateway Node 上的指定连接。
 func (target *GatewayService) CloseClientConnection(_ context.Context, request rpcapi.CloseClientConnectionRequest) error {
+	// 拒绝缺少本地连接标识的关闭请求。
 	if request.GatewayConnectionID == "" {
 		return errs.ErrInvalidArgument
 	}
@@ -120,6 +127,7 @@ func (target *GatewayService) CloseClientConnection(_ context.Context, request r
 }
 
 func (target *GatewayService) loadConfig() error {
+	// 先填充 Origin 网络层默认值，再由本地配置严格覆盖。
 	target.config.Client = client.DefaultConfig()
 	sections := []struct {
 		path string
@@ -131,6 +139,7 @@ func (target *GatewayService) loadConfig() error {
 		{"kcp", &target.config.Client.KCP},
 		{"websocket", &target.config.Client.WebSocket},
 	}
+	// 按职责分别读取，避免遗漏任一传输协议配置。
 	for _, section := range sections {
 		if err := target.GetServiceConfigStrict(section.path, section.to); err != nil {
 			return fmt.Errorf("读取 Gateway %s 配置: %w", section.path, err)

@@ -23,6 +23,7 @@ type RPCGameServiceCaller struct {
 
 // NewRPCGameServiceCaller 创建由 GatewayService 装配的 GameService 调用器。
 func NewRPCGameServiceCaller(owner service.IService) *RPCGameServiceCaller {
+	// 保存 GatewayService，供后续按玩家归属绑定 RPC 客户端。
 	return &RPCGameServiceCaller{owner: owner}
 }
 
@@ -32,6 +33,7 @@ func (caller *RPCGameServiceCaller) LoginPlayer(
 	gameService playerownership.GameServiceInstance,
 	request rpcapi.LoginPlayerRequest,
 ) (*commonpb.LoginPlayerResult, error) {
+	// 定向调用已分配的 GameService 完成玩家上线。
 	return caller.gameClient(gameService).CallLoginPlayer(ctx, request)
 }
 
@@ -40,6 +42,7 @@ func (caller *RPCGameServiceCaller) HandlePlayerMessage(
 	gameService playerownership.GameServiceInstance,
 	request rpcapi.PlayerMessageRequest,
 ) error {
+	// 使用 Notify 投递业务消息，不阻塞 Gateway 网络入口。
 	return caller.gameClient(gameService).NotifyHandlePlayerMessage(context.Background(), request)
 }
 
@@ -48,12 +51,14 @@ func (caller *RPCGameServiceCaller) PlayerDisconnected(
 	gameService playerownership.GameServiceInstance,
 	connectionID string,
 ) error {
+	// 使用 Notify 让归属实例异步回收连接状态。
 	return caller.gameClient(gameService).NotifyPlayerDisconnected(
 		context.Background(), rpcapi.PlayerDisconnectedRequest{GatewayConnectionID: connectionID},
 	)
 }
 
 func (caller *RPCGameServiceCaller) gameClient(gameService playerownership.GameServiceInstance) rpcapi.GameServiceClient {
+	// 以区服标签和节点标识精确路由到玩家归属实例。
 	return rpcapi.BindGameServiceTo(caller.owner, gameService.ServiceName).
 		WhereLabels(map[string]string{"scope": "area"}).OnNode(gameService.NodeID)
 }
